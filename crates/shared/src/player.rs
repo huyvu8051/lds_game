@@ -22,10 +22,6 @@ pub struct Player {
     /// it the velocity is whatever the keys say this instant, and letting go
     /// stops dead in one frame.
     pub horizontal_velocity: Vec3,
-    /// The surface underfoot, or up when there is none. Quake's
-    /// PM_CategorizePosition keeps the same thing, and for the same reason:
-    /// movement has to be clipped to the plane it is happening on.
-    pub ground_normal: Vec3,
 }
 
 #[derive(Component, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
