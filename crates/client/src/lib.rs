@@ -362,7 +362,7 @@ pub(crate) const UI_LAYOUT_HZ: u64 = 30;
 /// Overshoot per beat is exp(-2*pi*z / sqrt(1 - z*z)): at 0.70 that is 0.2%,
 /// which is not an overshoot, it is a straight line. At 0.22 it is 24% then
 /// 6% -- two beats off the mark and the third one on it.
-const ADS_SPRING_DAMPING: f32 = 0.22;
+const ADS_SPRING_DAMPING: f32 = 0.72;
 
 /// Degrees the weapon points off the sight line per unit of settling error.
 ///

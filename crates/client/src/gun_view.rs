@@ -554,10 +554,16 @@ pub(crate) fn gun_view_animation(
         let det_v = gun.ads_velocity + hoo * (ads_target - gun.ads_blend);
         gun.ads_blend = det_x * det_inv;
         gun.ads_velocity = det_v * det_inv;
-        // How far off the sight line the weapon is right now. Oscillates
-        // through zero and decays, so it is positive on the first beat,
-        // negative on the second, and gone by the third.
-        gun.ads_settle_error = gun.ads_blend - ads_target;
+        // How fast the sights are moving, as a fraction of how fast this
+        // weapon can move them. Oscillates through zero and decays, which is
+        // what the miss below is after.
+        //
+        // Not `ads_blend - ads_target`, which was the first attempt: the
+        // target is a step, so the instant the player let go of the sights it
+        // jumped from nearly nothing to a whole unit and threw the weapon
+        // seven degrees in one frame. Velocity is integrated state and cannot
+        // jump, however abruptly the player changes their mind.
+        gun.ads_settle_error = gun.ads_velocity / ads_rate.max(0.001);
 
         // Having aimed once means the player is working a sight line and will
         // likely aim again, so the gun waits near the middle instead of
