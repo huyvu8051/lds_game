@@ -20,6 +20,7 @@ pub struct GameHost {
     scene_ms: f32,
     prepass_ms: f32,
     draws: usize,
+    culled: usize,
     window_start: std::time::Instant,
 }
 
@@ -93,13 +94,14 @@ impl GameHost {
         self.scene_ms += t.scene_ms;
         self.prepass_ms += t.prepasses_ms;
         self.draws = t.draws;
+        self.culled = t.culled;
         let elapsed = self.window_start.elapsed().as_secs_f32();
         if elapsed < 1.0 {
             return;
         }
         let n = self.frames as f32;
         println!(
-            "[native] {:.0} fps | update {:.2} + wait {:.2} + book {:.2} + prepass {:.2} + scene {:.2} ms | {} draws",
+            "[native] {:.0} fps | update {:.2} + wait {:.2} + book {:.2} + prepass {:.2} + scene {:.2} ms | {} draws, {} culled",
             n / elapsed,
             self.update_ms / n,
             self.wait_ms / n,
@@ -107,6 +109,7 @@ impl GameHost {
             self.prepass_ms / n,
             self.scene_ms / n,
             self.draws,
+            self.culled,
         );
         use std::io::Write;
         let _ = std::io::stdout().flush();
@@ -162,6 +165,7 @@ pub extern "C" fn native_metal_probe_create_real_game(
         scene_ms: 0.0,
         prepass_ms: 0.0,
         draws: 0,
+        culled: 0,
         window_start: std::time::Instant::now(),
     })) as *mut std::ffi::c_void
 }
