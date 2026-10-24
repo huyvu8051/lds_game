@@ -641,22 +641,6 @@ pub(crate) fn gun_view_animation(
             .unwrap_or(Vec3::ZERO);
         let reload_swing = grip_in_gun - reload_turn * grip_in_gun;
 
-        // The miss, not the overshoot.
-        //
-        // The spring alone travelled *further along its own path* and came
-        // back, which reads as one straight line with a wobble at the end --
-        // the weapon was never pointing anywhere wrong, just briefly too far.
-        // What hands actually do is arrive off the mark and correct onto it.
-        //
-        // So the error is spent as rotation across the approach instead:
-        // high and left on the way up, low and right coming back, nothing by
-        // the last beat. Applied outside base_rotation, so it misaligns the
-        // optical correction rather than riding along with it -- the sight
-        // picture swings and settles, which is the whole point.
-        let miss = gun.ads_settle_error;
-        let settle_miss = Quat::from_rotation_x((ADS_SETTLE_PITCH_DEG * miss).to_radians())
-            * Quat::from_rotation_y((ADS_SETTLE_YAW_DEG * miss).to_radians());
-
         let base_rotation = Quat::from_rotation_z(settle_twist.to_radians())
             * reload_turn
             * Quat::IDENTITY.slerp(gun.optical_fix, gun.ads_blend);
@@ -679,6 +663,28 @@ pub(crate) fn gun_view_animation(
                 Vec3::new(0.0, 0.0, -active.def().ads_eye_relief) - base_rotation * in_gun.translation
             })
             .unwrap_or(resting);
+        // The miss, not the overshoot -- and across whichever way the weapon
+        // actually travelled, not a direction picked in advance.
+        //
+        // Overshooting along its own path reads as a straight line with a
+        // wobble: the weapon was never pointing anywhere wrong, just briefly
+        // too far. What hands do is arrive off the mark and correct onto it.
+        //
+        // The axis is travel crossed with the bore. A weapon coming up from
+        // the hip gets a pitch; one swinging in from the side gets a yaw; one
+        // arriving diagonally gets both, in the right proportion. Hard-coding
+        // pitch was wrong for exactly the case where the weapon comes across
+        // rather than up.
+        let travel = sighted - resting;
+        let settle_miss = Dir3::new(travel.cross(Vec3::NEG_Z))
+            .map(|axis| {
+                Quat::from_axis_angle(
+                    *axis,
+                    (ADS_SETTLE_MISS_DEG * gun.ads_settle_error).to_radians(),
+                )
+            })
+            .unwrap_or(Quat::IDENTITY);
+
         let base_pos = resting.lerp(sighted, gun.ads_blend) - Vec3::Z * view_pullback();
 
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);

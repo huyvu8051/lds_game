@@ -365,12 +365,13 @@ pub(crate) const UI_LAYOUT_HZ: u64 = 30;
 const ADS_SPRING_DAMPING: f32 = 0.22;
 
 /// Degrees the weapon points off the sight line per unit of settling error.
-/// Pitch leads yaw because a raise is mostly vertical: the weapon comes in
-/// high and a little inside, drops past, and the last beat is the one that
-/// lands. Set both to zero and the spring goes back to overshooting along its
-/// own path, which reads as a straight line with a wobble.
-const ADS_SETTLE_PITCH_DEG: f32 = 9.0;
-const ADS_SETTLE_YAW_DEG: f32 = 4.0;
+///
+/// One number, not a pitch and a yaw: the direction comes from the weapon's
+/// own travel, so a raise from the hip misses vertically and a swing from the
+/// side misses horizontally without either being spelled out. Zero puts the
+/// overshoot back along the path, which reads as a straight line with a
+/// wobble.
+const ADS_SETTLE_MISS_DEG: f32 = 9.0;
 
 const AIM_ZOOM_SPEED: f32 = 12.0;
 const AIM_SPREAD_MULTIPLIER: f32 = 0.35;
