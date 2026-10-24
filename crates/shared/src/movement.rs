@@ -91,6 +91,46 @@ pub fn resolve_slope_hit(hit: &mut MoveAndSlideHitData, input_velocity: Vec3, gr
     walkable
 }
 
+/// Reaches full speed in about a tenth of a second on the ground.
+pub const GROUND_ACCEL: f32 = 10.0;
+/// Air control, and deliberately a fraction of the ground figure: a jump
+/// should commit you to roughly where you were going.
+pub const AIR_ACCEL: f32 = 1.0;
+pub const GROUND_FRICTION: f32 = 8.0;
+/// The floor under the friction calculation, and the whole reason this stops
+/// rather than creeping. Scaling a velocity down by a fixed fraction each
+/// frame never reaches zero; holding the drop constant below this speed makes
+/// the last of it finite.
+pub const STOP_SPEED: f32 = 1.2;
+
+/// Quake's, near enough unchanged since 1996 and still what most shooters run.
+///
+/// Friction pulls down whatever direction you are already going; acceleration
+/// pushes along the one you are asking for. Turning falls out of the two
+/// without a turn rate existing anywhere -- a hard reverse decelerates and
+/// accelerates again because that is what the arithmetic does.
+///
+/// `add = wishspeed - current` is what keeps it honest: pushing along your own
+/// velocity can never take you past the limit, because the amount left to add
+/// shrinks to nothing as you approach it.
+pub fn accelerate(velocity: Vec3, wish_dir: Vec3, wish_speed: f32, accel: f32, dt: f32) -> Vec3 {
+    let current = velocity.dot(wish_dir);
+    let add = wish_speed - current;
+    if add <= 0.0 {
+        return velocity;
+    }
+    velocity + wish_dir * (accel * wish_speed * dt).min(add)
+}
+
+pub fn apply_friction(velocity: Vec3, friction: f32, dt: f32) -> Vec3 {
+    let speed = velocity.length();
+    if speed < 1.0e-4 {
+        return Vec3::ZERO;
+    }
+    let drop = speed.max(STOP_SPEED) * friction * dt;
+    velocity * (speed - drop).max(0.0) / speed
+}
+
 pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, player: &mut Player, stance: PlayerStance, input: &ClientInput, dt: f32) {
     if input.noclip {
         simulate_noclip_step(transform, input, dt);
@@ -118,10 +158,27 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     let yaw_rotation = Quat::from_rotation_y(input.yaw);
     let forward = yaw_rotation * Vec3::NEG_Z;
     let right = yaw_rotation * Vec3::X;
-    let mut horizontal = forward * input.move_axis.y + right * input.move_axis.x;
-    if horizontal != Vec3::ZERO {
-        horizontal = horizontal.normalize() * move_speed;
+    // The direction asked for, not the velocity. What the player gets is
+    // whatever friction and acceleration leave behind.
+    let wish = forward * input.move_axis.y + right * input.move_axis.x;
+    let wish_dir = wish.normalize_or_zero();
+
+    // Friction first, then acceleration, in that order -- the same order
+    // Quake uses. Reversed, a standing start would be scaled down by friction
+    // on the very frame it was granted and the first step would be short.
+    //
+    // Only on the ground: in the air there is nothing to rub against, which is
+    // what makes a jump commit you to the direction you left at.
+    let mut horizontal = if player.grounded {
+        apply_friction(player.horizontal_velocity, GROUND_FRICTION, dt)
+    } else {
+        player.horizontal_velocity
+    };
+    let accel = if player.grounded { GROUND_ACCEL } else { AIR_ACCEL };
+    if wish_dir != Vec3::ZERO {
+        horizontal = accelerate(horizontal, wish_dir, move_speed, accel, dt);
     }
+    horizontal.y = 0.0;
 
     let mut vertical_velocity = player.vertical_velocity;
     if player.grounded {
@@ -140,6 +197,7 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     // read as a wall and slide the player off it.
     let filter = SpatialQueryFilter::from_mask(GameLayer::Default);
 
+    let before = transform.translation;
     let was_grounded = player.grounded;
     let mut grounded_this_frame = false;
     let output = mover.move_and_slide(
@@ -178,6 +236,16 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     transform.translation = stepped_up.unwrap_or(output.position);
     player.grounded = grounded_this_frame || stepped_up.is_some();
     player.vertical_velocity = if player.grounded { vertical_velocity.min(0.0) } else { vertical_velocity };
+    // What the solver actually allowed, not what was asked for. Carrying the
+    // requested velocity instead would let a player held against a wall build
+    // up speed they never travelled at, and release it the moment they turned
+    // away from it.
+    let moved = transform.translation - before;
+    player.horizontal_velocity = if dt > 0.0 {
+        Vec3::new(moved.x, 0.0, moved.z) / dt
+    } else {
+        Vec3::ZERO
+    };
 }
 
 fn simulate_noclip_step(transform: &mut Transform, input: &ClientInput, dt: f32) {

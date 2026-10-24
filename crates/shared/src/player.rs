@@ -18,6 +18,10 @@ pub enum GameLayer {
 pub struct Player {
     pub vertical_velocity: f32,
     pub grounded: bool,
+    /// Carried between frames so movement can have momentum at all. Without
+    /// it the velocity is whatever the keys say this instant, and letting go
+    /// stops dead in one frame.
+    pub horizontal_velocity: Vec3,
 }
 
 #[derive(Component, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

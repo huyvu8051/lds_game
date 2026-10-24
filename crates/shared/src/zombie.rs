@@ -14,6 +14,10 @@ pub struct ZombieMotion {
     pub moving: bool,
     pub path_recalc_timer: f32,
     pub cached_path_dir: Vec3,
+    /// Carried between ticks, like the player's. A corpse that changes
+    /// direction instantly reads as a sprite being dragged; one that has to
+    /// lean into a turn reads as something with weight.
+    pub horizontal_velocity: Vec3,
 }
 
 #[derive(Component, Default)]
@@ -405,6 +409,12 @@ pub const ZOMBIE_AVOID_PROBE_DISTANCE: f32 = 2.5;
 pub const ZOMBIE_AVOID_ANGLES_DEG: [f32; 6] = [25.0, -25.0, 50.0, -50.0, 80.0, -80.0];
 pub const ZOMBIE_SEPARATION_RADIUS: f32 = 1.1;
 pub const ZOMBIE_SEPARATION_STRENGTH: f32 = 1.2;
+
+/// Slower to get going and slower to stop than the player, which is most of
+/// what separates something shambling from something sprinting. Friction is
+/// low enough that a turn carries it wide rather than pivoting on the spot.
+pub const ZOMBIE_ACCEL: f32 = 5.0;
+pub const ZOMBIE_FRICTION: f32 = 4.0;
 pub const KNOCKBACK_DECAY_RATE: f32 = 6.0;
 
 pub const ZOMBIE_TURN_RATE_DEG: f32 = 180.0;

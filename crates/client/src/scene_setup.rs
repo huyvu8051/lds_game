@@ -298,6 +298,7 @@ pub(crate) fn setup_gameplay(
         Name::new("Player"),
         Transform::from_translation(player_spawn),
         Player {
+            horizontal_velocity: Vec3::ZERO,
             vertical_velocity: 0.0,
             grounded: false,
         },

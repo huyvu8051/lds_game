@@ -454,7 +454,32 @@ fn move_zombies(
 
         knockback.0 *= (-KNOCKBACK_DECAY_RATE * time.delta_secs()).exp();
 
-        let velocity = horizontal_velocity + knockback.0 + Vec3::Y * motion.vertical_velocity;
+        // The same model the player runs: friction against where it is already
+        // going, acceleration towards where it wants to go. Turning falls out
+        // of the two rather than being a rate anyone picked.
+        //
+        // Slower on both counts than the player. A zombie leaning into a turn
+        // is the point; one that pivots on the spot is what this replaces.
+        let wish_speed = horizontal_velocity.length();
+        let wish_dir = horizontal_velocity.normalize_or_zero();
+        let mut steered = shared::movement::apply_friction(
+            motion.horizontal_velocity,
+            shared::ZOMBIE_FRICTION,
+            time.delta_secs(),
+        );
+        if wish_dir != Vec3::ZERO {
+            steered = shared::movement::accelerate(
+                steered,
+                wish_dir,
+                wish_speed,
+                shared::ZOMBIE_ACCEL,
+                time.delta_secs(),
+            );
+        }
+        steered.y = 0.0;
+        motion.horizontal_velocity = steered;
+
+        let velocity = steered + knockback.0 + Vec3::Y * motion.vertical_velocity;
 
         let shape = Collider::capsule(ZOMBIE_MOVE_RADIUS, ZOMBIE_OUTER_HEIGHT - 2.0 * ZOMBIE_MOVE_RADIUS);
         let config = MoveAndSlideConfig::default();
