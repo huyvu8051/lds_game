@@ -240,9 +240,15 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     // requested velocity instead would let a player held against a wall build
     // up speed they never travelled at, and release it the moment they turned
     // away from it.
+    //
+    // Capped at what was asked for, because not all of the movement is
+    // travel. try_step_up teleports the capsule onto a ledge -- a correction,
+    // not a journey -- and a third of a metre over one frame reads as thirty
+    // metres a second. Carried forward, that launched the player off every
+    // kerb they walked up.
     let moved = transform.translation - before;
     player.horizontal_velocity = if dt > 0.0 {
-        Vec3::new(moved.x, 0.0, moved.z) / dt
+        (Vec3::new(moved.x, 0.0, moved.z) / dt).clamp_length_max(horizontal.length())
     } else {
         Vec3::ZERO
     };
