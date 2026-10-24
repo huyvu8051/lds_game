@@ -7,37 +7,14 @@ use crate::{
     PRONE_LENGTH, PRONE_SPEED_MULTIPLIER, SPRINT_MULTIPLIER,
 };
 
-const PROGRESS_MEANING_UNOBSTRUCTED: f32 = 0.7;
-const MIN_HEADROOM_FRACTION: f32 = 0.5;
+/// Under this a contact is sideways or behind and did not stand in the way.
+const OPPOSING_CONTACT: f32 = 0.01;
 const LANDING_PROBE_OVERSHOOT: f32 = 0.05;
 
-/// How far the raised capsule moves forward looking for somewhere to land.
-/// Close to PLAYER_RADIUS on purpose -- a round-bottomed capsule has to clear
-/// most of its own radius before a downward probe finds the tread instead of
-/// the riser.
-const STEP_FORWARD_PROBE: f32 = 0.3;
-
-/// The tallest thing that can be walked onto without jumping.
-///
-/// 0.45 was Quake's eighteen units and Source's eighteen inches, which is
-/// knee height and the reason those games feel like they catch on nothing.
-/// 0.6 is mid-thigh: crates, low walls and the lip of a pavement all stop
-/// being obstacles.
-///
-/// It is not free. Anything this tall becomes walkable, so a waist-high wall
-/// meant to stop someone no longer does, and the capsule rises this far in
-/// one frame wherever it fires. Zombies read the same constant, so they clear
-/// the same ledges.
-pub const STEP_HEIGHT: f32 = 0.6;
-
-pub fn blocked_horizontally(start: Vec3, end: Vec3, horizontal_velocity: Vec3, dt: f32) -> bool {
-    let wanted = horizontal_velocity.length() * dt;
-    if wanted <= 1e-4 {
-        return false;
-    }
-    let moved = Vec3::new(end.x - start.x, 0.0, end.z - start.z).length();
-    moved < wanted * PROGRESS_MEANING_UNOBSTRUCTED
-}
+/// The tallest thing that can be walked onto without jumping. Just under
+/// Quake's eighteen units and Source's eighteen inches, both about 0.45.
+/// Zombies read the same constant.
+pub const STEP_HEIGHT: f32 = 0.4;
 
 /// TEMPORARY: `NO_STEP_UP=1` refuses every step, so the slide move has to
 /// manage ramps and stairs on its own. Here to see what it does without.
@@ -46,16 +23,30 @@ fn step_up_disabled() -> bool {
     *OFF.get_or_init(|| std::env::var("NO_STEP_UP").is_ok())
 }
 
+/// Where a step put the capsule, and what it landed on. Landing on something
+/// too steep to stand on does not refuse the step -- Quake steps first and
+/// decides about ground separately, so the caller reads the normal.
+#[derive(Clone, Copy)]
+pub struct StepUp {
+    pub position: Vec3,
+    pub ground_normal: Vec3,
+}
+
+/// Quake's PM_StepSlideMove: when the slide met something, run the move again
+/// from a step-height higher and keep whichever attempt got further. No test
+/// for how badly the slide was obstructed -- both thresholds that stood here
+/// were wrong, the last by one percent at a 45 degree approach.
 pub fn try_step_up(
     mover: &MoveAndSlide,
     shape: &Collider,
     rotation: Quat,
     start: Vec3,
+    slid_to: Vec3,
     horizontal_velocity: Vec3,
     config: &MoveAndSlideConfig,
     filter: &SpatialQueryFilter,
     dt: f32,
-) -> Option<Vec3> {
+) -> Option<StepUp> {
     if step_up_disabled() {
         return None;
     }
@@ -63,14 +54,12 @@ pub fn try_step_up(
     if speed < 1e-4 {
         return None;
     }
+    let direction = horizontal_velocity / speed;
 
     let headroom = mover
         .spatial_query
         .cast_shape(shape, start, rotation, Dir3::Y, &ShapeCastConfig::from_max_distance(STEP_HEIGHT), filter)
         .map_or(STEP_HEIGHT, |hit| hit.distance);
-    if headroom < STEP_HEIGHT * MIN_HEADROOM_FRACTION {
-        return None;
-    }
 
     let raised = start + Vec3::Y * headroom;
     let stepped = mover.move_and_slide(
@@ -78,25 +67,9 @@ pub fn try_step_up(
         raised,
         rotation,
         horizontal_velocity,
-        // Far enough to clear the capsule past what stopped it, not one
-        // frame's worth.
-        //
-        // This looked like the bug: it hands over a fixed distance whatever
-        // the frame took, which at 120Hz read as 36 m/s. Replacing it with dt
-        // stopped the ramps and stopped the stairs with them -- 0.03m leaves
-        // a capsule of radius 0.35 still overlapping the riser it was trying
-        // to get over, so the downward probe lands back on the riser face
-        // rather than on the tread.
-        //
-        // Quake gets away with a short advance because its player is a box
-        // with a flat bottom: clearing an edge takes almost nothing. A round
-        // bottom has to travel most of its radius first.
-        //
-        // The distance was never the problem. The problem was how often this
-        // ran: every frame on a slope, because the slide move could not climb
-        // one. Now that it can, this fires once per step, which is what it
-        // was sized for.
-        std::time::Duration::from_secs_f32(STEP_FORWARD_PROBE / speed),
+        // The same frame the slide got, or the raised attempt wins the
+        // comparison on length alone whatever it met.
+        std::time::Duration::from_secs_f32(dt.max(0.0)),
         config,
         filter,
         |_| MoveAndSlideHitResponse::Accept,
@@ -110,10 +83,12 @@ pub fn try_step_up(
         &ShapeCastConfig::from_max_distance(headroom + LANDING_PROBE_OVERSHOOT),
         filter,
     )?;
-    if landing.normal1.y <= ground_normal_min_y() {
+
+    let position = stepped.position - Vec3::Y * landing.distance;
+    if (position - start).dot(direction) <= (slid_to - start).dot(direction) {
         return None;
     }
-    Some(stepped.position - Vec3::Y * landing.distance)
+    Some(StepUp { position, ground_normal: Vec3::from(landing.normal1) })
 }
 
 fn slope_tangent(normal: Vec3) -> Vec3 {
@@ -227,14 +202,9 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     // does and why it needs no step for a ramp.
     //
     // Fed in flat, a walk into an up-slope points into the surface: the solver
-    // has to slide it off, and most of the forward motion goes with it.
-    // Horizontal progress then falls under what blocked_horizontally calls
-    // obstructed, step-up fires -- every frame, on a slope -- and each one is
-    // a free teleport up and along. That is the fast slide, and it was never
-    // about velocity.
-    //
-    // Clipped, the walk already runs along the slope and arrives with its
-    // speed intact, so nothing reads as blocked and no step is asked for.
+    // has to slide it off, and most of the forward motion goes with it, so a
+    // ramp gets climbed at a crawl. Clipped, the walk already runs along the
+    // slope and arrives with its speed intact.
     if player.grounded && player.ground_normal.y > 0.0 {
         let into_ground = horizontal.dot(player.ground_normal);
         if into_ground < 0.0 {
@@ -284,6 +254,8 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     let before = transform.translation;
     let was_grounded = player.grounded;
     let mut grounded_this_frame = false;
+    let mut obstructed = false;
+    let heading = Vec3::new(velocity.x, 0.0, velocity.z).normalize_or_zero();
     let mut ground_normal = Vec3::ZERO;
     let output = mover.move_and_slide(
         &shape,
@@ -304,20 +276,28 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
                     ground_normal = normal;
                 }
             }
+            // Walkable is not the same as out of the way: a round bottom
+            // meets a low ledge on its top edge, where the normal is
+            // 1 - height/radius, so anything under 17.5cm reads as floor.
+            // Facing back against the heading is what being in the way is.
+            if -hit.normal.as_vec3().dot(heading) > OPPOSING_CONTACT {
+                obstructed = true;
+            }
             MoveAndSlideHitResponse::Accept
         },
     );
 
     let horizontal_velocity = Vec3::new(velocity.x, 0.0, velocity.z);
-    let stepped_up = was_grounded
-        .then(|| blocked_horizontally(transform.translation, output.position, horizontal_velocity, dt))
-        .unwrap_or(false)
+    // Quake refuses a step while still going up, so a jump brushing a ledge
+    // is a jump and not a free lift onto it.
+    let stepped_up = (was_grounded && obstructed && vertical_velocity <= 0.0)
         .then(|| {
             try_step_up(
                 &mover,
                 &shape,
                 transform.rotation,
                 transform.translation,
+                output.position,
                 horizontal_velocity,
                 &config,
                 &filter,
@@ -326,8 +306,12 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
         })
         .flatten();
 
-    transform.translation = stepped_up.unwrap_or(output.position);
-    player.grounded = grounded_this_frame || stepped_up.is_some();
+    transform.translation = stepped_up.map_or(output.position, |step| step.position);
+    if let Some(step) = stepped_up.filter(|step| step.ground_normal.y > ground_normal_min_y()) {
+        grounded_this_frame = true;
+        ground_normal = step.ground_normal;
+    }
+    player.grounded = grounded_this_frame;
     player.ground_normal = if ground_normal == Vec3::ZERO { Vec3::Y } else { ground_normal };
     player.vertical_velocity = if player.grounded { vertical_velocity.min(0.0) } else { vertical_velocity };
     // What the solver actually allowed, not what was asked for. Carrying the

@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::combat::*;
 use crate::map::*;
 use big_brain::prelude::*;
-use shared::movement::{blocked_horizontally, resolve_slope_hit, try_step_up};
+use shared::movement::{resolve_slope_hit, try_step_up};
 use shared::{
     entity_phase, Chase, ClearAllZombies,
     GameOver, Health, KnockbackVelocity,
@@ -486,6 +486,8 @@ fn move_zombies(
 
         let was_grounded = motion.grounded;
         let mut grounded_this_frame = false;
+        let mut obstructed = false;
+        let heading = Vec3::new(velocity.x, 0.0, velocity.z).normalize_or_zero();
         let output = mover.move_and_slide(
             &shape,
             transform.translation,
@@ -498,30 +500,33 @@ fn move_zombies(
                 if resolve_slope_hit(&mut hit, velocity, was_grounded) {
                     grounded_this_frame = true;
                 }
+                if -hit.normal.as_vec3().dot(heading) > 0.01 {
+                    obstructed = true;
+                }
                 MoveAndSlideHitResponse::Accept
             },
         );
 
-        let dt = time.delta_secs();
         let step_velocity = Vec3::new(velocity.x, 0.0, velocity.z);
-        let blocked = was_grounded && blocked_horizontally(transform.translation, output.position, step_velocity, dt);
-        let stepped_up = blocked
+        let stepped_up = (was_grounded && obstructed && motion.vertical_velocity <= 0.0)
             .then(|| {
                 try_step_up(
                     &mover,
                     &shape,
                     transform.rotation,
                     transform.translation,
+                    output.position,
                     step_velocity,
                     &config,
                     &filter,
-                    dt,
+                    time.delta_secs(),
                 )
             })
             .flatten();
 
-        transform.translation = stepped_up.unwrap_or(output.position);
-        motion.grounded = grounded_this_frame || stepped_up.is_some();
+        transform.translation = stepped_up.map_or(output.position, |step| step.position);
+        motion.grounded = grounded_this_frame
+            || stepped_up.is_some_and(|step| step.ground_normal.y > shared::ground_normal_min_y());
         motion.vertical_velocity = if motion.grounded { motion.vertical_velocity.min(0.0) } else { motion.vertical_velocity };
 
         if horizontal_velocity != Vec3::ZERO {
