@@ -18,11 +18,11 @@ pub(crate) struct WeaponDef {
     /// lands on the camera axis, which is the whole of ads_offset.
     pub(crate) ads_eye_relief: f32,
     pub(crate) ads_speed: AdsSpeed,
-    /// Degrees the weapon points off the sight line per unit of settling
+    /// Metres the weapon slides off the sight line per unit of settling
     /// velocity -- how far it misses before it corrects on. Scaled roughly
     /// against how fast each weapon handles: the one that comes up slowest
     /// also has the most mass to stop.
-    pub(crate) ads_settle_miss_deg: f32,
+    pub(crate) ads_settle_miss_m: f32,
     /// What the main camera's field of view is multiplied by while sighted.
     /// This is the whole of the magnification on irons, and only the pull
     /// around the glass on a weapon that has any -- so the better the scope,
@@ -183,7 +183,7 @@ static AK47: WeaponDef = WeaponDef {
     ready_offset: Vec3::new(0.045, -0.1905, -0.6194),
     ads_eye_relief: 0.12,
     ads_speed: AdsSpeed { from_ready: 8.0, from_rest: 5.5 },
-    ads_settle_miss_deg: 1.8,
+    ads_settle_miss_m: 0.028,
     aim_fov_multiplier: 0.35,
     autopilot_ads_min_distance: 7.0,
     autopilot_engage_range: 30.0,
@@ -234,7 +234,7 @@ static M4A1: WeaponDef = WeaponDef {
     ready_offset: Vec3::new(0.071, -0.2268, -0.536),
     ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
-    ads_settle_miss_deg: 0.9,
+    ads_settle_miss_m: 0.014,
     aim_fov_multiplier: 0.45,
     autopilot_ads_min_distance: 7.0,
     autopilot_engage_range: 30.0,
@@ -294,7 +294,7 @@ static M24: WeaponDef = WeaponDef {
     // there is still room before the near plane at 100mm.
     ads_eye_relief: 0.20,
     ads_speed: AdsSpeed { from_ready: 5.5, from_rest: 2.575 },
-    ads_settle_miss_deg: 2.6,
+    ads_settle_miss_m: 0.040,
     aim_fov_multiplier: 0.25,
     autopilot_ads_min_distance: 32.0,
     autopilot_engage_range: 60.0,

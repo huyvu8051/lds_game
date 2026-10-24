@@ -362,7 +362,7 @@ pub(crate) const UI_LAYOUT_HZ: u64 = 30;
 /// Overshoot per beat is exp(-2*pi*z / sqrt(1 - z*z)): at 0.70 that is 0.2%,
 /// which is not an overshoot, it is a straight line. At 0.22 it is 24% then
 /// 6% -- two beats off the mark and the third one on it.
-const ADS_SPRING_DAMPING: f32 = 0.72;
+const ADS_SPRING_DAMPING: f32 = 0.52;
 
 /// Degrees the weapon points off the sight line per unit of settling error.
 ///
@@ -372,16 +372,6 @@ const ADS_SPRING_DAMPING: f32 = 0.72;
 /// overshoot back along the path, which reads as a straight line with a
 /// wobble.
 
-/// Metres in front of the muzzle that the settle rotation pivots about.
-///
-/// The weapon is rigid: the bore tilts by the settle angle and the sight
-/// picture moves by exactly that much, pivot or no pivot. The pivot only sets
-/// the stock's lever arm. Out here, the butt swings several times further per
-/// degree than it would about the mesh origin, so the angle can come down and
-/// take the reticle sweep down with it while the wobble stays.
-///
-/// Zero puts it back on the muzzle, where the mesh origin is.
-const ADS_SETTLE_PIVOT_FORWARD: f32 = 1.2;
 
 const AIM_ZOOM_SPEED: f32 = 12.0;
 const AIM_SPREAD_MULTIPLIER: f32 = 0.35;

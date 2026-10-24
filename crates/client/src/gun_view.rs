@@ -669,42 +669,28 @@ pub(crate) fn gun_view_animation(
                 Vec3::new(0.0, 0.0, -active.def().ads_eye_relief) - base_rotation * in_gun.translation
             })
             .unwrap_or(resting);
-        // The miss, not the overshoot -- and across whichever way the weapon
-        // actually travelled, not a direction picked in advance.
+        // Slides off the sight line and corrects on, without turning.
         //
-        // Overshooting along its own path reads as a straight line with a
-        // wobble: the weapon was never pointing anywhere wrong, just briefly
-        // too far. What hands do is arrive off the mark and correct onto it.
+        // This was a rotation, which cannot work here: the reticle takes its
+        // position from the bore direction, and rotating a rigid weapon about
+        // any pivot turns the bore by the full angle. Moving the pivot forward
+        // lengthens the stock's lever but does nothing for the bore, so the
+        // sight picture swung by the whole miss -- and a scope multiplies it,
+        // 1.4 degrees filling a third of a 12x view.
         //
-        // The axis is travel crossed with the bore. A weapon coming up from
-        // the hip gets a pitch; one swinging in from the side gets a yaw; one
-        // arriving diagonally gets both, in the right proportion. Hard-coding
-        // pitch was wrong for exactly the case where the weapon comes across
-        // rather than up.
+        // A translation leaves the bore pointing where it was. The weapon
+        // visibly overshoots and settles; the reticle does not move at all,
+        // because nothing it reads has changed.
+        //
+        // Across the approach, not along it: along was the first attempt and
+        // read as one straight line with a wobble on the end, because the
+        // weapon was never anywhere it had not been going anyway.
         let travel = sighted - resting;
-        let settle_miss = Dir3::new(travel.cross(Vec3::NEG_Z))
-            .map(|axis| {
-                Quat::from_axis_angle(
-                    *axis,
-                    (active.def().ads_settle_miss_deg * gun.ads_settle_error).to_radians(),
-                )
+        let settle_offset = Dir3::new(travel.cross(Vec3::NEG_Z))
+            .map(|across| {
+                *across * (active.def().ads_settle_miss_m * gun.ads_settle_error)
             })
-            .unwrap_or(Quat::IDENTITY);
-
-        // Swings the stock without taking the barrel with it.
-        //
-        // A rigid weapon cannot do that on its own: tilt the bore by an angle
-        // and the sight picture moves by exactly that angle, whatever it is
-        // pivoting about. What the pivot does change is how far the stock
-        // travels per degree -- it is the length of the lever.
-        //
-        // The mesh origin sits on the bore at the muzzle, so rotating as
-        // authored gives the stock a lever of about its own length. Moving the
-        // pivot out in front of the muzzle lengthens that lever without
-        // touching the angle, which is what buys a visible wobble at the butt
-        // for an almost still reticle.
-        let settle_pivot = Vec3::NEG_Z * ADS_SETTLE_PIVOT_FORWARD;
-        let settle_offset = settle_pivot - settle_miss * settle_pivot;
+            .unwrap_or(Vec3::ZERO);
 
         let base_pos =
             resting.lerp(sighted, gun.ads_blend) - Vec3::Z * view_pullback() + settle_offset;
@@ -723,7 +709,6 @@ pub(crate) fn gun_view_animation(
         transform.rotation = Quat::from_rotation_x(wall_raise_tilt)
             * Quat::from_rotation_y(gun.look_sway.x.to_radians())
             * Quat::from_rotation_x(gun.look_sway.y.to_radians())
-            * settle_miss
             * Quat::from_rotation_z(timings.bob_roll.to_radians())
             * Quat::from_rotation_x(timings.bob_pitch.to_radians())
             * Quat::from_rotation_y(kick.weapon.yaw_deg.to_radians() * gun.recoil_roll * timings.recoil_t)
