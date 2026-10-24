@@ -10,7 +10,6 @@ use crate::{
 const PROGRESS_MEANING_UNOBSTRUCTED: f32 = 0.7;
 const MIN_HEADROOM_FRACTION: f32 = 0.5;
 const LANDING_PROBE_OVERSHOOT: f32 = 0.05;
-const STEP_FORWARD_PROBE: f32 = 0.3;
 
 pub const STEP_HEIGHT: f32 = 0.45;
 
@@ -31,6 +30,7 @@ pub fn try_step_up(
     horizontal_velocity: Vec3,
     config: &MoveAndSlideConfig,
     filter: &SpatialQueryFilter,
+    dt: f32,
 ) -> Option<Vec3> {
     let speed = horizontal_velocity.length();
     if speed < 1e-4 {
@@ -51,7 +51,16 @@ pub fn try_step_up(
         raised,
         rotation,
         horizontal_velocity,
-        std::time::Duration::from_secs_f32(STEP_FORWARD_PROBE / speed),
+        // The frame's own time, not a duration worked backwards from a fixed
+        // distance. The old `0.3 / speed` handed this attempt
+        // 75ms at walking pace -- nine times a 120Hz frame -- and nine times
+        // the time is nine times the distance, which is the whole of how a
+        // 4 m/s walk measured 36 m/s up a ramp.
+        //
+        // Quake's PM_StepSlideMove retries the same move with the same
+        // velocity and the same frame time, and keeps whichever attempt got
+        // further. The velocity was never the invented part; the clock was.
+        std::time::Duration::from_secs_f32(dt.max(0.0)),
         config,
         filter,
         |_| MoveAndSlideHitResponse::Accept,
@@ -256,27 +265,11 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
                 horizontal_velocity,
                 &config,
                 &filter,
+                dt,
             )
         })
         .flatten();
 
-    // A step may lift, but it may not outrun the walk.
-    //
-    // try_step_up probes forward by a fixed STEP_FORWARD_PROBE rather than by
-    // speed * dt, so each success hands over that distance whatever the frame
-    // time was. On stairs it fires once per step and reads as a nudge. On a
-    // slope it fires every frame -- 0.3m at 120Hz is 36 m/s, which is exactly
-    // what walking up a 25 degree ramp measured.
-    //
-    // Clamping the horizontal part leaves the lift alone, so stairs still
-    // clear, and leaves the decision to step alone, which is what broke them
-    // last time.
-    let stepped_up = stepped_up.map(|position| {
-        let offset = position - transform.translation;
-        let flat = Vec3::new(offset.x, 0.0, offset.z);
-        let allowed = horizontal_velocity.length() * dt;
-        transform.translation + Vec3::Y * offset.y + flat.clamp_length_max(allowed)
-    });
     transform.translation = stepped_up.unwrap_or(output.position);
     player.grounded = grounded_this_frame || stepped_up.is_some();
     player.ground_normal = if ground_normal == Vec3::ZERO { Vec3::Y } else { ground_normal };

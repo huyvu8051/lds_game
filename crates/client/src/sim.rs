@@ -515,6 +515,7 @@ fn move_zombies(
                     step_velocity,
                     &config,
                     &filter,
+                    dt,
                 )
             })
             .flatten();
