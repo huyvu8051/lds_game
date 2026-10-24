@@ -11,7 +11,24 @@ const PROGRESS_MEANING_UNOBSTRUCTED: f32 = 0.7;
 const MIN_HEADROOM_FRACTION: f32 = 0.5;
 const LANDING_PROBE_OVERSHOOT: f32 = 0.05;
 
-pub const STEP_HEIGHT: f32 = 0.45;
+/// How far the raised capsule moves forward looking for somewhere to land.
+/// Close to PLAYER_RADIUS on purpose -- a round-bottomed capsule has to clear
+/// most of its own radius before a downward probe finds the tread instead of
+/// the riser.
+const STEP_FORWARD_PROBE: f32 = 0.3;
+
+/// The tallest thing that can be walked onto without jumping.
+///
+/// 0.45 was Quake's eighteen units and Source's eighteen inches, which is
+/// knee height and the reason those games feel like they catch on nothing.
+/// 0.6 is mid-thigh: crates, low walls and the lip of a pavement all stop
+/// being obstacles.
+///
+/// It is not free. Anything this tall becomes walkable, so a waist-high wall
+/// meant to stop someone no longer does, and the capsule rises this far in
+/// one frame wherever it fires. Zombies read the same constant, so they clear
+/// the same ledges.
+pub const STEP_HEIGHT: f32 = 0.6;
 
 pub fn blocked_horizontally(start: Vec3, end: Vec3, horizontal_velocity: Vec3, dt: f32) -> bool {
     let wanted = horizontal_velocity.length() * dt;
@@ -20,6 +37,13 @@ pub fn blocked_horizontally(start: Vec3, end: Vec3, horizontal_velocity: Vec3, d
     }
     let moved = Vec3::new(end.x - start.x, 0.0, end.z - start.z).length();
     moved < wanted * PROGRESS_MEANING_UNOBSTRUCTED
+}
+
+/// TEMPORARY: `NO_STEP_UP=1` refuses every step, so the slide move has to
+/// manage ramps and stairs on its own. Here to see what it does without.
+fn step_up_disabled() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var("NO_STEP_UP").is_ok())
 }
 
 pub fn try_step_up(
@@ -32,6 +56,9 @@ pub fn try_step_up(
     filter: &SpatialQueryFilter,
     dt: f32,
 ) -> Option<Vec3> {
+    if step_up_disabled() {
+        return None;
+    }
     let speed = horizontal_velocity.length();
     if speed < 1e-4 {
         return None;
@@ -51,16 +78,25 @@ pub fn try_step_up(
         raised,
         rotation,
         horizontal_velocity,
-        // The frame's own time, not a duration worked backwards from a fixed
-        // distance. The old `0.3 / speed` handed this attempt
-        // 75ms at walking pace -- nine times a 120Hz frame -- and nine times
-        // the time is nine times the distance, which is the whole of how a
-        // 4 m/s walk measured 36 m/s up a ramp.
+        // Far enough to clear the capsule past what stopped it, not one
+        // frame's worth.
         //
-        // Quake's PM_StepSlideMove retries the same move with the same
-        // velocity and the same frame time, and keeps whichever attempt got
-        // further. The velocity was never the invented part; the clock was.
-        std::time::Duration::from_secs_f32(dt.max(0.0)),
+        // This looked like the bug: it hands over a fixed distance whatever
+        // the frame took, which at 120Hz read as 36 m/s. Replacing it with dt
+        // stopped the ramps and stopped the stairs with them -- 0.03m leaves
+        // a capsule of radius 0.35 still overlapping the riser it was trying
+        // to get over, so the downward probe lands back on the riser face
+        // rather than on the tread.
+        //
+        // Quake gets away with a short advance because its player is a box
+        // with a flat bottom: clearing an edge takes almost nothing. A round
+        // bottom has to travel most of its radius first.
+        //
+        // The distance was never the problem. The problem was how often this
+        // ran: every frame on a slope, because the slide move could not climb
+        // one. Now that it can, this fires once per step, which is what it
+        // was sized for.
+        std::time::Duration::from_secs_f32(STEP_FORWARD_PROBE / speed),
         config,
         filter,
         |_| MoveAndSlideHitResponse::Accept,
@@ -218,7 +254,27 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     }
     vertical_velocity += GRAVITY * dt;
 
-    let velocity = horizontal + Vec3::Y * vertical_velocity;
+    // The push that keeps the feet on the ground goes along the ground's own
+    // normal, not straight down.
+    //
+    // Straight down is fine on the flat and wrong on a slope: it aims into
+    // the hill and cancels the climb the ground clip produced a few lines
+    // above, which is why that clip looked like it did nothing. It worked for
+    // exactly one line.
+    //
+    // With the step switched off, a 30 degree ramp could not be climbed at
+    // all -- so the step had been doing the climbing all along, on slopes as
+    // well as stairs, one teleport per frame. That is the whole of the fast
+    // slide, and it was never the step's fault: it was covering for this.
+    //
+    // Quake never hits this because it does not add a downward velocity while
+    // walking. Staying on the ground is a separate trace there, not something
+    // mixed into the movement vector.
+    let velocity = if player.grounded && vertical_velocity < 0.0 && player.ground_normal.y > 0.0 {
+        horizontal - player.ground_normal * vertical_velocity.abs()
+    } else {
+        horizontal + Vec3::Y * vertical_velocity
+    };
     let shape = Collider::capsule(PLAYER_RADIUS, capsule_length);
     let config = MoveAndSlideConfig::default();
     // Debris is excluded: a shell landing inside the capsule would otherwise
