@@ -340,6 +340,8 @@ pub fn extract_render_snapshot(
 
     snapshot.map_msaa_on = world.resource::<crate::MapMsaaOn>().0;
     snapshot.shadow_quality = world.resource::<crate::ShadowQuality>().0;
+    snapshot.shadow_static = world.resource::<crate::StaticShadows>().0;
+    snapshot.shadow_dynamic = world.resource::<crate::DynamicShadows>().0;
     snapshot.light_quality = world.resource::<crate::LightQuality>().0;
     snapshot.point_light_quality = world.resource::<crate::PointLightQuality>().0;
     snapshot.render_resolution_scale = world.resource::<crate::RenderResolutionScale>().0;

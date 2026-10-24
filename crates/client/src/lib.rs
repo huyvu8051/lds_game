@@ -513,6 +513,30 @@ struct PerfTimings {
 
 /// Radians the view turned this frame, after sensitivity and magnification.
 /// The weapon lags this, not the raw mouse; see LOOK_SWAY_SENSITIVITY.
+/// Whether the map casts into the runtime shadow map.
+///
+/// Off by default now that the map's shadows are baked: the lightmap's green
+/// channel already says whether the sun reaches each texel and the probe grid
+/// says it for anything standing in the air. Re-casting the whole map every
+/// frame repeats work that is already in a texture.
+#[derive(Resource)]
+pub(crate) struct StaticShadows(pub(crate) bool);
+impl Default for StaticShadows {
+    fn default() -> Self {
+        Self(false)
+    }
+}
+
+/// Whether zombies, the player and the weapon cast. This one cannot be baked
+/// -- a shadow that moves is not a property of the map -- so it stays on.
+#[derive(Resource)]
+pub(crate) struct DynamicShadows(pub(crate) bool);
+impl Default for DynamicShadows {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 #[derive(Resource, Default)]
 struct MouseLookDelta(Vec2);
 
@@ -674,6 +698,8 @@ impl Plugin for GamePlugin {
         .init_resource::<GunVisible>()
         .init_resource::<MapMsaaOn>()
         .init_resource::<ShadowQuality>()
+        .init_resource::<StaticShadows>()
+        .init_resource::<DynamicShadows>()
         .init_resource::<LightQuality>()
         .init_resource::<PointLightQuality>()
         .init_resource::<ScopeCameraEnabled>()

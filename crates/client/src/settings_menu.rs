@@ -403,6 +403,8 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                         ..default()
                     })
                     .with_children(|row| {
+                        spawn_cheat_toggle_button(row, "MapShdw", CheatStaticShadowButton);
+                        spawn_cheat_toggle_button(row, "ChrShdw", CheatDynamicShadowButton);
                         spawn_cheat_toggle_button(row, "MSAA", CheatMsaaButton);
                         spawn_cheat_toggle_button(row, "Scope", CheatScopeCameraButton);
                         spawn_cheat_toggle_button(row, "AimTgl", AimToggleButton);
@@ -654,6 +656,16 @@ pub(crate) struct AimToggleButton;
 
 #[derive(Component)]
 pub(crate) struct CheatMuzzleSmokeButton;
+
+/// The map casting into the shadow map at runtime. Off by default -- the
+/// lightmap already carries the map's own shadows.
+#[derive(Component)]
+pub(crate) struct CheatStaticShadowButton;
+
+/// Zombies, the player and the weapon casting. Cannot be baked.
+#[derive(Component)]
+pub(crate) struct CheatDynamicShadowButton;
+
 #[derive(Component)]
 pub(crate) struct CheatPortSmokeButton;
 #[derive(Component)]
@@ -828,16 +840,27 @@ pub(crate) fn cheat_toggle_buttons_2(
     mut zombie_anim: ResMut<ZombieAnimDisabled>,
     mut zombie_health_bars: ResMut<ZombieHealthBarsHidden>,
     mut smoke: (ResMut<MuzzleSmokeEnabled>, ResMut<PortSmokeEnabled>, ResMut<BarrelSmokeEnabled>),
+    mut shadows: (ResMut<crate::StaticShadows>, ResMut<crate::DynamicShadows>),
     hitboxes_btn: Query<&Interaction, (With<CheatHitboxesButton>, Changed<Interaction>)>,
     aim_blur_btn: Query<&Interaction, (With<CheatAimBlurButton>, Changed<Interaction>)>,
     zombie_anim_btn: Query<&Interaction, (With<CheatZombieAnimButton>, Changed<Interaction>)>,
     zombie_health_bars_btn: Query<&Interaction, (With<CheatZombieHealthBarsButton>, Changed<Interaction>)>,
+    shadow_btn: (
+        Query<&Interaction, (With<CheatStaticShadowButton>, Changed<Interaction>)>,
+        Query<&Interaction, (With<CheatDynamicShadowButton>, Changed<Interaction>)>,
+    ),
     smoke_btn: (
         Query<&Interaction, (With<CheatMuzzleSmokeButton>, Changed<Interaction>)>,
         Query<&Interaction, (With<CheatPortSmokeButton>, Changed<Interaction>)>,
         Query<&Interaction, (With<CheatBarrelSmokeButton>, Changed<Interaction>)>,
     ),
 ) {
+    if tapped(&shadow_btn.0) {
+        shadows.0.0 = !shadows.0.0;
+    }
+    if tapped(&shadow_btn.1) {
+        shadows.1.0 = !shadows.1.0;
+    }
     if tapped(&hitboxes_btn) {
         show_hitboxes.0 = !show_hitboxes.0;
     }
@@ -923,6 +946,7 @@ pub(crate) fn update_cheat_toggle_colors(
     gun_visible: Res<GunVisible>,
     map_msaa: Res<MapMsaaOn>,
     smoke: (Res<MuzzleSmokeEnabled>, Res<PortSmokeEnabled>, Res<BarrelSmokeEnabled>),
+    shadows: (Res<crate::StaticShadows>, Res<crate::DynamicShadows>),
     mut buttons: Query<
         (
             &mut BackgroundColor,
@@ -938,6 +962,8 @@ pub(crate) fn update_cheat_toggle_colors(
             Option<&CheatMuzzleSmokeButton>,
             Option<&CheatPortSmokeButton>,
             Option<&CheatBarrelSmokeButton>,
+            Option<&CheatStaticShadowButton>,
+            Option<&CheatDynamicShadowButton>,
         ),
         Or<(
             With<CheatNoclipButton>,
@@ -952,14 +978,23 @@ pub(crate) fn update_cheat_toggle_colors(
             With<CheatMuzzleSmokeButton>,
             With<CheatPortSmokeButton>,
             With<CheatBarrelSmokeButton>,
+            With<CheatStaticShadowButton>,
+            With<CheatDynamicShadowButton>,
         )>,
     >,
 ) {
     let color_for = |on: bool| if on { Color::srgba(0.3, 1.0, 0.4, 0.5) } else { Color::srgba(1.0, 1.0, 1.0, 0.2) };
-    for (mut bg, noclip_m, god_m, freeze_m, hitboxes_m, aim_blur_m, zombie_anim_m, zombie_hp_m, gun_m, msaa_m, puff_m, port_m, trail_m) in
+    for (
+        mut bg, noclip_m, god_m, freeze_m, hitboxes_m, aim_blur_m, zombie_anim_m, zombie_hp_m,
+        gun_m, msaa_m, puff_m, port_m, trail_m, map_shadow_m, chr_shadow_m,
+    ) in
         &mut buttons
     {
-        let on = if noclip_m.is_some() {
+        let on = if map_shadow_m.is_some() {
+            shadows.0.0
+        } else if chr_shadow_m.is_some() {
+            shadows.1.0
+        } else if noclip_m.is_some() {
             noclip.0
         } else if god_m.is_some() {
             god_mode.0
