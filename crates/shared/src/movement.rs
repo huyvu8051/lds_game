@@ -197,7 +197,6 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     // read as a wall and slide the player off it.
     let filter = SpatialQueryFilter::from_mask(GameLayer::Default);
 
-    let before = transform.translation;
     let was_grounded = player.grounded;
     let mut grounded_this_frame = false;
     let output = mover.move_and_slide(
@@ -241,17 +240,23 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     // up speed they never travelled at, and release it the moment they turned
     // away from it.
     //
-    // Capped at what was asked for, because not all of the movement is
-    // travel. try_step_up teleports the capsule onto a ledge -- a correction,
-    // not a journey -- and a third of a metre over one frame reads as thirty
-    // metres a second. Carried forward, that launched the player off every
-    // kerb they walked up.
-    let moved = transform.translation - before;
-    player.horizontal_velocity = if dt > 0.0 {
-        (Vec3::new(moved.x, 0.0, moved.z) / dt).clamp_length_max(horizontal.length())
-    } else {
-        Vec3::ZERO
-    };
+    // From the solver's own resolved velocity, not from how far the capsule
+    // ended up. Deriving it from displacement was what launched the player
+    // off kerbs: try_step_up teleports onto a ledge, and a third of a metre
+    // across one frame divides out as thirty metres a second.
+    //
+    // Quake avoids the problem by never creating that displacement. Its step
+    // is not a patch applied after a failed move -- it re-runs the same move
+    // from a raised start, keeps whichever attempt travelled further
+    // horizontally, and takes the velocity from the attempt that won. The
+    // velocity is always a move's velocity, so there is nothing spurious to
+    // divide.
+    //
+    // This cannot re-run the move, but it can stop inventing a velocity: the
+    // solver reports what it resolved to, and a successful step means the
+    // move was not really blocked, so the asked-for velocity stands.
+    let resolved = if stepped_up.is_some() { horizontal } else { output.projected_velocity };
+    player.horizontal_velocity = Vec3::new(resolved.x, 0.0, resolved.z);
 }
 
 fn simulate_noclip_step(transform: &mut Transform, input: &ClientInput, dt: f32) {
