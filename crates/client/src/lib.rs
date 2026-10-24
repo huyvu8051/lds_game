@@ -354,15 +354,16 @@ pub(crate) const PHYSICS_SUBSTEPS: u32 = 4;
 pub(crate) const UI_LAYOUT_HZ: u64 = 30;
 
 /// Damping ratio of the spring that raises the sights. Below 1 is
-/// underdamped, which is what overshoots: at 0.30 the weapon goes about 14%
-/// past the sight line, comes back 2%, and settles -- two beats, each a
-/// seventh of the one before. Raise it towards 1 for a weapon that arrives
-/// and stops; lower it for one that wallows.
-/// 0.22, because two beats is what was asked for and 0.70 cannot give them.
-/// Overshoot per beat is exp(-2*pi*z / sqrt(1 - z*z)): at 0.70 that is 0.2%,
-/// which is not an overshoot, it is a straight line. At 0.22 it is 24% then
-/// 6% -- two beats off the mark and the third one on it.
-const ADS_SPRING_DAMPING: f32 = 0.52;
+/// underdamped, which is what overshoots.
+///
+/// Overshoot per beat is exp(-2*pi*z / sqrt(1 - z*z)), so the dial is far from
+/// linear: 0.2 gives 28% then 8%, two clear beats; 0.5 gives 2%, one soft
+/// nudge; 0.7 gives 0.2%, which is not an overshoot at all. Most of the
+/// character lives below 0.4.
+///
+/// Settled at 0.72 by hand, with the slide and tilt in weapon.rs carrying the
+/// visible part rather than the spring.
+const ADS_SPRING_DAMPING: f32 = 0.72;
 
 /// Degrees the weapon points off the sight line per unit of settling error.
 ///
