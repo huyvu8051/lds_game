@@ -273,6 +273,20 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     }
                 });
 
+                // Beside Shadow quality, and outside the Cheats block below:
+                // these decide what casts, which is a setting, not a cheat.
+                // The whole cheats section is cfg(debug_assertions) and a
+                // release build never had them at all.
+                page.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(8.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    spawn_cheat_toggle_button(row, "MapShdw", CheatStaticShadowButton);
+                    spawn_cheat_toggle_button(row, "ChrShdw", CheatDynamicShadowButton);
+                });
+
                 page.spawn((
                     Text::new("Light quality"),
                     TextFont {
@@ -403,8 +417,6 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                         ..default()
                     })
                     .with_children(|row| {
-                        spawn_cheat_toggle_button(row, "MapShdw", CheatStaticShadowButton);
-                        spawn_cheat_toggle_button(row, "ChrShdw", CheatDynamicShadowButton);
                         spawn_cheat_toggle_button(row, "MSAA", CheatMsaaButton);
                         spawn_cheat_toggle_button(row, "Scope", CheatScopeCameraButton);
                         spawn_cheat_toggle_button(row, "AimTgl", AimToggleButton);
@@ -1329,6 +1341,39 @@ pub(crate) fn update_settings_menu(visible: Res<SettingsMenuVisible>, mut menu: 
         return;
     };
     node.display = if visible.0 { Display::Flex } else { Display::None };
+}
+
+/// `SETTINGS_MENU_PAGE=<n>` opens the menu on that page and leaves it there.
+///
+/// The menu cannot be reached from a script otherwise -- it takes a key to
+/// open and two more to page across -- so a screenshot of it needed a way in
+/// that is not a keyboard. Same purpose as CAPTURE_SCREENSHOT_TO, and inert
+/// without the variable.
+pub(crate) fn open_settings_menu_from_env(
+    mut visible: ResMut<SettingsMenuVisible>,
+    mut page_index: ResMut<SettingsMenuPageIndex>,
+    mut scroll: Query<&mut ScrollPosition, With<SettingsMenuRoot>>,
+    mut done: Local<bool>,
+) {
+    if *done {
+        return;
+    }
+    let Ok(page) = std::env::var("SETTINGS_MENU_PAGE") else {
+        *done = true;
+        return;
+    };
+    *done = true;
+    visible.0 = true;
+    if let Ok(page) = page.parse::<usize>() {
+        page_index.0 = page.saturating_sub(1).min(SETTINGS_MENU_PAGE_COUNT - 1);
+    }
+    // Layout clamps this to the content, so asking for more than exists shows
+    // the bottom -- which is the quickest way to see where the bottom is.
+    if let Some(y) = std::env::var("SETTINGS_MENU_SCROLL").ok().and_then(|v| v.parse().ok()) {
+        if let Ok(mut scroll) = scroll.single_mut() {
+            scroll.y = y;
+        }
+    }
 }
 
 pub(crate) fn settings_menu_page_buttons(

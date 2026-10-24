@@ -782,6 +782,7 @@ impl Plugin for GamePlugin {
                 (
                     toggle_settings_menu,
                     update_settings_menu,
+                    open_settings_menu_from_env,
                     settings_menu_page_buttons,
                     update_settings_menu_pages,
                     update_mouse_ui_lock_indicator,
