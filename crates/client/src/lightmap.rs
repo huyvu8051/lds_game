@@ -31,6 +31,16 @@ pub(crate) struct LightmapAtlasFile {
     pub(crate) meshes: Vec<LightmapMesh>,
 }
 
+/// Mirrors `mapbake_editor::lightprobes::ProbeGrid`.
+#[derive(Deserialize)]
+pub(crate) struct ProbeGrid {
+    pub(crate) origin: [f32; 3],
+    pub(crate) spacing: f32,
+    pub(crate) dims: [u32; 3],
+    pub(crate) positive: Vec<u8>,
+    pub(crate) negative: Vec<u8>,
+}
+
 #[derive(Resource, Default)]
 pub(crate) struct Lightmap {
     /// Behind an Arc so the extractor can take a handle on it without copying
@@ -38,6 +48,7 @@ pub(crate) struct Lightmap {
     /// mesh queries want one.
     pub(crate) by_key: std::sync::Arc<HashMap<u64, LightmapMesh>>,
     pub(crate) texture: Option<(Vec<u8>, u32)>,
+    pub(crate) probes: Option<ProbeGrid>,
 }
 
 /// The same hash `mapbake_editor` computes, over the same numbers.
@@ -108,10 +119,21 @@ pub(crate) fn load(map_dir: &std::path::Path) -> Lightmap {
         })
         .inspect(|(_, size)| info!("[lightmap] atlas texture {size}x{size}"));
 
+    let probes = std::fs::read(map_dir.join("lightprobes.bin"))
+        .ok()
+        .and_then(|bytes| {
+            bincode::serde::decode_from_slice::<ProbeGrid, _>(&bytes, bincode::config::standard())
+                .ok()
+        })
+        .map(|(grid, _)| grid)
+        .inspect(|grid| {
+            info!("[lightmap] {}x{}x{} probes at {}m", grid.dims[0], grid.dims[1], grid.dims[2], grid.spacing)
+        });
+
     if by_key.is_empty() || texture.is_none() {
         warn!("[lightmap] no bake found beside the map -- falling back to flat ambient");
     }
-    Lightmap { by_key, texture }
+    Lightmap { by_key, texture, probes }
 }
 
 /// Rewrites a mesh onto its atlas vertices.

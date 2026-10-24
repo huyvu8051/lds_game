@@ -140,6 +140,15 @@ pub extern "C" fn native_metal_probe_create_real_game(
         if let Some((rgba, size)) = lightmap.texture.as_ref() {
             renderer.set_lightmap(rgba, *size);
         }
+        if let Some(grid) = lightmap.probes.as_ref() {
+            renderer.set_light_probes(
+                &grid.positive,
+                &grid.negative,
+                grid.dims,
+                grid.origin,
+                grid.spacing,
+            );
+        }
     }
 
     Box::into_raw(Box::new(GameHost {
