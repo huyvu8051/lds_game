@@ -562,6 +562,26 @@ pub(crate) fn save_player_model_tuning(
     }
 }
 
+
+/// A number in -1..1 per shot, from a counter rather than the clock.
+///
+/// It was `sin(elapsed * 641.0)`, sampled only when a shot went off. Shots
+/// land on whole frames -- the cooldown is set to fire_rate and counted down
+/// by dt -- so the phase advanced by a fixed amount each shot, set by frame
+/// rate against fire rate. At 120Hz the M4 drew 18.7 degrees of it per shot
+/// and a magazine came out as one smooth ramp rather than jitter, while the
+/// AK's 270.8 flipped sign most shots and looked fine. Which weapon broke was
+/// a matter of what the panel ran at.
+///
+/// PCG-RXS-M-XS: the state advances by a plain LCG and the output is hashed
+/// out of it, so consecutive draws share nothing.
+fn shot_jitter(state: &mut u32) -> f32 {
+    *state = state.wrapping_mul(747_796_405).wrapping_add(2_891_336_453);
+    let inner = ((*state >> ((*state >> 28) + 4)) ^ *state).wrapping_mul(277_803_737);
+    let hashed = (inner >> 22) ^ inner;
+    (hashed as f32 / u32::MAX as f32) * 2.0 - 1.0
+}
+
 pub(crate) fn shoot(
     mut commands: Commands,
     time: Res<Time>,
@@ -621,7 +641,7 @@ pub(crate) fn shoot(
     gun.ammo -= 1;
     gun.recoil_target = 1.0;
 
-    gun.recoil_roll = ops::sin(time.elapsed_secs() * 641.0);
+    gun.recoil_jitter = Vec2::new(shot_jitter(&mut gun.recoil_rng), shot_jitter(&mut gun.recoil_rng));
     commands.spawn((AudioPlayer(vfx_assets.gunshot.of(active.0)), PlaybackSettings::DESPAWN, GunshotVoice));
     if gun.ammo == 0 {
 
@@ -636,8 +656,7 @@ pub(crate) fn shoot(
     let kick = &active.def().recoil;
     recoil.climb_target = (recoil.climb_target + kick.view.climb_per_shot).min(kick.view.climb_max);
 
-    let jitter = ops::sin(time.elapsed_secs() * 977.0);
-    recoil.wander_target += jitter * kick.view.wander_per_shot;
+    recoil.wander_target += shot_jitter(&mut gun.recoil_rng) * kick.view.wander_per_shot;
     recoil.shove_target = (recoil.shove_target + kick.view.shove_per_shot).min(kick.view.shove_max);
 
     let stance = vfx_assets.stance.single().copied().unwrap_or_default();

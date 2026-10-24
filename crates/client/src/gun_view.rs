@@ -447,6 +447,15 @@ pub(crate) fn update_scope_lens(
     }
 }
 
+/// Where the look sway turns the weapon about, ahead of the weapon's own
+/// origin and down the bore.
+///
+/// It does not change where the weapon points -- a rigid body turned by an
+/// angle about any point turns its bore by that angle, so the reticle sweeps
+/// the same wherever this sits. What it picks is which part of the weapon
+/// holds still on screen while the rest swings.
+const SWAY_PIVOT_DOWN_BORE: f32 = 0.40;
+
 pub(crate) fn gun_view_animation(
     trigger_grip: Query<&GlobalTransform, With<TriggerGripSocket>>,
     time: Res<Time>,
@@ -611,16 +620,24 @@ pub(crate) fn gun_view_animation(
         gun.shoulder_blend += (shoulder_target - gun.shoulder_blend) * shoulder_step;
 
 
-        // Late to a turn, not rolled by one. Both meshes put their origin on
-        // the muzzle, so this pivots there: the barrel holds its aim and the
-        // stock swings out. Negated because the weapon is still aimed back
-        // where the view was, opposite the way it just moved.
+        // Late to a turn, not rolled by one. Negated because the weapon is
+        // still aimed back where the view was, opposite the way it just moved.
         let lag = -look_delta;
         let sway_target = (lag * LOOK_SWAY_SENSITIVITY)
             .clamp(Vec2::splat(-LOOK_SWAY_MAX_DEG), Vec2::splat(LOOK_SWAY_MAX_DEG));
-        let sway_step = (LOOK_SWAY_SPEED * time.delta_secs()).min(1.0);
-        let sway_gap = sway_target - gun.look_sway;
-        gun.look_sway += sway_gap * sway_step;
+        // The same damped spring the sights ride: an exponential ease can only
+        // arrive from one side, so the weapon stopped dead whenever a turn
+        // ended. The target here is how fast the view is turning right now,
+        // not a step, so it falls to zero the instant the turn stops and the
+        // spring is what carries the weapon on past it.
+        let omega = LOOK_SWAY_FREQUENCY;
+        let f = 1.0 + 2.0 * dt * LOOK_SWAY_DAMPING * omega;
+        let hoo = dt * omega * omega;
+        let hhoo = dt * hoo;
+        let det_inv = 1.0 / (f + hhoo);
+        let (x, v) = (gun.look_sway, gun.look_sway_velocity);
+        gun.look_sway = (x * f + v * dt + sway_target * hhoo) * det_inv;
+        gun.look_sway_velocity = (v + (sway_target - x) * hoo) * det_inv;
 
         let kick = &active.def().recoil;
         let timings = gun_pose_timings(&gun, active.def(), &cycle);
@@ -711,9 +728,28 @@ pub(crate) fn gun_view_animation(
         let base_pos =
             resting.lerp(sighted, gun.ads_blend) - Vec3::Z * view_pullback() + settle_offset;
 
+        let outer = Quat::from_rotation_x(WALL_GUN_RAISE_ROT_DEG.to_radians() * gun.wall_raise);
+        let sway = Quat::from_rotation_y(gun.look_sway.x.to_radians())
+            * Quat::from_rotation_x(gun.look_sway.y.to_radians());
+        let inner = settle_tilt
+            * Quat::from_rotation_z(timings.bob_roll.to_radians())
+            * Quat::from_rotation_x(timings.bob_pitch.to_radians())
+            * Quat::from_rotation_y(kick.weapon.yaw_deg.to_radians() * gun.recoil_jitter.x * timings.recoil_t)
+            * Quat::from_rotation_z(kick.weapon.roll_deg.to_radians() * gun.recoil_jitter.y * timings.recoil_t)
+            * Quat::from_rotation_x(kick.weapon.pitch_deg.to_radians() * timings.recoil_t)
+            * base_rotation;
+
+        // Turning about a point means turning, then putting back what the turn
+        // moved that point by -- the same arithmetic reload_swing uses. Taken
+        // through the rotations either side, since they carry the pivot
+        // before and after the sway reaches it.
+        let turned = inner * (Vec3::NEG_Z * SWAY_PIVOT_DOWN_BORE);
+        let sway_swing = outer * (turned - sway * turned);
+
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);
         transform.translation = Vec3::new(swapped_x, base_pos.y, base_pos.z)
             + reload_swing
+            + sway_swing
             + Vec3::new(
                 timings.bob_x,
                 kick.weapon.lift * timings.recoil_t - RELOAD_DIP * timings.dip - timings.bob_y
@@ -721,17 +757,7 @@ pub(crate) fn gun_view_animation(
                 kick.weapon.slide_back * timings.recoil_t,
             );
 
-        let wall_raise_tilt = WALL_GUN_RAISE_ROT_DEG.to_radians() * gun.wall_raise;
-        transform.rotation = Quat::from_rotation_x(wall_raise_tilt)
-            * Quat::from_rotation_y(gun.look_sway.x.to_radians())
-            * Quat::from_rotation_x(gun.look_sway.y.to_radians())
-            * settle_tilt
-            * Quat::from_rotation_z(timings.bob_roll.to_radians())
-            * Quat::from_rotation_x(timings.bob_pitch.to_radians())
-            * Quat::from_rotation_y(kick.weapon.yaw_deg.to_radians() * gun.recoil_roll * timings.recoil_t)
-            * Quat::from_rotation_z(kick.weapon.roll_deg.to_radians() * gun.recoil_roll * timings.recoil_t)
-            * Quat::from_rotation_x(kick.weapon.pitch_deg.to_radians() * timings.recoil_t)
-            * base_rotation;
+        transform.rotation = outer * sway * inner;
     }
 }
 

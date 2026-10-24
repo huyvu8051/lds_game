@@ -85,13 +85,22 @@ pub(crate) struct Gun {
     pub(crate) ready_blend: f32,
     pub(crate) ready_armed: bool,
 
-    pub(crate) recoil_roll: f32,
+    /// Yaw and roll of the kick, drawn fresh each shot. Two numbers rather
+    /// than one scaling both: sharing a scalar fixes the direction of the
+    /// kick and only varies how far along it the weapon goes.
+    pub(crate) recoil_jitter: Vec2,
+    /// Advanced once per draw, so the sequence depends on shots fired rather
+    /// than on when they were fired.
+    pub(crate) recoil_rng: u32,
 
 
     /// How far the weapon is still turned away from where the view now points,
     /// as yaw then pitch in degrees. Chases zero, so it is only non-zero while
     /// the view is moving or has just stopped.
     pub(crate) look_sway: Vec2,
+    /// The sway's own velocity. Carrying it is what lets the weapon pass the
+    /// mark and come back instead of easing onto it.
+    pub(crate) look_sway_velocity: Vec2,
 
     /// Socket_Muzzle in the weapon's own frame, kept here so anything leaving
     /// the barrel can be placed from the current weapon transform without

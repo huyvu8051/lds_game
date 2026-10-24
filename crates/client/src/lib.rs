@@ -175,15 +175,22 @@ const CAMERA_BOB_AMOUNT_Y: f32 = 0.008;
 const CAMERA_BOB_ROLL_DEG: f32 = 0.40;
 const AIM_BOB_MULTIPLIER: f32 = 0.35;
 
-/// How far the weapon lags behind a turn. SPEED is what reads as weight:
-/// lower leaves it behind for longer. SENSITIVITY has to keep an ordinary
+/// How far the weapon lags behind a turn. SENSITIVITY has to keep an ordinary
 /// turn inside MAX_DEG, or every movement alike pins it at full swing.
 ///
 /// SENSITIVITY is degrees of lag per radian the view turned, so sway follows
 /// the view rather than the mouse and stays right at any sensitivity or zoom.
 const LOOK_SWAY_SENSITIVITY: f32 = 50.0;
 const LOOK_SWAY_MAX_DEG: f32 = 3.5;
-const LOOK_SWAY_SPEED: f32 = 5.0;
+
+/// The sway spring. FREQUENCY sets how quickly the weapon answers a turn;
+/// DAMPING how much of the answer is overshoot, and lower means more of it:
+/// under 1.0 the weapon passes the mark and comes back. 0.65 leaves under a
+/// hundredth of it -- enough that the weapon does not stop dead, not enough
+/// to read as a wobble through the glass.
+const LOOK_SWAY_FREQUENCY: f32 = 12.0;
+const LOOK_SWAY_DAMPING: f32 = 0.65;
+
 
 const WALL_GUN_RAISE_DISTANCE: f32 = 1.5;
 const WALL_GUN_RAISE_HEIGHT: f32 = 0.18;

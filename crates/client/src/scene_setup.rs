@@ -365,8 +365,15 @@ pub(crate) fn setup_gameplay(
                 shoulder_blend: 0.0,
                 ready_blend: 0.0,
                 ready_armed: false,
-                recoil_roll: 0.0,
+                recoil_jitter: Vec2::ZERO,
+                // Off the wall clock, or every session sprays its first
+                // magazine the same way.
+                recoil_rng: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0x9E37_79B9, |since| since.subsec_nanos())
+                    | 1,
                 look_sway: Vec2::ZERO,
+                look_sway_velocity: Vec2::ZERO,
             },
             ChildOf(camera),
         ))
