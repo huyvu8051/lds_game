@@ -686,7 +686,7 @@ pub(crate) fn gun_view_animation(
             .map(|axis| {
                 Quat::from_axis_angle(
                     *axis,
-                    (ADS_SETTLE_MISS_DEG * gun.ads_settle_error).to_radians(),
+                    (active.def().ads_settle_miss_deg * gun.ads_settle_error).to_radians(),
                 )
             })
             .unwrap_or(Quat::IDENTITY);
