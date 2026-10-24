@@ -74,6 +74,9 @@ pub(crate) struct Gun {
     /// How fast the sights are rising, in blend per second. A spring needs to
     /// remember its momentum; that is the whole of what makes it overshoot.
     pub(crate) ads_velocity: f32,
+    /// Signed distance from the sight line, in blend units. Drives how far off
+    /// the weapon is pointing while it settles.
+    pub(crate) ads_settle_error: f32,
 
     pub(crate) wall_raise: f32,
 

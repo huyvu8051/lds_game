@@ -358,6 +358,7 @@ pub(crate) fn setup_gameplay(
                 reload_remaining: 0.0,
                 ads_blend: 0.0,
                 ads_velocity: 0.0,
+                ads_settle_error: 0.0,
                 wall_raise: 0.0,
                 shoulder_blend: 0.0,
                 ready_blend: 0.0,

@@ -358,7 +358,19 @@ pub(crate) const UI_LAYOUT_HZ: u64 = 30;
 /// past the sight line, comes back 2%, and settles -- two beats, each a
 /// seventh of the one before. Raise it towards 1 for a weapon that arrives
 /// and stops; lower it for one that wallows.
-const ADS_SPRING_DAMPING: f32 = 0.30;
+/// 0.22, because two beats is what was asked for and 0.70 cannot give them.
+/// Overshoot per beat is exp(-2*pi*z / sqrt(1 - z*z)): at 0.70 that is 0.2%,
+/// which is not an overshoot, it is a straight line. At 0.22 it is 24% then
+/// 6% -- two beats off the mark and the third one on it.
+const ADS_SPRING_DAMPING: f32 = 0.22;
+
+/// Degrees the weapon points off the sight line per unit of settling error.
+/// Pitch leads yaw because a raise is mostly vertical: the weapon comes in
+/// high and a little inside, drops past, and the last beat is the one that
+/// lands. Set both to zero and the spring goes back to overshooting along its
+/// own path, which reads as a straight line with a wobble.
+const ADS_SETTLE_PITCH_DEG: f32 = 9.0;
+const ADS_SETTLE_YAW_DEG: f32 = 4.0;
 
 const AIM_ZOOM_SPEED: f32 = 12.0;
 const AIM_SPREAD_MULTIPLIER: f32 = 0.35;

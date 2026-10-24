@@ -554,6 +554,10 @@ pub(crate) fn gun_view_animation(
         let det_v = gun.ads_velocity + hoo * (ads_target - gun.ads_blend);
         gun.ads_blend = det_x * det_inv;
         gun.ads_velocity = det_v * det_inv;
+        // How far off the sight line the weapon is right now. Oscillates
+        // through zero and decays, so it is positive on the first beat,
+        // negative on the second, and gone by the third.
+        gun.ads_settle_error = gun.ads_blend - ads_target;
 
         // Having aimed once means the player is working a sight line and will
         // likely aim again, so the gun waits near the middle instead of
@@ -637,6 +641,22 @@ pub(crate) fn gun_view_animation(
             .unwrap_or(Vec3::ZERO);
         let reload_swing = grip_in_gun - reload_turn * grip_in_gun;
 
+        // The miss, not the overshoot.
+        //
+        // The spring alone travelled *further along its own path* and came
+        // back, which reads as one straight line with a wobble at the end --
+        // the weapon was never pointing anywhere wrong, just briefly too far.
+        // What hands actually do is arrive off the mark and correct onto it.
+        //
+        // So the error is spent as rotation across the approach instead:
+        // high and left on the way up, low and right coming back, nothing by
+        // the last beat. Applied outside base_rotation, so it misaligns the
+        // optical correction rather than riding along with it -- the sight
+        // picture swings and settles, which is the whole point.
+        let miss = gun.ads_settle_error;
+        let settle_miss = Quat::from_rotation_x((ADS_SETTLE_PITCH_DEG * miss).to_radians())
+            * Quat::from_rotation_y((ADS_SETTLE_YAW_DEG * miss).to_radians());
+
         let base_rotation = Quat::from_rotation_z(settle_twist.to_radians())
             * reload_turn
             * Quat::IDENTITY.slerp(gun.optical_fix, gun.ads_blend);
@@ -675,6 +695,7 @@ pub(crate) fn gun_view_animation(
         transform.rotation = Quat::from_rotation_x(wall_raise_tilt)
             * Quat::from_rotation_y(gun.look_sway.x.to_radians())
             * Quat::from_rotation_x(gun.look_sway.y.to_radians())
+            * settle_miss
             * Quat::from_rotation_z(timings.bob_roll.to_radians())
             * Quat::from_rotation_x(timings.bob_pitch.to_radians())
             * Quat::from_rotation_y(kick.weapon.yaw_deg.to_radians() * gun.recoil_roll * timings.recoil_t)
