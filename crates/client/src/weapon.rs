@@ -23,6 +23,15 @@ pub(crate) struct WeaponDef {
     /// against how fast each weapon handles: the one that comes up slowest
     /// also has the most mass to stop.
     pub(crate) ads_settle_miss_m: f32,
+    /// Degrees the bore tilts off the sight line per unit of settling
+    /// velocity -- how far the sight picture swims while the weapon corrects.
+    ///
+    /// Scaled against magnification, not mass. The reticle reads the bore, and
+    /// a scope multiplies whatever the bore does: the same degree that is a
+    /// nudge through irons throws the target out of a 24x view. The weapon
+    /// with the most glass needs the smallest number, which is the opposite of
+    /// what ads_settle_miss_m wants.
+    pub(crate) ads_settle_miss_deg: f32,
     /// What the main camera's field of view is multiplied by while sighted.
     /// This is the whole of the magnification on irons, and only the pull
     /// around the glass on a weapon that has any -- so the better the scope,
@@ -184,6 +193,7 @@ static AK47: WeaponDef = WeaponDef {
     ads_eye_relief: 0.12,
     ads_speed: AdsSpeed { from_ready: 8.0, from_rest: 5.5 },
     ads_settle_miss_m: 0.028,
+    ads_settle_miss_deg: 0.5,
     aim_fov_multiplier: 0.35,
     autopilot_ads_min_distance: 7.0,
     autopilot_engage_range: 30.0,
@@ -235,6 +245,7 @@ static M4A1: WeaponDef = WeaponDef {
     ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
     ads_settle_miss_m: 0.014,
+    ads_settle_miss_deg: 1.2,
     aim_fov_multiplier: 0.45,
     autopilot_ads_min_distance: 7.0,
     autopilot_engage_range: 30.0,
@@ -295,6 +306,7 @@ static M24: WeaponDef = WeaponDef {
     ads_eye_relief: 0.20,
     ads_speed: AdsSpeed { from_ready: 5.5, from_rest: 2.575 },
     ads_settle_miss_m: 0.040,
+    ads_settle_miss_deg: 0.3,
     aim_fov_multiplier: 0.25,
     autopilot_ads_min_distance: 32.0,
     autopilot_engage_range: 60.0,

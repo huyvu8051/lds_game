@@ -686,11 +686,27 @@ pub(crate) fn gun_view_animation(
         // read as one straight line with a wobble on the end, because the
         // weapon was never anywhere it had not been going anyway.
         let travel = sighted - resting;
-        let settle_offset = Dir3::new(travel.cross(Vec3::NEG_Z))
-            .map(|across| {
-                *across * (active.def().ads_settle_miss_m * gun.ads_settle_error)
-            })
+        let across = Dir3::new(travel.cross(Vec3::NEG_Z)).ok();
+        let settle_offset = across
+            .map(|across| *across * (active.def().ads_settle_miss_m * gun.ads_settle_error))
             .unwrap_or(Vec3::ZERO);
+        // And a tilt to go with the slide. A weapon whose bore stayed exactly
+        // true while the rest of it settled read as fake, because the reticle
+        // takes its place from the bore and a reticle that never moves is a
+        // weapon that was never really moving.
+        //
+        // Kept small, and small by magnification rather than by mass: the
+        // reticle sweeps by the whole tilt and a scope multiplies it. The
+        // weapon with the most glass needs the least angle, which is the
+        // reverse of what the slide above wants.
+        let settle_tilt = across
+            .map(|axis| {
+                Quat::from_axis_angle(
+                    *axis,
+                    (active.def().ads_settle_miss_deg * gun.ads_settle_error).to_radians(),
+                )
+            })
+            .unwrap_or(Quat::IDENTITY);
 
         let base_pos =
             resting.lerp(sighted, gun.ads_blend) - Vec3::Z * view_pullback() + settle_offset;
@@ -709,6 +725,7 @@ pub(crate) fn gun_view_animation(
         transform.rotation = Quat::from_rotation_x(wall_raise_tilt)
             * Quat::from_rotation_y(gun.look_sway.x.to_radians())
             * Quat::from_rotation_x(gun.look_sway.y.to_radians())
+            * settle_tilt
             * Quat::from_rotation_z(timings.bob_roll.to_radians())
             * Quat::from_rotation_x(timings.bob_pitch.to_radians())
             * Quat::from_rotation_y(kick.weapon.yaw_deg.to_radians() * gun.recoil_roll * timings.recoil_t)
