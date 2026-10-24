@@ -199,6 +199,10 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
 
     let was_grounded = player.grounded;
     let mut grounded_this_frame = false;
+    // Whether anything in the way was too steep to walk up. A step is for
+    // getting over a kerb, and a kerb is a wall; a ramp is something you walk
+    // up and the slide move already does it.
+    let mut hit_a_wall = false;
     let output = mover.move_and_slide(
         &shape,
         transform.translation,
@@ -210,13 +214,20 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
         |mut hit| {
             if resolve_slope_hit(&mut hit, velocity, was_grounded) {
                 grounded_this_frame = true;
+            } else {
+                hit_a_wall = true;
             }
             MoveAndSlideHitResponse::Accept
         },
     );
 
     let horizontal_velocity = Vec3::new(velocity.x, 0.0, velocity.z);
-    let stepped_up = was_grounded
+    // A walkable surface never earns a step. blocked_horizontally only
+    // compares where the capsule started and finished, so a ramp that merely
+    // slows you down reads the same as a kerb that stops you -- and a step
+    // granted every frame on a gentle slope is a free teleport every frame,
+    // which is what made walking up one feel like being fired up it.
+    let stepped_up = (was_grounded && hit_a_wall)
         .then(|| blocked_horizontally(transform.translation, output.position, horizontal_velocity, dt))
         .unwrap_or(false)
         .then(|| {
