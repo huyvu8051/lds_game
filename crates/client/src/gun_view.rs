@@ -533,8 +533,27 @@ pub(crate) fn gun_view_animation(
         } else {
             speed.from_ready
         };
-        let ads_step = (ads_rate * time.delta_secs()).min(1.0);
-        gun.ads_blend += (ads_target - gun.ads_blend) * ads_step;
+        // A damped spring, not an exponential ease. The ease could only ever
+        // arrive from one side: the weapon slid up to the sight line and
+        // stopped dead on it, which is the one thing arms carrying three kilos
+        // of rifle never do. This overshoots and comes back, twice, smaller
+        // each time.
+        //
+        // Implicit Euler rather than the obvious `v += a*dt; x += v*dt`. That
+        // one gains energy when `rate * dt` gets large and a weapon raised
+        // during a frame spike would oscillate wider instead of settling.
+        // This form is unconditionally stable at any timestep.
+        let dt = time.delta_secs();
+        let omega = ads_rate;
+        let f = 1.0 + 2.0 * dt * ADS_SPRING_DAMPING * omega;
+        let oo = omega * omega;
+        let hoo = dt * oo;
+        let hhoo = dt * hoo;
+        let det_inv = 1.0 / (f + hhoo);
+        let det_x = f * gun.ads_blend + dt * gun.ads_velocity + hhoo * ads_target;
+        let det_v = gun.ads_velocity + hoo * (ads_target - gun.ads_blend);
+        gun.ads_blend = det_x * det_inv;
+        gun.ads_velocity = det_v * det_inv;
 
         // Having aimed once means the player is working a sight line and will
         // likely aim again, so the gun waits near the middle instead of

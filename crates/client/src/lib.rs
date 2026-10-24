@@ -353,6 +353,13 @@ const BASE_FOV: f32 = std::f32::consts::PI / 4.0;
 pub(crate) const PHYSICS_SUBSTEPS: u32 = 4;
 pub(crate) const UI_LAYOUT_HZ: u64 = 30;
 
+/// Damping ratio of the spring that raises the sights. Below 1 is
+/// underdamped, which is what overshoots: at 0.30 the weapon goes about 14%
+/// past the sight line, comes back 2%, and settles -- two beats, each a
+/// seventh of the one before. Raise it towards 1 for a weapon that arrives
+/// and stops; lower it for one that wallows.
+const ADS_SPRING_DAMPING: f32 = 0.30;
+
 const AIM_ZOOM_SPEED: f32 = 12.0;
 const AIM_SPREAD_MULTIPLIER: f32 = 0.35;
 

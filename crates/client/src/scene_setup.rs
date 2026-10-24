@@ -357,6 +357,7 @@ pub(crate) fn setup_gameplay(
                 ammo: active.def().magazine,
                 reload_remaining: 0.0,
                 ads_blend: 0.0,
+                ads_velocity: 0.0,
                 wall_raise: 0.0,
                 shoulder_blend: 0.0,
                 ready_blend: 0.0,

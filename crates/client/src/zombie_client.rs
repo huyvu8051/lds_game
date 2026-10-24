@@ -71,6 +71,9 @@ pub(crate) struct Gun {
     pub(crate) reload_remaining: f32,
 
     pub(crate) ads_blend: f32,
+    /// How fast the sights are rising, in blend per second. A spring needs to
+    /// remember its momentum; that is the whole of what makes it overshoot.
+    pub(crate) ads_velocity: f32,
 
     pub(crate) wall_raise: f32,
 
