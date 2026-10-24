@@ -64,6 +64,31 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
     // does not go through. Anything tuned there has to be repeated here or the
     // two builds quietly stop being the same game -- see PHYSICS_SUBSTEPS.
     use bevy::ecs::schedule::IntoScheduleConfigs;
+
+    // Bevy's frustum culling writes ViewVisibility, and nothing on this path
+    // reads it -- the extractor takes InheritedVisibility, which is the manual
+    // shown/hidden flag, and metal_renderer now does its own frustum test
+    // against its own camera. Bevy was culling against a camera this path does
+    // not render from, and throwing the answer away: 0.31ms a frame between
+    // these two sets.
+    //
+    // VisibilityPropagate is deliberately left alone. That is what computes
+    // InheritedVisibility, which the extractor does read, and turning it off
+    // would make everything invisible rather than faster.
+    app.configure_sets(
+        bevy::app::PostUpdate,
+        (
+            bevy::camera::visibility::VisibilitySystems::CheckVisibility,
+            bevy::camera::visibility::VisibilitySystems::MarkNewlyHiddenEntitiesInvisible,
+            bevy::camera::visibility::VisibilitySystems::CalculateBounds,
+        )
+            .run_if(|| false),
+    );
+    app.configure_sets(
+        bevy::app::PostUpdate,
+        bevy::light::SimulationLightSystems::CheckLightVisibility.run_if(|| false),
+    );
+
     app.configure_sets(
         bevy::app::PostUpdate,
         bevy::ui::UiSystems::Layout.run_if(bevy::time::common_conditions::on_timer(
