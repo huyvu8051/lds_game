@@ -391,7 +391,9 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     spawn_cheat_toggle_button(row, "Gun", CheatGunButton);
                 });
 
-                #[cfg(debug_assertions)]
+                // Shown in every build. These are the only way to reach half the
+                // renderer's settings, and a release build is exactly where
+                // someone needs to turn one off to see what it costs.
                 {
                     page.spawn((
                         Text::new("Cheats"),
@@ -564,7 +566,9 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     spawn_cheat_action_button(row, "+", DamageMultiplierIncButton);
                 });
 
-                #[cfg(debug_assertions)]
+                // Shown in every build. These are the only way to reach half the
+                // renderer's settings, and a release build is exactly where
+                // someone needs to turn one off to see what it costs.
                 {
                     page.spawn(Node {
                         flex_direction: FlexDirection::Row,
