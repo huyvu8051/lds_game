@@ -178,7 +178,26 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     if wish_dir != Vec3::ZERO {
         horizontal = accelerate(horizontal, wish_dir, move_speed, accel, dt);
     }
-    horizontal.y = 0.0;
+    // Clipped to the ground underfoot, which is what Quake's PM_ClipVelocity
+    // does and why it needs no step for a ramp.
+    //
+    // Fed in flat, a walk into an up-slope points into the surface: the solver
+    // has to slide it off, and most of the forward motion goes with it.
+    // Horizontal progress then falls under what blocked_horizontally calls
+    // obstructed, step-up fires -- every frame, on a slope -- and each one is
+    // a free teleport up and along. That is the fast slide, and it was never
+    // about velocity.
+    //
+    // Clipped, the walk already runs along the slope and arrives with its
+    // speed intact, so nothing reads as blocked and no step is asked for.
+    if player.grounded && player.ground_normal.y > 0.0 {
+        let into_ground = horizontal.dot(player.ground_normal);
+        if into_ground < 0.0 {
+            horizontal -= player.ground_normal * into_ground;
+        }
+    } else {
+        horizontal.y = 0.0;
+    }
 
     let mut vertical_velocity = player.vertical_velocity;
     if player.grounded {
@@ -200,6 +219,7 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
     let before = transform.translation;
     let was_grounded = player.grounded;
     let mut grounded_this_frame = false;
+    let mut ground_normal = Vec3::ZERO;
     let output = mover.move_and_slide(
         &shape,
         transform.translation,
@@ -211,6 +231,13 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
         |mut hit| {
             if resolve_slope_hit(&mut hit, velocity, was_grounded) {
                 grounded_this_frame = true;
+                // The flattest walkable thing underfoot wins: a capsule in a
+                // corner touches a wall and a floor, and the floor is the one
+                // being stood on.
+                let normal = hit.normal.as_vec3();
+                if normal.y > ground_normal.y {
+                    ground_normal = normal;
+                }
             }
             MoveAndSlideHitResponse::Accept
         },
@@ -235,6 +262,7 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
 
     transform.translation = stepped_up.unwrap_or(output.position);
     player.grounded = grounded_this_frame || stepped_up.is_some();
+    player.ground_normal = if ground_normal == Vec3::ZERO { Vec3::Y } else { ground_normal };
     player.vertical_velocity = if player.grounded { vertical_velocity.min(0.0) } else { vertical_velocity };
     // What the solver actually allowed, not what was asked for. Carrying the
     // requested velocity instead would let a player held against a wall build
