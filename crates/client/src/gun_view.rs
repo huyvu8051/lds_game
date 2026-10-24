@@ -691,7 +691,23 @@ pub(crate) fn gun_view_animation(
             })
             .unwrap_or(Quat::IDENTITY);
 
-        let base_pos = resting.lerp(sighted, gun.ads_blend) - Vec3::Z * view_pullback();
+        // Swings the stock without taking the barrel with it.
+        //
+        // A rigid weapon cannot do that on its own: tilt the bore by an angle
+        // and the sight picture moves by exactly that angle, whatever it is
+        // pivoting about. What the pivot does change is how far the stock
+        // travels per degree -- it is the length of the lever.
+        //
+        // The mesh origin sits on the bore at the muzzle, so rotating as
+        // authored gives the stock a lever of about its own length. Moving the
+        // pivot out in front of the muzzle lengthens that lever without
+        // touching the angle, which is what buys a visible wobble at the butt
+        // for an almost still reticle.
+        let settle_pivot = Vec3::NEG_Z * ADS_SETTLE_PIVOT_FORWARD;
+        let settle_offset = settle_pivot - settle_miss * settle_pivot;
+
+        let base_pos =
+            resting.lerp(sighted, gun.ads_blend) - Vec3::Z * view_pullback() + settle_offset;
 
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);
         transform.translation = Vec3::new(swapped_x, base_pos.y, base_pos.z)
