@@ -194,7 +194,7 @@ static AK47: WeaponDef = WeaponDef {
     ads_speed: AdsSpeed { from_ready: 8.0, from_rest: 5.5 },
     ads_settle_miss_m: 0.028,
     ads_settle_miss_deg: 0.5,
-    aim_fov_multiplier: 0.35,
+    aim_fov_multiplier: 0.75,
     autopilot_ads_min_distance: 7.0,
     autopilot_engage_range: 30.0,
     autopilot_sprint_approach_distance: 22.0,
@@ -246,7 +246,7 @@ static M4A1: WeaponDef = WeaponDef {
     ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
     ads_settle_miss_m: 0.014,
     ads_settle_miss_deg: 1.2,
-    aim_fov_multiplier: 0.45,
+    aim_fov_multiplier: 0.75,
     autopilot_ads_min_distance: 7.0,
     autopilot_engage_range: 30.0,
     autopilot_sprint_approach_distance: 14.0,
@@ -277,7 +277,7 @@ static M4A1: WeaponDef = WeaponDef {
             pitch_deg: 2.4,
             roll_deg: 0.8,
             yaw_deg: 0.6,
-            settle_speed: 23.0,
+            settle_speed: 21.0,
         },
     },
 };
@@ -303,11 +303,11 @@ static M24: WeaponDef = WeaponDef {
     // rear glass, so the scope picture fills more of the view than either
     // carbine's sight. The glass itself sits 55mm further down the tube, so
     // there is still room before the near plane at 100mm.
-    ads_eye_relief: 0.20,
+    ads_eye_relief: 0.02,
     ads_speed: AdsSpeed { from_ready: 5.5, from_rest: 2.575 },
     ads_settle_miss_m: 0.040,
     ads_settle_miss_deg: 0.3,
-    aim_fov_multiplier: 0.25,
+    aim_fov_multiplier: 0.70,
     autopilot_ads_min_distance: 32.0,
     autopilot_engage_range: 60.0,
     autopilot_sprint_approach_distance: 55.0,
@@ -331,7 +331,7 @@ static M24: WeaponDef = WeaponDef {
             recover_speed: 2.6,
         },
         weapon: WeaponKick {
-            slide_back: 0.235,
+            slide_back: 0.07,
             lift: 0.014,
             pitch_deg: 3.0,
             roll_deg: 3.5,
