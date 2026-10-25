@@ -806,7 +806,10 @@ pub(crate) fn debug_keys_allowed() -> bool {
     true
 }
 
-pub(crate) struct GamePlugin;
+/// Public so the perf rigs can build it beside a renderer it never reaches:
+/// desert_rust_metal links this crate to price the game's own systems without
+/// drawing a thing from Rust.
+pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
@@ -1226,4 +1229,24 @@ const RADAR_TRAIL_STEP_DEG: f32 = 10.0;
 #[cfg(target_os = "ios")]
 pub extern "C" fn start_app() {
     main();
+}
+
+/// Everything `GamePlugin` leans on besides a renderer, in the order
+/// `native_game_app` builds it.
+///
+/// Public so the perf rigs can stand `GamePlugin` up without copying this list
+/// and then drifting from it. The iOS path has no `MaterialPlugin` -- it draws
+/// through `metal_renderer` -- so these collections are registered by hand or
+/// the systems that ask for them abort, which across FFI takes the process
+/// with it.
+pub fn register_game_assets(app: &mut App) {
+    use bevy::asset::AssetApp;
+    app.init_asset::<bevy::image::TextureAtlasLayout>();
+    metal_renderer::gltf_materials::register_gltf_standard_materials(app);
+    app.init_asset::<bevy::pbr::StandardMaterial>();
+    app.init_asset::<bevy::audio::AudioSource>();
+    app.init_asset::<DamageOverlayMaterial>();
+    app.init_asset::<ScopeLensMaterial>();
+    app.init_asset::<MuzzleSmokeMaterial>();
+    app.init_asset::<MuzzleFlashMaterial>();
 }
