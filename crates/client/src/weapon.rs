@@ -423,5 +423,5 @@ pub(crate) fn switch_weapon(
         commands.entity(entity).despawn();
     }
     spawn_gun_mesh_parts(&mut commands, &asset_server, &mut materials, gun_entity, def.mesh_path);
-    info!("[weapon] switched to {}", def.name);
+    debug!("[weapon] switched to {}", def.name);
 }

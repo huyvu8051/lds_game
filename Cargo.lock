@@ -502,6 +502,7 @@ dependencies = [
 [[package]]
 name = "avian_steam_audio"
 version = "0.3.0-rc.3"
+source = "git+https://github.com/huyvu8051/bevy_steam_audio?branch=main#4ca5b7f8dd81da43291b588b5289caf867ef0bae"
 dependencies = [
  "audionimbus",
  "avian3d",
@@ -1840,6 +1841,7 @@ dependencies = [
 [[package]]
 name = "bevy_steam_audio"
 version = "0.3.0-rc.1"
+source = "git+https://github.com/huyvu8051/bevy_steam_audio?branch=main#4ca5b7f8dd81da43291b588b5289caf867ef0bae"
 dependencies = [
  "audionimbus",
  "audionimbus-sys",

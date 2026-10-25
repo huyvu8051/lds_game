@@ -228,7 +228,7 @@ pub(crate) fn wire_weapon_sockets(
             "Socket_FrontGrip" => socket.insert(ForeGripSocket),
             _ => continue,
         };
-        info!("[socket] {name} wired");
+        debug!("[socket] {name} wired");
     }
 }
 

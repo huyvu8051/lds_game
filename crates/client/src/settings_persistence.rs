@@ -89,7 +89,7 @@ fn write_settings_text(text: &str) {
         let _ = std::fs::create_dir_all(parent);
     }
     match std::fs::write(&path, text) {
-        Ok(()) => info!("[settings] saved to {path:?}"),
+        Ok(()) => debug!("[settings] saved to {path:?}"),
         Err(e) => warn!("[settings] failed to save to {path:?}: {e}"),
     }
 }
@@ -184,9 +184,9 @@ pub(crate) fn apply_persisted_settings(world: &mut World) {
         delete_settings_text();
         return;
     }
-    info!("[settings] looking for local custom settings at {:?}", settings_file_path());
+    debug!("[settings] looking for local custom settings at {:?}", settings_file_path());
     let Some(text) = read_settings_text() else {
-        info!("[settings] no local custom settings found, staying at ship defaults");
+        debug!("[settings] no local custom settings found, staying at ship defaults");
         return;
     };
     let settings: PersistedSettings = match ron::from_str(&text) {

@@ -166,7 +166,7 @@ pub(crate) fn drop_magazine_on_reload(
 
         if magazine_log_enabled() {
             let at = global.transform_point(offset);
-            info!("[magazine] dropped at {at:.3?} size {:.3?}m", half * 2.0);
+            debug!("[magazine] dropped at {at:.3?} size {:.3?}m", half * 2.0);
         }
     }
 }
@@ -191,7 +191,7 @@ pub(crate) fn restore_magazine_after_reload(
         if *visibility == Visibility::Hidden {
             *visibility = Visibility::Inherited;
             if magazine_log_enabled() {
-                info!("[magazine] fresh one in, {:.2}s left on the reload", gun.reload_remaining);
+                debug!("[magazine] fresh one in, {:.2}s left on the reload", gun.reload_remaining);
             }
         }
     }

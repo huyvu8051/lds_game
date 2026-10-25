@@ -88,7 +88,7 @@ pub(crate) fn handle_fire_shot(
         let Some(hit) = zombie_hit_damage_ray(shot.origin, direction, MAX_SHOT_DISTANCE, bones) else {
             let outer_hit_point = shot.origin + *direction * distance;
             if let Some((region, nearest_distance, radius)) = zombie_hit_nearest_region(outer_hit_point, bones) {
-                info!(
+                debug!(
                     "[shot] outer capsule hit but missed every inner bone capsule: zombie={entity} — nearest was {region}, \
                      distance={nearest_distance:.3} radius={radius:.3} (missed by {:.3}) — trying the next zombie behind it, if any",
                     nearest_distance - radius

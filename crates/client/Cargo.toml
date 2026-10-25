@@ -23,8 +23,11 @@ bevy_rerecast = { version = "0.5", default-features = false, features = ["bevy_m
 bevy_landmass = "0.12"
 landmass_rerecast = "0.3"
 avian3d = "0.7"
-bevy_steam_audio = { path = "../../../bevy_steam_audio/crates/bevy_steam_audio", features = ["auto-install"] }
-avian_steam_audio = { path = "../../../bevy_steam_audio/crates/avian_steam_audio" }
+# Our fork, ported from Bevy 0.18 to 0.19 and Avian 0.6 to 0.7. Upstream is
+# janhohenheim/bevy_steam_audio; `upstream` is still a remote there for pulling
+# fixes back.
+bevy_steam_audio = { git = "https://github.com/huyvu8051/bevy_steam_audio", branch = "main", features = ["auto-install"] }
+avian_steam_audio = { git = "https://github.com/huyvu8051/bevy_steam_audio", branch = "main" }
 bevy_seedling = "0.8"
 
 ron = "0.8"
