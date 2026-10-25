@@ -179,6 +179,40 @@ pub(crate) fn update_bullet_holes(
     }
 }
 
+/// Holding the trigger on one spot stacks every decal inside the same square
+/// centimetre. Only the newest is visible; the rest are blended fill nobody
+/// sees. Drop the ones a fresh hole lands on top of.
+///
+/// The radius is a quarter of the decal, not a whole one, so a burst still
+/// leaves a cluster -- it only removes the ones that coincide.
+const HOLE_MERGE_DISTANCE: f32 = HOLE_SIZE * 0.25;
+
+pub(crate) fn merge_coincident_holes(
+    mut commands: Commands,
+    fresh: Query<(Entity, &Transform), Added<BulletHole>>,
+    existing: Query<(Entity, &Transform), With<BulletHole>>,
+) {
+    for (new_entity, new_at) in &fresh {
+        for (old_entity, old_at) in &existing {
+            // Two holes added the same frame keep each other: without this
+            // they cancel, and a burst landing together leaves nothing.
+            if old_entity == new_entity || fresh.contains(old_entity) {
+                continue;
+            }
+            if new_at.translation.distance_squared(old_at.translation)
+                > HOLE_MERGE_DISTANCE * HOLE_MERGE_DISTANCE
+            {
+                continue;
+            }
+            // Same surface, not two decals on opposite faces of a thin prop.
+            if (new_at.rotation * Vec3::Z).dot(old_at.rotation * Vec3::Z) < 0.9 {
+                continue;
+            }
+            commands.entity(old_entity).try_despawn();
+        }
+    }
+}
+
 pub(crate) fn update_impact_dust(
     time: Res<Time>,
     mut commands: Commands,
