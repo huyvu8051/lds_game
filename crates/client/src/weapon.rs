@@ -286,25 +286,28 @@ static AK47: WeaponDef = WeaponDef {
             recover_speed: 6.6,
         },
         weapon: WeaponKick {
-            slide_back: 0.175,
+            slide_back: 0.08,
             lift: 0.0160,
             pitch_deg: 2.5,
             roll_deg: 0.9,
             yaw_deg: 0.9,
-            settle_speed: 21.0,
+            settle_speed: 10.0,
         },
         // Low: a heavy round out of a loose action. Spent in 56ms, inside a
-        // strike that takes about 50. Amplitudes are a little over half what
-        // they first were -- the rattle still reads, and the sights stay
-        // readable through a burst, which they did not before.
+        // strike that takes about 50.
+        //
+        // Amplitudes are around a third of the first pass. At this level the
+        // weapon carries the read and the eye barely moves, which is both
+        // what was asked for and closer to the thing -- a rifle in the hands
+        // visibly judders, the sight picture mostly just loses its edge.
         shock: ShockKick {
-            view_pitch_deg: 0.19,
-            view_yaw_deg: 0.14,
-            view_roll_deg: 0.36,
-            gun_pitch_deg: 0.72,
-            gun_yaw_deg: 0.54,
-            gun_roll_deg: 1.00,
-            gun_shift_m: 0.0024,
+            view_pitch_deg: 0.09,
+            view_yaw_deg: 0.07,
+            view_roll_deg: 0.17,
+            gun_pitch_deg: 0.35,
+            gun_yaw_deg: 0.26,
+            gun_roll_deg: 0.48,
+            gun_shift_m: 0.0012,
             freq_pitch: 12.0,
             freq_yaw: 8.5,
             freq_roll: 10.0,
@@ -341,7 +344,7 @@ static M4A1: WeaponDef = WeaponDef {
     reload_duration: 1.9,
     damage_scale: 0.85,
     fire_rate: 0.105,
-    magazine: 40,
+    magazine: 45,
     // 5.56: about two thirds the AK's kick, settling faster. Cut by more than
     // a flat ratio because it also fires faster, and matching per shot would
     // have climbed harder for the same trigger hold.
@@ -356,24 +359,24 @@ static M4A1: WeaponDef = WeaponDef {
             recover_speed: 7.4,
         },
         weapon: WeaponKick {
-            slide_back: 0.135,
+            slide_back: 0.07,
             lift: 0.020,
             pitch_deg: 2.4,
             roll_deg: 0.8,
             yaw_deg: 0.6,
-            settle_speed: 21.0,
+            settle_speed: 15.0,
         },
         // About two thirds the AK's, pitched higher and gone sooner -- a
         // lighter round, and a faster cyclic rate that would otherwise pile
         // one ring-down on the next.
         shock: ShockKick {
-            view_pitch_deg: 0.13,
-            view_yaw_deg: 0.10,
-            view_roll_deg: 0.24,
-            gun_pitch_deg: 0.48,
-            gun_yaw_deg: 0.36,
-            gun_roll_deg: 0.70,
-            gun_shift_m: 0.0017,
+            view_pitch_deg: 0.06,
+            view_yaw_deg: 0.05,
+            view_roll_deg: 0.11,
+            gun_pitch_deg: 0.23,
+            gun_yaw_deg: 0.17,
+            gun_roll_deg: 0.34,
+            gun_shift_m: 0.0008,
             freq_pitch: 14.0,
             freq_yaw: 10.5,
             freq_roll: 12.5,
@@ -446,13 +449,13 @@ static M24: WeaponDef = WeaponDef {
         // shake has to last twice as long to cover it. Nothing follows it for
         // 1.3 seconds, so there is no burst to keep tidy.
         shock: ShockKick {
-            view_pitch_deg: 0.33,
-            view_yaw_deg: 0.24,
-            view_roll_deg: 0.57,
-            gun_pitch_deg: 1.3,
-            gun_yaw_deg: 0.95,
-            gun_roll_deg: 1.7,
-            gun_shift_m: 0.0042,
+            view_pitch_deg: 0.16,
+            view_yaw_deg: 0.11,
+            view_roll_deg: 0.27,
+            gun_pitch_deg: 0.62,
+            gun_yaw_deg: 0.46,
+            gun_roll_deg: 0.82,
+            gun_shift_m: 0.0020,
             freq_pitch: 9.0,
             freq_yaw: 6.5,
             freq_roll: 7.5,
