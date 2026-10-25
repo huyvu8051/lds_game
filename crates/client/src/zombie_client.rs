@@ -539,7 +539,12 @@ pub(crate) fn wire_zombie_animations(
     kind_anims: Res<ZombieKindAnims>,
     child_of: Query<&ChildOf>,
     zombies: Query<(Option<&ZombieShowcaseClip>, Option<&ZombieKind>), With<Zombie>>,
-    mut new_players: Query<(Entity, &mut AnimationPlayer), Without<AnimationGraphHandle>>,
+    // Without<ParkedAnimation> or this re-wires a parked body the next frame,
+    // resetting its transitions and snapping it back to idle.
+    mut new_players: Query<
+        (Entity, &mut AnimationPlayer),
+        (Without<AnimationGraphHandle>, Without<ParkedAnimation>),
+    >,
 ) {
     for (player_entity, mut player) in &mut new_players {
         let Some(root) = find_animation_root(player_entity, &child_of, |e| zombies.contains(e)) else {
@@ -661,7 +666,12 @@ pub(crate) fn wire_player_model_animations(
     child_of: Query<&ChildOf>,
     roots: Query<(), With<PlayerModelAnimRoot>>,
     viewmodel: Query<(), With<ViewmodelBody>>,
-    mut new_players: Query<(Entity, &mut AnimationPlayer), Without<AnimationGraphHandle>>,
+    // Without<ParkedAnimation> or this re-wires a parked body the next frame,
+    // resetting its transitions and snapping it back to idle.
+    mut new_players: Query<
+        (Entity, &mut AnimationPlayer),
+        (Without<AnimationGraphHandle>, Without<ParkedAnimation>),
+    >,
 ) {
     for (player_entity, mut player) in &mut new_players {
         let Some(root) = find_animation_root(player_entity, &child_of, |e| roots.contains(e)) else {
@@ -855,6 +865,47 @@ pub(crate) fn update_zombie_animation(
         // takes it modulo its duration on the next advance.
         if let (Some(at), Some(active)) = (phase, player.animation_mut(node)) {
             active.seek_to(at);
+        }
+    }
+}
+
+/// Bevy evaluates bones for every animated body in the world: `animate_targets`
+/// filters on `Without<IsResource>` and nothing else, so a zombie behind a wall
+/// or eighty metres down the street costs the same as the one in front of you.
+///
+/// Taking the graph handle off a distant body drops it from `animate_targets`
+/// and from `advance_animations` both, which is what makes this safe -- the
+/// clock stops with the pose rather than running on, so the body resumes mid
+/// stride instead of snapping to where the cycle would have reached.
+#[derive(Component)]
+pub(crate) struct ParkedAnimation(AnimationGraphHandle);
+
+pub(crate) fn park_distant_animations(
+    mut commands: Commands,
+    camera: Query<&GlobalTransform, With<FpsCamera>>,
+    bodies: Query<
+        (Entity, &GlobalTransform, Option<&AnimationGraphHandle>, Option<&ParkedAnimation>),
+        With<AnimationPlayer>,
+    >,
+) {
+    let Ok(eye) = camera.single() else {
+        return;
+    };
+    let eye = eye.translation();
+    for (entity, at, live, parked) in &bodies {
+        let away = eye.distance_squared(at.translation());
+        match (live, parked) {
+            (Some(handle), None) if away > ANIMATION_PARK_DISTANCE * ANIMATION_PARK_DISTANCE => {
+                commands
+                    .entity(entity)
+                    .insert(ParkedAnimation(handle.clone()))
+                    .remove::<AnimationGraphHandle>();
+            }
+            (None, Some(parked)) if away < ANIMATION_WAKE_DISTANCE * ANIMATION_WAKE_DISTANCE => {
+                let handle = parked.0.clone();
+                commands.entity(entity).insert(handle).remove::<ParkedAnimation>();
+            }
+            _ => {}
         }
     }
 }

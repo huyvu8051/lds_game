@@ -488,6 +488,13 @@ pub(crate) const ZOMBIE_BLEND: std::time::Duration = std::time::Duration::from_m
 pub(crate) const ZOMBIE_BLEND_BITE: std::time::Duration = std::time::Duration::from_millis(40);
 /// Between two walk variants the gait is unchanged, so the blend is short and
 /// the phase is carried rather than restarted.
+/// Past this a body stops being animated, and inside the shorter one it
+/// starts again. The gap is hysteresis: a single distance parks and wakes on
+/// alternate frames for anything standing on the line. Generous on purpose --
+/// a frozen body in view is a bug, and MAX_SHOT_DISTANCE is 200m.
+pub(crate) const ANIMATION_PARK_DISTANCE: f32 = 60.0;
+pub(crate) const ANIMATION_WAKE_DISTANCE: f32 = 55.0;
+
 pub(crate) const ZOMBIE_BLEND_GAIT: std::time::Duration = std::time::Duration::from_millis(80);
 
 /// Panels and readouts run at the rate their layout already runs at. Each
@@ -1067,6 +1074,7 @@ impl Plugin for GamePlugin {
                 (track_muzzle_socket, track_optical_axis),
                 update_zombie_animation.run_if(resource_exists::<ZombieAnim>).run_if(clip_tick()),
                 freeze_zombie_animations.run_if(clip_tick()),
+                park_distant_animations.run_if(clip_tick()),
 
                 (
                     wire_player_model_scene_nodes,
@@ -1125,7 +1133,7 @@ impl Plugin for GamePlugin {
                 update_smoke,
                 update_blood_particles,
                 (
-                    (update_blood_bursts, update_bullet_holes, update_impact_dust, update_casings, update_port_smoke),
+                    (update_blood_bursts, update_bullet_holes, merge_coincident_holes, update_impact_dust, update_casings, update_port_smoke),
                     (drop_magazine_on_reload, restore_magazine_after_reload, update_dropped_magazines),
                 ),
                 (
