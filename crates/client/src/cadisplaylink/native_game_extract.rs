@@ -345,7 +345,6 @@ pub fn extract_render_snapshot(
 
     let mut cache = world.remove_resource::<StaticMeshCache>().unwrap_or_default();
     let mut used_texture_ids: std::collections::HashSet<AssetId<Image>> = std::collections::HashSet::new();
-    let mut freed_any = false;
 
     for entity in queries
         .meshes_removed
@@ -355,10 +354,10 @@ pub fn extract_render_snapshot(
         .collect::<Vec<_>>()
     {
         if let Some(slot) = cache.slot_of.remove(&entity) {
+            cache.release_slot_textures(slot);
             cache.entries[slot].visible = false;
             cache.free_slots.push(slot);
             cache.dirty.push(slot);
-            freed_any = true;
         }
         cache.awaiting_textures.remove(&entity);
     }
@@ -420,15 +419,16 @@ pub fn extract_render_snapshot(
         }
     }
 
-    if freed_any {
-        let live: std::collections::HashSet<AssetId<Image>> = cache
-            .entries
-            .iter()
-            .flat_map(|entry| [entry.texture.as_ref(), entry.normal_texture.as_ref()])
-            .flatten()
-            .map(|texture| texture.id)
-            .collect();
-        world.resource_mut::<DecodedTextureCache>().0.retain(|id, _| live.contains(id));
+    // Exactly the ids no slot names any more, not a set rebuilt over all of
+    // them. This used to run on any entity leaving, which during a firefight
+    // is almost every frame, to answer a question about assets with a fact
+    // about entities.
+    if !cache.released_textures.is_empty() {
+        let released = std::mem::take(&mut cache.released_textures);
+        let mut decoded = world.resource_mut::<DecodedTextureCache>();
+        for id in released {
+            decoded.0.remove(&id);
+        }
     }
 
     // An entity can be written twice in one extraction -- once by the changed
@@ -440,7 +440,6 @@ pub fn extract_render_snapshot(
     snapshot.static_mesh_updates =
         dirty.into_iter().map(|slot| (slot, cache.entries[slot].clone())).collect();
     snapshot.static_mesh_slots = cache.entries.len();
-    snapshot.static_mesh_freed = freed_any;
     world.insert_resource(cache);
 
     snapshot.debug_lines = extract_hitbox_lines(world, &mut queries);
