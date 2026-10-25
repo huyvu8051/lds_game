@@ -93,7 +93,6 @@ pub(crate) fn on_shot_confirmed(
     child_of: Query<&ChildOf>,
     show_floating_damage: Res<ShowFloatingDamage>,
     blood_enabled: Res<BloodEnabled>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let ShotConfirmed { origin, point, normal, damage, killed } = *trigger.event();
     if damage > 0.0 {
@@ -114,7 +113,7 @@ pub(crate) fn on_shot_confirmed(
     }
 
     let bone_for_blood = nearest_bone.as_ref().map(|(entity, global)| (*entity, global));
-    spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, &mut materials, (point - origin).normalize_or_zero(), *blood_enabled);
+    spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled);
 }
 
 
@@ -326,7 +325,6 @@ pub(crate) fn on_shot_fx(
     show_hit_markers: Res<ShowHitMarkers>,
     show_tracers: Res<ShowBulletTracers>,
     show_floating_damage: Res<ShowFloatingDamage>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     holes: Res<BulletHoleAssets>,
     holes_enabled: Res<BulletHolesEnabled>,
     blood_enabled: Res<BloodEnabled>,
@@ -360,7 +358,7 @@ pub(crate) fn on_shot_fx(
                     .and_then(|(_, _, bones)| nearest_zombie_bone(bones, point, &globals))
             };
             let bone_for_blood = nearest_bone.as_ref().map(|(entity, global)| (*entity, global));
-            spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, &mut materials, (point - origin).normalize_or_zero(), *blood_enabled);
+            spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled);
         }
         ShotFx::SurfaceHit { origin, point, normal } => {
             if show_hit_markers.0 {
@@ -376,7 +374,7 @@ pub(crate) fn on_shot_fx(
             let seed = time.elapsed_secs() * 619.0 + point.x * 13.7 + point.z * 7.3;
             spawn_bullet_tracer(&mut commands, &vfx_assets.tracer, seed, origin, point, show_tracers.0);
             spawn_spark_effects(&mut commands, &vfx_assets.sparks, &time, point, normal);
-            spawn_bullet_hole(&mut commands, &holes, &mut materials, point, normal, seed, holes_enabled.0);
+            spawn_bullet_hole(&mut commands, &holes, point, normal, seed, holes_enabled.0);
         }
         ShotFx::Penetrated { point, normal } => {
             spawn_spark_effects(&mut commands, &vfx_assets.sparks, &time, point, normal);

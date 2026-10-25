@@ -8,6 +8,10 @@ const HOLE_LIFETIME: f32 = 45.0;
 const HOLE_FADE_SECONDS: f32 = 4.0;
 const HOLE_SURFACE_OFFSET: f32 = 0.006;
 const MAX_HOLES: usize = 64;
+/// Steps in the fade ladder. Over HOLE_FADE_SECONDS this is one step every
+/// third of a second, finer than the eye follows on something already going
+/// transparent.
+const HOLE_FADE_STEPS: usize = 12;
 
 const DUST_COUNT: usize = 7;
 const DUST_SPEED: f32 = 1.4;
@@ -19,7 +23,8 @@ const DUST_GRAVITY: f32 = -2.2;
 #[derive(Resource)]
 pub(crate) struct BulletHoleAssets {
     hole_mesh: Handle<Mesh>,
-    hole_materials: Vec<Handle<StandardMaterial>>,
+    /// `[variant][fade step]`, built once at startup.
+    hole_materials: Vec<Vec<Handle<StandardMaterial>>>,
     dust_mesh: Handle<Mesh>,
     dust_material: Handle<StandardMaterial>,
 }
@@ -27,12 +32,32 @@ pub(crate) struct BulletHoleAssets {
 #[derive(Component)]
 pub(crate) struct BulletHole {
     remaining: f32,
+    variant: usize,
 }
 
 #[derive(Component)]
 pub(crate) struct ImpactDust {
     velocity: Vec3,
     remaining: f32,
+}
+
+/// One material per alpha step rather than one per instance. Anything holding
+/// its own material batches with nothing, and writing its alpha re-uploads the
+/// uniform every frame it fades; a shared ladder costs a handle swap per step
+/// and leaves everything at the same step in one batch.
+pub(crate) fn fade_ladder(
+    materials: &mut Assets<StandardMaterial>,
+    base: StandardMaterial,
+    steps: usize,
+) -> Vec<Handle<StandardMaterial>> {
+    let full = base.base_color.alpha();
+    (0..steps)
+        .map(|step| {
+            let mut rung = base.clone();
+            rung.base_color.set_alpha(full * (1.0 - step as f32 / steps as f32));
+            materials.add(rung)
+        })
+        .collect()
 }
 
 pub(crate) fn build_bullet_hole_assets(
@@ -44,7 +69,7 @@ pub(crate) fn build_bullet_hole_assets(
         hole_mesh: meshes.add(Rectangle::new(HOLE_SIZE, HOLE_SIZE)),
         hole_materials: (0..HOLE_VARIANTS)
             .map(|i| {
-                materials.add(StandardMaterial {
+                let base = StandardMaterial {
                     base_color_texture: Some(
                         asset_server.load(format!("textures/impact/hole_{i}.png")),
                     ),
@@ -56,7 +81,8 @@ pub(crate) fn build_bullet_hole_assets(
                     depth_bias: 10.0,
                     cull_mode: None,
                     ..default()
-                })
+                };
+                fade_ladder(materials, base, HOLE_FADE_STEPS)
             })
             .collect(),
         dust_mesh: meshes.add(Rectangle::new(DUST_SIZE, DUST_SIZE)),
@@ -78,7 +104,6 @@ fn facing(normal: Vec3, seed: f32) -> Quat {
 pub(crate) fn spawn_bullet_hole(
     commands: &mut Commands,
     assets: &BulletHoleAssets,
-    materials: &mut Assets<StandardMaterial>,
     point: Vec3,
     normal: Vec3,
     seed: f32,
@@ -91,21 +116,17 @@ pub(crate) fn spawn_bullet_hole(
     if normal == Vec3::ZERO {
         return;
     }
-    let variant = (ops::sin(seed * 2.9).abs() * HOLE_VARIANTS as f32) as usize;
-    let Some(shared) = assets.hole_materials.get(variant.min(HOLE_VARIANTS - 1)) else {
+    let variant = ((ops::sin(seed * 2.9).abs() * HOLE_VARIANTS as f32) as usize).min(HOLE_VARIANTS - 1);
+    let Some(material) = assets.hole_materials.get(variant).and_then(|ladder| ladder.first()) else {
         return;
     };
-    // Each hole owns its material so it can fade out alone; sharing one per
-    // variant means the first hole to expire dims every other hole like it.
-    let Some(own) = materials.get(shared).cloned() else { return };
-    let material = materials.add(own);
 
     commands.spawn((
         Mesh3d(assets.hole_mesh.clone()),
-        MeshMaterial3d(material),
+        MeshMaterial3d(material.clone()),
         Transform::from_translation(point + normal * HOLE_SURFACE_OFFSET)
             .with_rotation(facing(normal, seed)),
-        BulletHole { remaining: HOLE_LIFETIME },
+        BulletHole { remaining: HOLE_LIFETIME, variant },
     ));
 
     let sideways = normal.any_orthonormal_vector();
@@ -129,13 +150,13 @@ pub(crate) fn spawn_bullet_hole(
 pub(crate) fn update_bullet_holes(
     time: Res<Time>,
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut holes: Query<(Entity, &mut BulletHole, &MeshMaterial3d<StandardMaterial>)>,
+    assets: Res<BulletHoleAssets>,
+    mut holes: Query<(Entity, &mut BulletHole, &mut MeshMaterial3d<StandardMaterial>)>,
 ) {
     let live = holes.iter().len();
     let mut over_budget = live.saturating_sub(MAX_HOLES);
 
-    for (entity, mut hole, _) in &mut holes {
+    for (entity, mut hole, mut material) in &mut holes {
         if over_budget > 0 && hole.remaining > HOLE_FADE_SECONDS {
             hole.remaining = HOLE_FADE_SECONDS;
             over_budget -= 1;
@@ -143,15 +164,17 @@ pub(crate) fn update_bullet_holes(
         hole.remaining -= time.delta_secs();
         if hole.remaining <= 0.0 {
             commands.entity(entity).despawn();
-        }
-    }
-
-    for (_, hole, handle) in &holes {
-        if hole.remaining >= HOLE_FADE_SECONDS {
             continue;
         }
-        if let Some(mut material) = materials.get_mut(&handle.0) {
-            material.base_color.set_alpha(hole.remaining / HOLE_FADE_SECONDS);
+        let Some(ladder) = assets.hole_materials.get(hole.variant) else {
+            continue;
+        };
+        let faded = 1.0 - (hole.remaining / HOLE_FADE_SECONDS).clamp(0.0, 1.0);
+        let step = ((faded * HOLE_FADE_STEPS as f32) as usize).min(HOLE_FADE_STEPS - 1);
+        if let Some(rung) = ladder.get(step) {
+            if material.0 != *rung {
+                material.0 = rung.clone();
+            }
         }
     }
 }
@@ -180,8 +203,8 @@ pub(crate) fn update_impact_dust(
     }
 }
 
-/// Whether a shot leaves a mark. Each hole is an entity with its own material
-/// and they accumulate, so a long firefight adds up.
+/// Whether a shot leaves a mark. Each hole is an entity drawing a quad and
+/// they accumulate, so a long firefight adds up.
 #[derive(Resource)]
 pub(crate) struct BulletHolesEnabled(pub(crate) bool);
 

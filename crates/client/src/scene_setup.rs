@@ -153,14 +153,15 @@ pub(crate) fn setup_common(
         burst_mesh: meshes.add(Rectangle::new(BLOOD_BURST_SIZE, BLOOD_BURST_SIZE)),
         burst_materials: (0..BLOOD_STAIN_VARIANTS)
             .map(|i| {
-                materials.add(StandardMaterial {
+                let base = StandardMaterial {
                     base_color: Color::srgba(1.0, 0.16, 0.12, 1.0),
                     base_color_texture: Some(asset_server.load(format!("textures/blood/splatter_{i}.png"))),
                     alpha_mode: AlphaMode::Blend,
                     unlit: true,
                     cull_mode: None,
                     ..default()
-                })
+                };
+                fade_ladder(&mut materials, base, BLOOD_BURST_FADE_STEPS)
             })
             .collect(),
     });

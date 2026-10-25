@@ -14,7 +14,6 @@ pub(crate) fn spawn_zombie_hit_feedback(
     bone_for_blood: Option<(Entity, &GlobalTransform)>,
     killed: bool,
     show_floating_damage: bool,
-    materials: &mut Assets<StandardMaterial>,
     shot_direction: Vec3,
     blood: BloodEnabled,
 ) {
@@ -22,7 +21,7 @@ pub(crate) fn spawn_zombie_hit_feedback(
         if show_floating_damage {
             spawn_floating_damage(commands, point, damage);
         }
-        spawn_blood_effects(commands, blood_assets, spatial_query, time, point, normal, bone_for_blood, killed, materials, shot_direction, blood);
+        spawn_blood_effects(commands, blood_assets, spatial_query, time, point, normal, bone_for_blood, killed, shot_direction, blood);
     } else {
         spawn_spark_effects(commands, spark_assets, time, point, normal);
     }

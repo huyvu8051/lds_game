@@ -22,7 +22,7 @@ pub(crate) struct BloodAssets {
     pub(crate) stain_materials: Vec<Handle<StandardMaterial>>,
     pub(crate) wall_stain_mesh: Handle<Mesh>,
     pub(crate) burst_mesh: Handle<Mesh>,
-    pub(crate) burst_materials: Vec<Handle<StandardMaterial>>,
+    pub(crate) burst_materials: Vec<Vec<Handle<StandardMaterial>>>,
 }
 
 pub(crate) fn spawn_blood_effects(
@@ -34,12 +34,11 @@ pub(crate) fn spawn_blood_effects(
     hit_normal: Vec3,
     bone: Option<(Entity, &GlobalTransform)>,
     killed: bool,
-    materials: &mut Assets<StandardMaterial>,
     shot_direction: Vec3,
     blood: BloodEnabled,
 ) {
     if blood.spray {
-        spawn_blood_burst(commands, blood_assets, materials, hit_point, hit_normal, time.elapsed_secs() * 311.0);
+        spawn_blood_burst(commands, blood_assets, hit_point, hit_normal, time.elapsed_secs() * 311.0);
 
         for i in 0..BLOOD_PARTICLE_COUNT {
             let seed = time.elapsed_secs() * 977.0 + i as f32 * 131.7;
@@ -62,7 +61,7 @@ pub(crate) fn spawn_blood_effects(
     }
     // The exit wound is a stain on whatever is behind the target, so it goes
     // with the stains rather than with the spray.
-    spawn_exit_wound(commands, blood_assets, materials, spatial_query, hit_point, shot_direction, time.elapsed_secs() * 541.0);
+    spawn_exit_wound(commands, blood_assets, spatial_query, hit_point, shot_direction, time.elapsed_secs() * 541.0);
 
     match bone {
         Some((entity, bone_global)) => {
@@ -210,13 +209,16 @@ pub(crate) fn despawn_blood_stains(mut commands: Commands, time: Res<Time>, mut 
 pub(crate) struct BloodBurst {
     remaining: f32,
     spin: f32,
-    material: Handle<StandardMaterial>,
+    variant: usize,
 }
+
+/// Steps in the burst's fade ladder. The burst lives 0.22s, so at 60Hz this is
+/// about one step a frame -- as smooth as the frame rate can show.
+pub(crate) const BLOOD_BURST_FADE_STEPS: usize = 10;
 
 fn spawn_blood_burst(
     commands: &mut Commands,
     blood_assets: &BloodAssets,
-    materials: &mut Assets<StandardMaterial>,
     hit_point: Vec3,
     hit_normal: Vec3,
     seed: f32,
@@ -225,17 +227,16 @@ fn spawn_blood_burst(
     if variants.is_empty() {
         return;
     }
-    let index = ((ops::sin(seed).abs() * variants.len() as f32) as usize).min(variants.len() - 1);
-    let Some(source) = materials.get(&variants[index]).cloned() else {
+    let variant = ((ops::sin(seed).abs() * variants.len() as f32) as usize).min(variants.len() - 1);
+    let Some(material) = variants.get(variant).and_then(|ladder| ladder.first()) else {
         return;
     };
-    let material = materials.add(source);
     commands.spawn((
         Mesh3d(blood_assets.burst_mesh.clone()),
         MeshMaterial3d(material.clone()),
         Transform::from_translation(hit_point + hit_normal.normalize_or_zero() * BLOOD_BURST_NORMAL_OFFSET)
             .with_scale(Vec3::splat(BLOOD_BURST_START_SCALE)),
-        BloodBurst { remaining: BLOOD_BURST_LIFETIME, spin: seed, material },
+        BloodBurst { remaining: BLOOD_BURST_LIFETIME, spin: seed, variant },
     ));
 }
 
@@ -243,12 +244,12 @@ pub(crate) fn update_blood_bursts(
     mut commands: Commands,
     time: Res<Time>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut query: Query<(Entity, &mut Transform, &mut BloodBurst)>,
+    blood_assets: Res<BloodAssets>,
+    mut query: Query<(Entity, &mut Transform, &mut BloodBurst, &mut MeshMaterial3d<StandardMaterial>)>,
 ) {
     let dt = time.delta_secs();
     let eye = camera.single().ok().map(|global| global.translation());
-    for (entity, mut transform, mut burst) in &mut query {
+    for (entity, mut transform, mut burst, mut material) in &mut query {
         burst.remaining -= dt;
         if burst.remaining <= 0.0 {
             commands.entity(entity).try_despawn();
@@ -264,8 +265,14 @@ pub(crate) fn update_blood_bursts(
                 transform.rotation = Quat::from_rotation_arc(Vec3::Z, to_eye) * Quat::from_rotation_z(burst.spin);
             }
         }
-        if let Some(mut material) = materials.get_mut(&burst.material) {
-            material.base_color.set_alpha(1.0 - life);
+        let Some(ladder) = blood_assets.burst_materials.get(burst.variant) else {
+            continue;
+        };
+        let step = ((life * BLOOD_BURST_FADE_STEPS as f32) as usize).min(BLOOD_BURST_FADE_STEPS - 1);
+        if let Some(rung) = ladder.get(step) {
+            if material.0 != *rung {
+                material.0 = rung.clone();
+            }
         }
     }
 }
@@ -273,7 +280,6 @@ pub(crate) fn update_blood_bursts(
 fn spawn_exit_wound(
     commands: &mut Commands,
     blood_assets: &BloodAssets,
-    materials: &mut Assets<StandardMaterial>,
     spatial_query: &SpatialQuery,
     hit_point: Vec3,
     shot_direction: Vec3,
@@ -302,7 +308,7 @@ fn spawn_exit_wound(
     }
 
     let exit_point = hit_point + *forward * BLOOD_EXIT_WOUND_OFFSET;
-    spawn_blood_burst(commands, blood_assets, materials, exit_point, *forward, seed_base * 1.7);
+    spawn_blood_burst(commands, blood_assets, exit_point, *forward, seed_base * 1.7);
 
     let filter = SpatialQueryFilter::default();
     for i in 0..BLOOD_WALL_STAIN_COUNT {
