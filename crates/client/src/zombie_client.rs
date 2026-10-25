@@ -101,6 +101,13 @@ pub(crate) struct Gun {
     pub(crate) inspect_t: f32,
     pub(crate) inspect_blend: f32,
     pub(crate) inspect_done: u32,
+    /// Where the look-over has actually got to, and how fast. The table is
+    /// only the target; three kilos of rifle arrive at it late and go a
+    /// little past.
+    pub(crate) inspect_offset: Vec3,
+    pub(crate) inspect_offset_vel: Vec3,
+    pub(crate) inspect_angles: Vec3,
+    pub(crate) inspect_angles_vel: Vec3,
     pub(crate) recoil_jitter: Vec2,
     /// Advanced once per draw, so the sequence depends on shots fired rather
     /// than on when they were fired.

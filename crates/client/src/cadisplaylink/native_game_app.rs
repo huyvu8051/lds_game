@@ -22,7 +22,11 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
     app.add_plugins(bevy::mesh::MeshPlugin);
     app.add_plugins(bevy::image::ImagePlugin::default());
     // Without this nothing registers a loader for .wav or .ogg.
-    app.add_plugins(bevy::audio::AudioPlugin::default());
+    // Seedling rather than bevy_audio, and Steam Audio inside it. The scene
+    // comes from Avian's colliders, which this path already builds.
+    app.add_plugins(bevy_seedling::SeedlingPlugins);
+    app.add_plugins(bevy_steam_audio::SteamAudioPlugin::default());
+    app.add_plugins(avian_steam_audio::AvianSteamAudioScenePlugin);
 
     // Every texture the game ships is ASTC in a KTX2 container. Without
     // RenderPlugin nothing tells Bevy what the GPU can take, so the loader

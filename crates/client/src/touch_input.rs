@@ -1,6 +1,5 @@
 
 use bevy::input::touch::Touches;
-use bevy::picking::hover::HoverMap;
 use bevy::picking::pointer::PointerId;
 use bevy::prelude::*;
 use crate::*;
@@ -133,45 +132,55 @@ pub(crate) fn suppress_touch_buttons_while_menu_open(
 /// Owns the interaction state of the on-screen controls outright, both ways,
 /// for as many fingers as are on the screen.
 ///
-/// Three things have to be true at once, and each one broke on its own.
+/// Hit-tested against the nodes directly rather than read from the picking
+/// backend's hover map. Two reasons, and the second is the one that matters:
+/// a pointer is not in that map on the frame its finger arrives, because the
+/// backend builds it during that frame and the result lands the next one --
+/// and since this writes None as well as Pressed, a button that could not be
+/// claimed on the first frame had its press erased instead. Testing the nodes
+/// here answers in the same frame the finger does.
 ///
-/// Every finger counts. This used to skip `touches.iter().next()`, on the
+/// Three things have to be true at once, and each was useless alone.
+///
+/// Every finger counts. This once skipped `touches.iter().next()`, on the
 /// theory that Bevy was holding that one. `Touches::pressed` is a HashMap, so
-/// that is not the first finger down -- it is whichever hashed out first, and
-/// the order changes the moment another finger arrives. A second finger
-/// anywhere could leave the button under the first one as the skipped one,
-/// with Bevy having just moved its pointer across and set it back to None.
+/// that is not the first finger down but whichever hashed out first, and the
+/// order changes the moment another arrives -- so a second finger anywhere
+/// could leave the button under the first as the skipped one, and it let go.
 ///
 /// A button belongs to the finger that landed on it, decided at touch-down and
 /// held until it lifts. Otherwise the thumb working the stick fires every
 /// button it slides across.
 ///
-/// And saying Pressed is not enough, because the picking backend is still
-/// running and still setting these from hover. Drag the stick over the crouch
-/// button, touch anywhere with the other hand, and Bevy pressed crouch. Only
-/// by writing both Pressed and None does this decide the matter rather than
-/// argue about it -- and it only does so while a finger is down, so a mouse on
-/// the desktop is left to the backend as before.
+/// And saying Pressed is not enough while the backend is still setting these
+/// from hover. Writing both ends the argument -- but only while a finger is
+/// down, so a mouse on the desktop is left alone.
 pub(crate) fn multi_touch_button_interaction(
     touches: Res<Touches>,
-    hover_map: Res<HoverMap>,
+    windows: Query<&Window, With<PrimaryWindow>>,
     mut held: Local<std::collections::HashMap<u64, Entity>>,
-    mut buttons: Query<(Entity, &mut Interaction), (With<TouchControlButton>, Without<SettingsToggleButton>)>,
+    mut buttons: Query<
+        (Entity, &ComputedNode, &UiGlobalTransform, &mut Interaction),
+        (With<TouchControlButton>, Without<SettingsToggleButton>),
+    >,
 ) {
     if touches.iter().next().is_none() {
         held.clear();
         return;
     }
+    let scale_factor = windows.single().map_or(1.0, |window| window.scale_factor());
     for touch in touches.iter_just_pressed() {
-        let Some(hits) = hover_map.get(&PointerId::Touch(touch.id())) else {
-            continue;
-        };
-        if let Some(&entity) = hits.keys().find(|&&e| buttons.contains(e)) {
+        let at = touch.position() * scale_factor;
+        let landed = buttons
+            .iter()
+            .find(|(_, node, transform, _)| node.contains_point(**transform, at))
+            .map(|(entity, ..)| entity);
+        if let Some(entity) = landed {
             held.insert(touch.id(), entity);
         }
     }
     held.retain(|id, _| touches.get_pressed(*id).is_some());
-    for (entity, mut interaction) in &mut buttons {
+    for (entity, _, _, mut interaction) in &mut buttons {
         let wanted = if held.values().any(|&held| held == entity) {
             Interaction::Pressed
         } else {

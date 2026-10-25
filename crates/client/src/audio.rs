@@ -1,29 +1,30 @@
 use bevy::prelude::*;
+use bevy_seedling::prelude as seedling;
 
 use crate::*;
 
 #[derive(Resource)]
-pub(crate) struct GunshotSound(pub(crate) Vec<Handle<AudioSource>>);
+pub(crate) struct GunshotSound(pub(crate) Vec<Handle<seedling::AudioSample>>);
 
 impl GunshotSound {
-    pub(crate) fn of(&self, weapon: WeaponId) -> Handle<AudioSource> {
+    pub(crate) fn of(&self, weapon: WeaponId) -> Handle<seedling::AudioSample> {
         self.0[weapon.index()].clone()
     }
 }
 
 #[derive(Resource)]
-pub(crate) struct ReloadSound(pub(crate) Vec<Handle<AudioSource>>);
+pub(crate) struct ReloadSound(pub(crate) Vec<Handle<seedling::AudioSample>>);
 
 impl ReloadSound {
-    pub(crate) fn of(&self, weapon: WeaponId) -> Handle<AudioSource> {
+    pub(crate) fn of(&self, weapon: WeaponId) -> Handle<seedling::AudioSample> {
         self.0[weapon.index()].clone()
     }
 }
 
 #[derive(Resource)]
 pub(crate) struct FootstepSounds {
-    pub(crate) player: Vec<Handle<AudioSource>>,
-    pub(crate) zombie: Vec<Handle<AudioSource>>,
+    pub(crate) player: Vec<Handle<seedling::AudioSample>>,
+    pub(crate) zombie: Vec<Handle<seedling::AudioSample>>,
 }
 
 #[derive(Component)]
@@ -54,7 +55,7 @@ fn hash01(seed: f32) -> f32 {
     (ops::sin(seed) * 43758.547).fract().abs()
 }
 
-fn pick_sample(samples: &[Handle<AudioSource>], seed: f32) -> Option<Handle<AudioSource>> {
+fn pick_sample(samples: &[Handle<seedling::AudioSample>], seed: f32) -> Option<Handle<seedling::AudioSample>> {
     if samples.is_empty() {
         return None;
     }
@@ -95,10 +96,12 @@ pub(crate) fn play_footsteps(
         return;
     };
     commands.spawn((
-        AudioPlayer(sample),
-        PlaybackSettings::DESPAWN
-            .with_volume(bevy::audio::Volume::Linear(FOOTSTEP_PLAYER_VOLUME))
-            .with_speed(pitch_jitter(seed * 1.7)),
+        seedling::SamplePlayer::new(sample).with_volume(seedling::Volume::Linear(FOOTSTEP_PLAYER_VOLUME)),
+        seedling::PlaybackSettings {
+            speed: pitch_jitter(seed * 1.7) as f64,
+            on_complete: seedling::OnComplete::Despawn,
+            ..default()
+        },
     ));
 }
 
@@ -195,12 +198,17 @@ pub(crate) fn play_zombie_footsteps(
         };
         let volume = if ducked { ZOMBIE_FOOTSTEP_VOLUME * GUNSHOT_DUCK_FACTOR } else { ZOMBIE_FOOTSTEP_VOLUME };
         commands.spawn((
-            AudioPlayer(sample),
-            PlaybackSettings::DESPAWN
-                .with_volume(bevy::audio::Volume::Linear(volume))
-                .with_speed(pitch_jitter(seed * 2.3))
-                .with_spatial(true)
-                .with_spatial_scale(bevy::audio::SpatialScale::new(ZOMBIE_FOOTSTEP_SPATIAL_SCALE)),
+            // Into the spatial pool, which is where Steam Audio is wired in:
+            // a footstep behind a wall now arrives through the wall rather
+            // than merely quieter and to the left.
+            seedling::SpatialPool,
+            seedling::SamplePlayer::new(sample).with_volume(seedling::Volume::Linear(volume)),
+            seedling::PlaybackSettings {
+                speed: pitch_jitter(seed * 2.3) as f64,
+                on_complete: seedling::OnComplete::Despawn,
+                ..default()
+            },
+            seedling::SpatialScale(Vec3::splat(ZOMBIE_FOOTSTEP_SPATIAL_SCALE)),
             Transform::from_translation(transform.translation),
             ZombieFootstepVoice,
         ));

@@ -318,7 +318,7 @@ pub(crate) fn setup_gameplay(
                 ..default()
             }),
             Transform::from_translation(player_spawn + Vec3::Y * EYE_HEIGHT_OFFSET),
-            SpatialListener::default(),
+            bevy_seedling::prelude::SpatialListener3D,
             FpsCamera { yaw: review_yaw, pitch: review_pitch },
             ViewRecoil::default(),
             Lean::default(),
@@ -371,6 +371,10 @@ pub(crate) fn setup_gameplay(
                 inspect_t: 0.0,
                 inspect_blend: 0.0,
                 inspect_done: 0,
+                inspect_offset: Vec3::ZERO,
+                inspect_offset_vel: Vec3::ZERO,
+                inspect_angles: Vec3::ZERO,
+                inspect_angles_vel: Vec3::ZERO,
                 recoil_jitter: Vec2::ZERO,
                 // Off the wall clock, or every session sprays its first
                 // magazine the same way.

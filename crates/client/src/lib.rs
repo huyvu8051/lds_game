@@ -190,6 +190,22 @@ const INSPECT_SECONDS: f32 = 3.6;
 /// rather than a braking followed by a fade. OUT is for a cancellation: the
 /// player wants to shoot, and making them wait for an animation to finish is
 /// how this feature becomes a trap.
+/// The weight behind the gesture.
+///
+/// The keyed table says where the weapon is wanted; a spring says what it
+/// costs to get it there. Without one, every segment boundary is a corner --
+/// smoothstep brings each move to a stop and starts the next from nothing --
+/// and the arm reads as weightless. With one, the weapon arrives a beat late
+/// and carries a little past, and the corners are rounded off for free.
+///
+/// Well over 1.0, so it no longer carries past the mark at all -- it leans
+/// into each move and settles onto it, which is the heavier read. The cost is
+/// lag: overdamped, the weapon takes longer to arrive, and the keyed segments
+/// are two thirds of a second. FREQUENCY is what to raise if it starts
+/// trailing the table rather than following it.
+const INSPECT_SPRING_HZ: f32 = 19.0;
+const INSPECT_SPRING_DAMPING: f32 = 2.16;
+
 const INSPECT_IN_SPEED: f32 = 5.0;
 const INSPECT_RETURN_SPEED: f32 = 6.5;
 const INSPECT_OUT_SPEED: f32 = 14.0;
@@ -687,7 +703,11 @@ pub fn main() {
     let mut app = App::new();
     app.add_plugins((
 
+            // Bevy's own audio is disabled: seedling owns the graph, and two
+            // mixers fighting over the device is not a thing that works.
             DefaultPlugins
+                .build()
+                .disable::<bevy::audio::AudioPlugin>()
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: "Last Day in Saigon".to_string(),
@@ -723,6 +743,13 @@ pub fn main() {
             PhysicsPlugins::default(),
             SimPlugin,
             zombie_nav::ZombieNavmeshPlugin,
+            // Seedling owns the audio graph; Steam Audio sits inside it and
+            // takes the room from Avian's colliders, so the acoustics follow
+            // the same geometry the bullets do rather than a second model of
+            // the map kept in step by hand.
+            bevy_seedling::SeedlingPlugins,
+            bevy_steam_audio::SteamAudioPlugin::default(),
+            avian_steam_audio::AvianSteamAudioScenePlugin,
         ))
         // Four, not Avian's default six: the solver was running at 384Hz for
         // capsule characters and ragdolls, and the two builds have to agree or

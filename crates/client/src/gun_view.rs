@@ -721,7 +721,22 @@ pub(crate) fn gun_view_animation(
         };
         gun.inspect_blend +=
             (f32::from(inspecting) - gun.inspect_blend) * (inspect_rate * dt).min(1.0);
-        let (inspect_offset, inspect_angles) = inspect_pose(gun.inspect_t);
+        let (want_offset, want_angles) = inspect_pose(gun.inspect_t);
+        // Implicit Euler, as everywhere else here: stable at any timestep,
+        // where `v += a*dt; x += v*dt` gains energy on a frame spike and a
+        // weapon caught by one would swing wider instead of settling.
+        let omega = INSPECT_SPRING_HZ;
+        let f = 1.0 + 2.0 * dt * INSPECT_SPRING_DAMPING * omega;
+        let hoo = dt * omega * omega;
+        let hhoo = dt * hoo;
+        let det_inv = 1.0 / (f + hhoo);
+        let (x, v) = (gun.inspect_offset, gun.inspect_offset_vel);
+        gun.inspect_offset = (x * f + v * dt + want_offset * hhoo) * det_inv;
+        gun.inspect_offset_vel = (v + (want_offset - x) * hoo) * det_inv;
+        let (x, v) = (gun.inspect_angles, gun.inspect_angles_vel);
+        gun.inspect_angles = (x * f + v * dt + want_angles * hhoo) * det_inv;
+        gun.inspect_angles_vel = (v + (want_angles - x) * hoo) * det_inv;
+        let (inspect_offset, inspect_angles) = (gun.inspect_offset, gun.inspect_angles);
 
         // One roll per disturbance, so each return lands somewhere new.
         let disturbed = aiming || leaning || local.sprinting.0;

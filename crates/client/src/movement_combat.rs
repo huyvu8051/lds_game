@@ -1,5 +1,6 @@
 
 use bevy::prelude::*;
+use bevy_seedling::prelude as seedling;
 use crate::*;
 
 #[derive(Component)]
@@ -666,11 +667,18 @@ pub(crate) fn shoot(
     gun.recoil_target = 1.0;
 
     gun.recoil_jitter = Vec2::new(shot_jitter(&mut gun.recoil_rng), shot_jitter(&mut gun.recoil_rng));
-    commands.spawn((AudioPlayer(vfx_assets.gunshot.of(active.0)), PlaybackSettings::DESPAWN, GunshotVoice));
+    commands.spawn((
+        seedling::SamplePlayer::new(vfx_assets.gunshot.of(active.0)),
+        seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
+        GunshotVoice,
+    ));
     if gun.ammo == 0 {
 
         gun.reload_remaining = active.def().reload_duration;
-        commands.spawn((AudioPlayer(vfx_assets.reload_sound.of(active.0)), PlaybackSettings::DESPAWN));
+        commands.spawn((
+            seedling::SamplePlayer::new(vfx_assets.reload_sound.of(active.0)),
+            seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
+        ));
     }
 
     let Ok((camera_transform, mut recoil)) = camera.single_mut() else {
@@ -879,6 +887,9 @@ pub(crate) fn reload_gun(
         return;
     }
     gun.reload_remaining = active.def().reload_duration;
-    commands.spawn((AudioPlayer(reload_sound.of(active.0)), PlaybackSettings::DESPAWN));
+    commands.spawn((
+        seedling::SamplePlayer::new(reload_sound.of(active.0)),
+        seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
+    ));
 }
 
