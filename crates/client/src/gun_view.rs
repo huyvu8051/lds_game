@@ -530,8 +530,11 @@ pub(crate) fn gun_view_animation(
     mut query: Query<(&mut Transform, &GlobalTransform, &mut Gun), Without<FpsCamera>>,
     aim: Query<&GlobalTransform, (With<AimSocket>, Without<Gun>, Without<FpsCamera>)>,
     local: LocalPlayerState,
-    active: Res<ActiveWeapon>,
-    cycle: Res<WalkCycle>,
+    (active, cycle, shock): (
+        Res<ActiveWeapon>,
+        Res<WalkCycle>,
+        Res<crate::movement_combat::FireShock>,
+    ),
 ) {
     // Taken, not read: the single consumer clearing it is what lets each
     // input path write only when it has a delta, instead of every path having
@@ -969,6 +972,11 @@ pub(crate) fn gun_view_animation(
         let inspect_swing =
             outer * sway * hold_turn * (between_hands - inspect_turn * between_hands);
 
+        let (shock_pitch, shock_yaw, shock_roll) = shock.angles(
+            GUN_SHOCK_PITCH_DEG.to_radians(),
+            GUN_SHOCK_YAW_DEG.to_radians(),
+            GUN_SHOCK_ROLL_DEG.to_radians(),
+        );
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);
         transform.translation = Vec3::new(swapped_x, base_pos.y, base_pos.z)
             + pose_swing
@@ -980,9 +988,22 @@ pub(crate) fn gun_view_animation(
                 kick.weapon.lift * timings.recoil_t + RELOAD_LIFT * timings.dip - timings.bob_y
                     + WALL_GUN_RAISE_HEIGHT * gun.wall_raise,
                 kick.weapon.slide_back * timings.recoil_t,
-            );
+            )
+            // The same ring-down shifting the weapon as well as turning it:
+            // a rifle in the shoulder judders along its own travel, not only
+            // about a point. Reusing the angles keeps the two in phase.
+            + Vec3::new(shock_yaw, shock_pitch, shock_roll)
+                * (GUN_SHOCK_SHIFT_M / GUN_SHOCK_ROLL_DEG.to_radians());
 
-        transform.rotation = outer * sway * hold_turn * inspect_turn * inner;
+        // Outermost, so the whole weapon rattles in view rather than each
+        // part twisting about its own pivot. Several times what the eye gets:
+        // this is the thing the round was fired out of.
+        transform.rotation = Quat::from_euler(EulerRot::YXZ, shock_yaw, shock_pitch, shock_roll)
+            * outer
+            * sway
+            * hold_turn
+            * inspect_turn
+            * inner;
     }
 }
 

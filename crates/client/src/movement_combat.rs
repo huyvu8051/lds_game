@@ -81,6 +81,76 @@ pub(crate) struct ViewRecoil {
     pub(crate) shove_target: f32,
 }
 
+/// The shock of a round going off, shared by the view and the weapon.
+///
+/// One resource rather than one each, for the same reason `WalkCycle` is one:
+/// the two have to ride the same oscillation or they rattle against each
+/// other instead of together.
+///
+/// A struck object leaves at maximum displacement and rings down, so this is
+/// a cosine under a decaying envelope rather than a noise field -- noise
+/// reads as a camera fault, a ring-down reads as something being hit. The
+/// envelope is spent well inside the strike, so there is nothing left by the
+/// time the aim starts coming home: the blow rattles, the recovery does not.
+///
+/// Under sustained fire what the eye reads as the shake rate is the *fire*
+/// rate, not the frequencies below -- every round restarts the ring-down
+/// before the last has finished.
+#[derive(Resource, Default)]
+pub(crate) struct FireShock {
+    /// 1 the instant the round goes off, decaying to nothing.
+    amount: f32,
+    /// Seconds since that round. Advanced with dt rather than read off the
+    /// clock, so a shot lands at the start of its own curve.
+    age: f32,
+    /// Varied per shot, so consecutive rounds do not rattle identically.
+    seed: f32,
+}
+
+/// Hz. Deliberately low: at 60fps anything above about fifteen is sampled
+/// fewer than four times a cycle and aliases into a slow wobble that changes
+/// shape with the frame rate. The sharpness comes from the decay, not the
+/// frequency.
+///
+/// The three are not harmonics of each other, or they would stay in step and
+/// the result would read as one motion along a line rather than a rattle.
+const SHOCK_FREQ_PITCH: f32 = 13.0;
+const SHOCK_FREQ_YAW: f32 = 9.0;
+const SHOCK_FREQ_ROLL: f32 = 11.0;
+/// 1/e in 56ms, so it is gone inside a tenth of a second -- shorter than the
+/// strike, which is what keeps the recovery clean.
+const SHOCK_DECAY: f32 = 18.0;
+
+impl FireShock {
+    /// Pitch, yaw and roll, each scaled by its own peak.
+    pub(crate) fn angles(&self, pitch_peak: f32, yaw_peak: f32, roll_peak: f32) -> (f32, f32, f32) {
+        if self.amount <= 0.0 {
+            return (0.0, 0.0, 0.0);
+        }
+        let ring = |hz: f32, phase: f32| {
+            ops::cos(self.age * hz * std::f32::consts::TAU + phase) * self.amount
+        };
+        (
+            ring(SHOCK_FREQ_PITCH, 0.0) * pitch_peak,
+            ring(SHOCK_FREQ_YAW, self.seed) * yaw_peak,
+            ring(SHOCK_FREQ_ROLL, self.seed * 2.0 + 1.7) * roll_peak,
+        )
+    }
+}
+
+/// Before anything that rides it, and in the same frame -- the weapon and the
+/// view both read this where it stands now, so they cannot drift apart.
+pub(crate) fn advance_fire_shock(time: Res<Time>, mut shock: ResMut<FireShock>) {
+    let dt = time.delta_secs();
+    shock.age += dt;
+    shock.amount *= ops::exp(-SHOCK_DECAY * dt);
+    // Below this it moves the view by less than a thousandth of a degree, and
+    // leaving it running keeps `angles` doing three cosines forever.
+    if shock.amount < 1.0e-4 {
+        shock.amount = 0.0;
+    }
+}
+
 #[derive(Component, Default)]
 pub(crate) struct Lean {
 
@@ -237,8 +307,11 @@ pub(crate) fn apply_view_recoil(
     active: Res<ActiveWeapon>,
     cycle: Res<crate::gun_view::WalkCycle>,
     pose: Res<WeaponPose>,
+    shock: Res<FireShock>,
+    guns: Query<&Gun>,
     mut query: Query<(&mut Transform, &FpsCamera, &mut ViewRecoil, &Lean)>,
 ) {
+    let ads_blend = guns.iter().next().map_or(0.0, |gun| gun.ads_blend);
     for (mut transform, cam, mut recoil, lean) in &mut query {
         // The marks ease home at the weapon's recovery rate; the view runs
         // after them far faster. That split is what reads as a blow absorbed
@@ -259,15 +332,24 @@ pub(crate) fn apply_view_recoil(
         // down for the sights upstream, so bracing quiets the view too.
         let hold_pitch = pose.hold_pitch_deg.to_radians() * CAMERA_HOLD_FRACTION;
         let hold_yaw = pose.hold_yaw_deg.to_radians() * CAMERA_HOLD_FRACTION;
-        let pitch = (cam.pitch + recoil.climb + hold_pitch).clamp(-1.54, 1.54);
-        let yaw = cam.yaw + recoil.wander + hold_yaw;
+        // The blow, on top of where the blow has left the aim. A cheek weld
+        // takes most of it out: braced is also when the player most needs to
+        // read the sight picture.
+        let brace = 1.0 - ADS_SHOCK_DAMP * ads_blend;
+        let (shock_pitch, shock_yaw, shock_roll) = shock.angles(
+            CAMERA_SHOCK_PITCH_DEG.to_radians() * brace,
+            CAMERA_SHOCK_YAW_DEG.to_radians() * brace,
+            CAMERA_SHOCK_ROLL_DEG.to_radians() * brace,
+        );
+        let pitch = (cam.pitch + recoil.climb + hold_pitch + shock_pitch).clamp(-1.54, 1.54);
+        let yaw = cam.yaw + recoil.wander + hold_yaw + shock_yaw;
 
         // Walk roll goes in with the lean's, which is the only other thing
         // that rolls the view. In phase with the sideways sway, so the head
         // tilts the way it is already leaning rather than against it.
         let walk_roll =
             ops::sin(cycle.phase) * CAMERA_BOB_ROLL_DEG.to_radians() * cycle.amount();
-        let roll = -LEAN_ROLL_DEG.to_radians() * lean.current + walk_roll;
+        let roll = -LEAN_ROLL_DEG.to_radians() * lean.current + walk_roll + shock_roll;
         transform.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, roll);
     }
 }
@@ -618,9 +700,10 @@ pub(crate) fn shoot(
     spatial_query: SpatialQuery,
     (touch_firing, casings, mouse): (Res<TouchFiring>, Res<CasingAssets>, Res<ButtonInput<MouseButton>>),
     mut cooldown: Local<f32>,
-    (mut smoke_materials, mut flash_materials): (
+    (mut smoke_materials, mut flash_materials, mut shock): (
         ResMut<Assets<MuzzleSmokeMaterial>>,
         ResMut<Assets<MuzzleFlashMaterial>>,
+        ResMut<FireShock>,
     ),
     (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings): (
         Res<Autopilot>,
@@ -702,6 +785,13 @@ pub(crate) fn shoot(
     recoil.climb_target = (recoil.climb_target + kick.view.climb_per_shot).min(kick.view.climb_max);
 
     recoil.wander_target += shot_jitter(&mut gun.recoil_rng) * kick.view.wander_per_shot;
+
+    // Restarted rather than added to: each round is its own blow, and a
+    // shock that accumulated would grow through a burst into a shudder
+    // nothing in the weapon justifies.
+    shock.amount = 1.0;
+    shock.age = 0.0;
+    shock.seed = shot_jitter(&mut gun.recoil_rng) * std::f32::consts::PI;
     recoil.shove_target = (recoil.shove_target + kick.view.shove_per_shot).min(kick.view.shove_max);
 
     let stance = vfx_assets.stance.single().copied().unwrap_or_default();
