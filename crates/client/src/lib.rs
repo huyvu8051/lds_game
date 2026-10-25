@@ -748,7 +748,12 @@ pub fn main() {
             // the same geometry the bullets do rather than a second model of
             // the map kept in step by hand.
             bevy_seedling::SeedlingPlugins,
+        ))
+        // Not on iOS: see the note on the dependency in Cargo.toml.
+        .add_plugins((
+            #[cfg(not(target_os = "ios"))]
             bevy_steam_audio::SteamAudioPlugin::default(),
+            #[cfg(not(target_os = "ios"))]
             avian_steam_audio::AvianSteamAudioScenePlugin,
         ))
         // Four, not Avian's default six: the solver was running at 384Hz for

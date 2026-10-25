@@ -23,12 +23,8 @@ bevy_rerecast = { version = "0.5", default-features = false, features = ["bevy_m
 bevy_landmass = "0.12"
 landmass_rerecast = "0.3"
 avian3d = "0.7"
-# Our fork, ported from Bevy 0.18 to 0.19 and Avian 0.6 to 0.7. Upstream is
-# janhohenheim/bevy_steam_audio; `upstream` is still a remote there for pulling
-# fixes back.
-bevy_steam_audio = { git = "https://github.com/huyvu8051/bevy_steam_audio", branch = "main", features = ["auto-install"] }
-avian_steam_audio = { git = "https://github.com/huyvu8051/bevy_steam_audio", branch = "main" }
 bevy_seedling = "0.8"
+
 
 ron = "0.8"
 serde = { version = "1.0", features = ["derive"] }
@@ -48,3 +44,19 @@ tobj = "4.0.5"
 gltf = "1.4.1"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
 bincode = { version = "2.0.1", features = ["serde"] }
+
+# Desktop only. Valve ships iOS as a static libphonon.a that is not
+# self-contained -- it leaves _mysofa_* and _pffft_* unresolved, expecting the
+# integrator to supply libmysofa and PFFFT, which their own Unity and Unreal
+# plugins bundle. The macOS dylib has them baked in, which is why this built
+# everywhere except the device.
+#
+# Building those two for arm64-ios is the way to have it on the phone; until
+# then iOS keeps seedling's own spatial audio and the deploy works.
+#
+# Our fork, ported from Bevy 0.18 to 0.19 and Avian 0.6 to 0.7. Upstream is
+# janhohenheim/bevy_steam_audio; `upstream` is still a remote there for
+# pulling fixes back.
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+bevy_steam_audio = { git = "https://github.com/huyvu8051/bevy_steam_audio", branch = "main", features = ["auto-install"] }
+avian_steam_audio = { git = "https://github.com/huyvu8051/bevy_steam_audio", branch = "main" }

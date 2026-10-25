@@ -111,7 +111,6 @@ pub(crate) fn update_noclip_fly_input(
 
 #[derive(SystemParam)]
 pub(crate) struct TouchGameplayInputs<'w> {
-    pub(crate) aiming: Res<'w, TouchAiming>,
     pub(crate) jump: Res<'w, TouchJump>,
     pub(crate) sprint: Res<'w, TouchSprintHeld>,
     pub(crate) noclip_fly: Res<'w, NoclipFlyInput>,
