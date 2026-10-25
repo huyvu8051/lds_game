@@ -19,6 +19,14 @@ pub(crate) struct WeaponDef {
     pub(crate) ads_eye_relief: f32,
     pub(crate) ads_speed: AdsSpeed,
     pub(crate) sprint_carry: SprintCarry,
+    /// How much of the breathing and tremor the sights show on this weapon.
+    ///
+    /// Per weapon rather than one number divided by magnification: what the
+    /// player sees is the sway times the glass, but how much of it a rifle
+    /// shows is also a matter of how it is held, and a 12x hunting scope and a
+    /// 24x sniper scope are not braced the same way. One number each says so
+    /// directly instead of falling out of an arithmetic nobody can tune.
+    pub(crate) hold_ads_fraction: f32,
     /// Metres the weapon slides off the sight line per unit of settling
     /// velocity -- how far it misses before it corrects on. Scaled roughly
     /// against how fast each weapon handles: the one that comes up slowest
@@ -205,6 +213,7 @@ static AK47: WeaponDef = WeaponDef {
     ready_offset: Vec3::new(0.045, -0.1905, -0.6194),
     ads_eye_relief: 0.12,
     ads_speed: AdsSpeed { from_ready: 8.0, from_rest: 5.5 },
+    hold_ads_fraction: 0.192,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.03, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.028,
     ads_settle_miss_deg: 0.5,
@@ -258,6 +267,7 @@ static M4A1: WeaponDef = WeaponDef {
     ready_offset: Vec3::new(0.071, -0.2268, -0.536),
     ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
+    hold_ads_fraction: 0.300,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.07, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.014,
     ads_settle_miss_deg: 1.2,
@@ -320,6 +330,7 @@ static M24: WeaponDef = WeaponDef {
     // there is still room before the near plane at 100mm.
     ads_eye_relief: 0.02,
     ads_speed: AdsSpeed { from_ready: 5.5, from_rest: 2.575 },
+    hold_ads_fraction: 0.096,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.02, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.040,
     ads_settle_miss_deg: 0.3,

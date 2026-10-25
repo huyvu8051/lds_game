@@ -34,8 +34,6 @@ pub(crate) struct TouchJumpButton;
 #[derive(Component)]
 pub(crate) struct TouchCrouchButton;
 #[derive(Component)]
-pub(crate) struct TouchSprintButton;
-#[derive(Component)]
 pub(crate) struct TouchProneButton;
 #[derive(Component)]
 pub(crate) struct TouchLeanLeftButton;
@@ -132,21 +130,47 @@ pub(crate) fn suppress_touch_buttons_while_menu_open(
     }
 }
 
-pub(crate) fn multi_touch_button_interaction(touches: Res<Touches>, hover_map: Res<HoverMap>, mut buttons: Query<&mut Interaction, With<Button>>) {
-    let Some(first_id) = touches.iter().next().map(|t| t.id()) else {
-        return;
-    };
-    for touch in touches.iter() {
-        if touch.id() == first_id {
-            continue;
-        }
+/// Holds a button down for the finger that pressed it, for as many fingers as
+/// are on the screen.
+///
+/// Two things have to be true at once here, and each one broke when it was the
+/// only one.
+///
+/// Every finger counts. This used to skip `touches.iter().next()`, on the
+/// theory that Bevy was already holding that one. `Touches::pressed` is a
+/// HashMap, so that is not the first finger down -- it is whichever hashed out
+/// first, and the order changes the moment another finger arrives. Put a
+/// second finger anywhere and the button under the first was sometimes the
+/// skipped one, with Bevy having just moved its pointer to the new finger and
+/// set that button back to None. Nobody was left holding it, and it let go.
+///
+/// And a button belongs to the finger that landed on it. Honouring whatever a
+/// finger is merely over, rather than what it pressed, means the thumb working
+/// the stick fires every button it slides across on its way round. Which
+/// button a touch owns is decided once, when it goes down, and held until it
+/// lifts -- so a finger that went down on empty ground owns nothing, however
+/// far it wanders.
+///
+/// Nothing here clears an interaction, only sets Pressed, and it runs in
+/// Update after the picking backend has had its say in PreUpdate.
+pub(crate) fn multi_touch_button_interaction(
+    touches: Res<Touches>,
+    hover_map: Res<HoverMap>,
+    mut held: Local<std::collections::HashMap<u64, Entity>>,
+    mut buttons: Query<&mut Interaction, With<Button>>,
+) {
+    for touch in touches.iter_just_pressed() {
         let Some(hits) = hover_map.get(&PointerId::Touch(touch.id())) else {
             continue;
         };
-        for &entity in hits.keys() {
-            if let Ok(mut interaction) = buttons.get_mut(entity) {
-                interaction.set_if_neq(Interaction::Pressed);
-            }
+        if let Some(&entity) = hits.keys().find(|&&e| buttons.contains(e)) {
+            held.insert(touch.id(), entity);
+        }
+    }
+    held.retain(|id, _| touches.get_pressed(*id).is_some());
+    for &entity in held.values() {
+        if let Ok(mut interaction) = buttons.get_mut(entity) {
+            interaction.set_if_neq(Interaction::Pressed);
         }
     }
 }
@@ -380,17 +404,8 @@ pub(crate) fn spawn_touch_controls(commands: &mut Commands) {
     let modifier_row_bottom = stance_row_bottom + stance_btn_px + stance_row_gap;
     spawn_touch_round_button(
         commands,
-        "SPRINT",
-        32.0,
-        modifier_row_bottom,
-        stance_btn_px,
-        Color::srgba(1.0, 0.55, 0.15, 0.4),
-        TouchSprintButton,
-    );
-    spawn_touch_round_button(
-        commands,
         "LEAN <",
-        32.0 + (stance_btn_px + stance_row_gap),
+        32.0,
         modifier_row_bottom,
         stance_btn_px,
         Color::srgba(0.4, 0.85, 0.5, 0.4),
@@ -537,10 +552,6 @@ pub(crate) fn touch_prone_button(button: Query<&Interaction, (With<TouchProneBut
     }
 }
 
-pub(crate) fn touch_sprint_button(mut sprint: ResMut<TouchSprintHeld>, button: Query<&Interaction, With<TouchSprintButton>>) {
-    sprint.0 = button.iter().any(|interaction| *interaction == Interaction::Pressed);
-}
-
 pub(crate) fn touch_lean_buttons(mut lean: ResMut<TouchLeanHeld>, left_button: Query<&Interaction, With<TouchLeanLeftButton>>, right_button: Query<&Interaction, With<TouchLeanRightButton>>) {
     lean.left = left_button.iter().any(|interaction| *interaction == Interaction::Pressed);
     lean.right = right_button.iter().any(|interaction| *interaction == Interaction::Pressed);
@@ -574,18 +585,22 @@ pub(crate) fn touch_move_axis(
     settings_menu: Query<(&ComputedNode, &UiGlobalTransform), With<SettingsMenuRoot>>,
     mut state: ResMut<TouchMoveState>,
     mut axis: ResMut<TouchMoveAxis>,
+    mut sprint: ResMut<TouchSprintHeld>,
 ) {
 
     if mouse_ui_locked.0 {
         state.touch_id = None;
         axis.0 = Vec2::ZERO;
+        sprint.0 = false;
         return;
     }
     let Ok(window) = windows.single() else {
         axis.0 = Vec2::ZERO;
+        sprint.0 = false;
         return;
     };
     let half_width = window.width() / 2.0;
+    let half_height = window.height() / 2.0;
     let scale_factor = window.scale_factor();
 
     if let Some(id) = state.touch_id {
@@ -594,22 +609,40 @@ pub(crate) fn touch_move_axis(
         }
     }
     if state.touch_id.is_none() {
+        // The lower left quarter, not the whole left half. The stick plants
+        // itself wherever the finger lands, so the half it had was also every
+        // place a thumb reaches for something else -- lean, crouch, a tap to
+        // look -- and each of those started a walk instead.
         if let Some(touch) = touches.iter_just_pressed().find(|touch| {
-            touch.position().x < half_width && !touch_over_settings_menu(touch.position() * scale_factor, &settings_visible, &settings_menu)
+            let at = touch.position();
+            at.x < half_width
+                && at.y > half_height
+                && !touch_over_settings_menu(at * scale_factor, &settings_visible, &settings_menu)
         }) {
             state.touch_id = Some(touch.id());
             state.origin = touch.position();
         }
     }
 
-    axis.0 = match state.touch_id.and_then(|id| touches.get_pressed(id)) {
+    match state.touch_id.and_then(|id| touches.get_pressed(id)) {
         Some(touch) => {
-            let drag = (touch.position() - state.origin).clamp_length_max(TOUCH_JOYSTICK_RADIUS_PX) / TOUCH_JOYSTICK_RADIUS_PX;
+            let raw = touch.position() - state.origin;
+            let drag = raw.clamp_length_max(TOUCH_JOYSTICK_RADIUS_PX) / TOUCH_JOYSTICK_RADIUS_PX;
+            axis.0 = Vec2::new(drag.x, -drag.y);
 
-            Vec2::new(drag.x, -drag.y)
+            // Past full tilt and still pushing forward is the ask. The bar to
+            // stop is lower than the bar to start, so a thumb hovering near
+            // the line does not switch the run on and off every frame.
+            let reach = raw.length();
+            let forward = reach > f32::EPSILON && (-raw.y / reach) >= TOUCH_SPRINT_FORWARD_DOT;
+            let bar = if sprint.0 { TOUCH_SPRINT_RELEASE_PX } else { TOUCH_SPRINT_RADIUS_PX };
+            sprint.0 = forward && reach >= bar;
         }
-        None => Vec2::ZERO,
-    };
+        None => {
+            axis.0 = Vec2::ZERO;
+            sprint.0 = false;
+        }
+    }
 }
 
 pub(crate) fn update_joystick_knob_visual(state: Res<TouchMoveState>, touches: Res<Touches>, mut knob: Query<&mut Node, With<TouchJoystickKnob>>) {

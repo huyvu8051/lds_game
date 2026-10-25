@@ -157,6 +157,21 @@ const GUN_SHOULDER_SPEED: f32 = 9.0;
 /// the way it is carried when nobody expects to use it in the next second.
 /// Firing drops it straight back to the ready pose and starts the clock over,
 /// so a player shooting on the move never leaves the pose they can shoot from.
+/// How far out of position the weapon may be and still fire.
+///
+/// Two poses take the muzzle a long way off the view axis: carried across the
+/// body at a sprint, and raised out of a wall. A hipfire shot converges on the
+/// crosshair by design -- the muzzle sits right of and below the eye, so a
+/// bore-parallel shot would miss the cross at every range -- but that only
+/// holds while the weapon is roughly pointing where the player is looking. At
+/// these two poses it stops holding, and the round leaves a barrel aimed
+/// sideways to fly straight ahead.
+///
+/// So the shot waits for the weapon. The two waits are not the same, though:
+/// the carry is the player's own pose and pressing fire drops it, while the
+/// wall is a wall and nothing the player presses will move it.
+const WEAPON_ON_AXIS_BLEND: f32 = 0.25;
+
 const SPRINT_CARRY_DELAY: f32 = 1.0;
 const SPRINT_CARRY_SPEED: f32 = 6.0;
 
@@ -197,6 +212,50 @@ const LOOK_SWAY_MAX_DEG: f32 = 3.5;
 /// under 1.0 the weapon passes the mark and comes back. 0.65 leaves under a
 /// hundredth of it -- enough that the weapon does not stop dead, not enough
 /// to read as a wobble through the glass.
+/// The weapon is never still, because the body holding it is not.
+///
+/// Three layers, because one sine reads as a machine. Breathing is slow and
+/// almost all pitch -- fifteen a minute, the muzzle rising on the way in and
+/// settling on the way out. Over it, two tremors at rates that share no common
+/// multiple, so the pattern never repeats where anyone can see it repeat; 1.7
+/// and 2.9 are the postural correction a standing body makes, not the 8-12Hz
+/// physiological tremor, which is far too small and far too fast to draw.
+///
+/// Degrees, all of them, turned about the firing grip.
+const HOLD_BREATH_HZ: f32 = 0.25;
+const HOLD_BREATH_PITCH_DEG: f32 = 0.42;
+const HOLD_BREATH_YAW_DEG: f32 = 0.09;
+const HOLD_TREMOR_A_HZ: f32 = 1.7;
+const HOLD_TREMOR_B_HZ: f32 = 2.9;
+const HOLD_TREMOR_YAW_DEG: f32 = 0.030;
+const HOLD_TREMOR_PITCH_DEG: f32 = 0.022;
+
+/// The share of the hold the view takes as well as the weapon.
+///
+/// A body that moves the rifle moves the eye looking down it, so some of this
+/// has to be in the camera or the weapon reads as drifting on its own. Kept
+/// well under the weapon's, since the two add -- the gun hangs off the camera
+/// -- and the part worth seeing is the muzzle wandering against the world,
+/// not the world wandering.
+const CAMERA_HOLD_FRACTION: f32 = 0.35;
+
+/// What the weapon pose is telling the rest of the game, published once.
+///
+/// Everything that reacts to being aimed used to ask the aim button instead,
+/// and the button and the weapon disagree: holding it through a reload leaves
+/// the sights down -- the weapon has come off the eye to work the magazine --
+/// while the button still says yes. The view stayed zoomed on nothing and the
+/// walk stayed slow for a weapon that was not being aimed.
+///
+/// `sighted` is the blend, not a flag, so a caller that can ease does and one
+/// that needs a yes or no picks its own line.
+#[derive(Resource, Default)]
+pub(crate) struct WeaponPose {
+    pub(crate) sighted: f32,
+    pub(crate) hold_yaw_deg: f32,
+    pub(crate) hold_pitch_deg: f32,
+}
+
 const LOOK_SWAY_FREQUENCY: f32 = 12.0;
 const LOOK_SWAY_DAMPING: f32 = 0.65;
 
@@ -342,6 +401,19 @@ const TOUCH_JOYSTICK_BASE_PX: f32 = 140.0;
 const TOUCH_JOYSTICK_KNOB_PX: f32 = 64.0;
 
 const TOUCH_JOYSTICK_RADIUS_PX: f32 = (TOUCH_JOYSTICK_BASE_PX - TOUCH_JOYSTICK_KNOB_PX) / 2.0;
+
+/// Push the stick past this and the run starts, the way a phone does it.
+///
+/// Measured against the raw drag rather than the clamped one, so the extra
+/// travel beyond full tilt is what asks for it. A thumb that merely reaches
+/// full speed is not asking; one that keeps going is.
+const TOUCH_SPRINT_RADIUS_PX: f32 = TOUCH_JOYSTICK_RADIUS_PX * 1.55;
+/// And it has to be forward. Sprinting sideways or backwards is not a thing
+/// the player can do anyway, so a stick shoved left should not light it up.
+const TOUCH_SPRINT_FORWARD_DOT: f32 = 0.72;
+/// Once running, it takes coming most of the way back to stop -- otherwise
+/// the run flickers off every time the thumb drifts across the line.
+const TOUCH_SPRINT_RELEASE_PX: f32 = TOUCH_JOYSTICK_RADIUS_PX * 1.20;
 const TOUCH_FIRE_BUTTON_PX: f32 = 90.0;
 
 const TOUCH_SCOPE_ZOOM_TRACK_WIDTH_PX: f32 = 44.0;
@@ -738,6 +810,7 @@ impl Plugin for GamePlugin {
         .init_resource::<AimBlurEnabled>()
         .init_resource::<AimDofFocalDistanceAlt>()
         .init_resource::<MouseLookDelta>()
+        .init_resource::<WeaponPose>()
         .init_resource::<PerfTimings>()
         .init_resource::<ZombieAnimDisabled>()
         .init_resource::<ZombieHealthBarsHidden>()
@@ -821,7 +894,6 @@ impl Plugin for GamePlugin {
                 touch_crouch_button,
                 touch_reload_button,
                 touch_prone_button,
-                touch_sprint_button,
                 touch_lean_buttons,
                 update_touch_button_press_visual,
             )

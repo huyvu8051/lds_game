@@ -224,6 +224,7 @@ pub(crate) fn apply_view_recoil(
     time: Res<Time>,
     active: Res<ActiveWeapon>,
     cycle: Res<crate::gun_view::WalkCycle>,
+    pose: Res<WeaponPose>,
     mut query: Query<(&mut Transform, &FpsCamera, &mut ViewRecoil, &Lean)>,
 ) {
     for (mut transform, cam, mut recoil, lean) in &mut query {
@@ -242,8 +243,12 @@ pub(crate) fn apply_view_recoil(
         recoil.wander += (recoil.wander_target - recoil.wander) * strike;
         recoil.shove += (recoil.shove_target - recoil.shove) * strike;
 
-        let pitch = (cam.pitch + recoil.climb).clamp(-1.54, 1.54);
-        let yaw = cam.yaw + recoil.wander;
+        // The share of the weapon's hold the eye takes with it. Already scaled
+        // down for the sights upstream, so bracing quiets the view too.
+        let hold_pitch = pose.hold_pitch_deg.to_radians() * CAMERA_HOLD_FRACTION;
+        let hold_yaw = pose.hold_yaw_deg.to_radians() * CAMERA_HOLD_FRACTION;
+        let pitch = (cam.pitch + recoil.climb + hold_pitch).clamp(-1.54, 1.54);
+        let yaw = cam.yaw + recoil.wander + hold_yaw;
 
         // Walk roll goes in with the lean's, which is the only other thing
         // that rolls the view. In phase with the sideways sway, so the head
@@ -306,17 +311,18 @@ pub(crate) fn apply_lean_input(
 pub(crate) fn apply_aim_zoom(
     time: Res<Time>,
     active: Res<ActiveWeapon>,
-    aim_held: Res<AimHeld>,
-    touch_aiming: Res<TouchAiming>,
-    cursor: Query<&CursorOptions, With<PrimaryWindow>>,
+    pose: Res<WeaponPose>,
     mut camera: Query<&mut Projection, With<FpsCamera>>,
 ) {
-    let Ok(cursor) = cursor.single() else {
-        return;
-    };
-    let aiming = is_aiming(cursor, &aim_held, touch_aiming.0) || force_ads();
-    let target_fov =
-        if aiming { BASE_FOV * active.def().aim_fov_multiplier } else { BASE_FOV };
+    // Read off the weapon, not off the button. The two disagree: asking for
+    // the sights while reloading leaves ads_blend at zero, because the weapon
+    // has come down to work the magazine -- but the view used to stay zoomed
+    // in on a weapon that was no longer pointing at anything.
+    //
+    // Following the blend also means the view arrives when the sights do, at
+    // whatever rate this weapon raises, rather than on a second clock of its
+    // own that happened to be close.
+    let target_fov = BASE_FOV * (1.0 + (active.def().aim_fov_multiplier - 1.0) * pose.sighted);
 
     let Ok(mut projection) = camera.single_mut() else {
         return;
@@ -330,18 +336,19 @@ pub(crate) fn apply_aim_zoom(
 
 pub(crate) fn apply_aim_dof(
     mut commands: Commands,
-    aim_held: Res<AimHeld>,
-    touch_aiming: Res<TouchAiming>,
+    pose: Res<WeaponPose>,
     aim_blur: Res<AimBlurEnabled>,
     dof_focal_alt: Res<AimDofFocalDistanceAlt>,
-    cursor: Query<&CursorOptions, With<PrimaryWindow>>,
     camera: Query<Entity, With<FpsCamera>>,
 ) {
-    let (Ok(cursor), Ok(camera_entity)) = (cursor.single(), camera.single()) else {
+    let Ok(camera_entity) = camera.single() else {
         return;
     };
-    // force_ads() counts, or a measurement run reads cheaper than the game.
-    if aim_blur.0 && (is_aiming(cursor, &aim_held, touch_aiming.0) || force_ads()) {
+    // The weapon again, not the button: a reload drops the sights, and the
+    // background has no business staying soft for a rifle that has come down
+    // to be loaded. force_ads() is already in the blend, so a measurement run
+    // still reads as the game does.
+    if aim_blur.0 && pose.sighted > 0.5 {
         let focal_distance = if dof_focal_alt.0 {
             AIM_DOF_FOCAL_DISTANCE_B
         } else {
@@ -387,7 +394,7 @@ pub(crate) fn toggle_player_stance(keys: Res<ButtonInput<KeyCode>>, mut player: 
 }
 
 pub(crate) fn send_player_input(
-    aim_held: Res<AimHeld>,
+    pose: Res<WeaponPose>,
     keys: Res<ButtonInput<KeyCode>>,
     touch: TouchGameplayInputs,
     time: Res<Time>,
@@ -420,7 +427,10 @@ pub(crate) fn send_player_input(
     };
     let stance = *stance;
 
-    let aiming = cursor.single().is_ok_and(|cursor| is_aiming(cursor, &aim_held, touch.aiming.0));
+    // The weapon, not the button. Reloading drops the sights, so the walk
+    // comes back up to speed with them instead of staying slow for a rifle
+    // nobody is aiming.
+    let aiming = pose.sighted > 0.5;
 
     let (move_axis, sprinting) = if autopilot.0 {
         (intent.move_axis, intent.sprint)
@@ -637,11 +647,24 @@ pub(crate) fn shoot(
     if gun.ammo == 0 || gun.reload_remaining > 0.0 {
         return;
     }
+
+    // Wanting to shoot is what ends the carry, so this lands before the gate
+    // below rather than after it. Pressed and refused still counts as
+    // wanting to -- without it the weapon would stay across the body for as
+    // long as the trigger was held, which is the one moment it should not.
+    gun.since_shot = 0.0;
+    // The cooldown is deliberately left alone. A refused shot is not a shot
+    // spent: it goes off the moment the weapon is back on axis, which for the
+    // sprint carry is about a sixth of a second, and for a wall is whenever
+    // the player steps away from it.
+    if gun.sprint_blend > WEAPON_ON_AXIS_BLEND || gun.wall_raise > WEAPON_ON_AXIS_BLEND {
+        return;
+    }
+
     *cooldown = active.def().fire_rate;
     gun.ammo -= 1;
     gun.recoil_target = 1.0;
 
-    gun.since_shot = 0.0;
     gun.recoil_jitter = Vec2::new(shot_jitter(&mut gun.recoil_rng), shot_jitter(&mut gun.recoil_rng));
     commands.spawn((AudioPlayer(vfx_assets.gunshot.of(active.0)), PlaybackSettings::DESPAWN, GunshotVoice));
     if gun.ammo == 0 {

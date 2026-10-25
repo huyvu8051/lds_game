@@ -456,6 +456,14 @@ pub(crate) fn update_scope_lens(
 /// holds still on screen while the rest swings.
 const SWAY_PIVOT_DOWN_BORE: f32 = 0.40;
 
+/// Two resources as one parameter: gun_view_animation is at Bevy's sixteen
+/// and the zoom has to get in.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct LocalPlayerState<'w> {
+    moving: Res<'w, LocalPlayerMoving>,
+    sprinting: Res<'w, LocalPlayerSprinting>,
+}
+
 pub(crate) fn gun_view_animation(
     trigger_grip: Query<&GlobalTransform, With<TriggerGripSocket>>,
     time: Res<Time>,
@@ -463,13 +471,13 @@ pub(crate) fn gun_view_animation(
     touch_aiming: Res<TouchAiming>,
     game_over: Res<GameOver>,
     mut look_delta: ResMut<MouseLookDelta>,
+    mut pose: ResMut<WeaponPose>,
     cursor: Query<&CursorOptions, With<PrimaryWindow>>,
     camera: Query<(&Transform, &Lean), (With<FpsCamera>, Without<Gun>)>,
     spatial_query: SpatialQuery,
     mut query: Query<(&mut Transform, &GlobalTransform, &mut Gun), Without<FpsCamera>>,
     aim: Query<&GlobalTransform, (With<AimSocket>, Without<Gun>, Without<FpsCamera>)>,
-    local_moving: Res<LocalPlayerMoving>,
-    local_sprinting: Res<LocalPlayerSprinting>,
+    local: LocalPlayerState,
     active: Res<ActiveWeapon>,
     cycle: Res<WalkCycle>,
 ) {
@@ -580,7 +588,7 @@ pub(crate) fn gun_view_animation(
         // they are done with that sight line, so it drops to the normal rest.
         if aiming {
             gun.ready_armed = true;
-        } else if local_sprinting.0 || game_over.0 {
+        } else if local.sprinting.0 || game_over.0 {
             gun.ready_armed = false;
         }
         // Leaning takes the gun back to its shoulder: the swap is a deliberate
@@ -595,8 +603,8 @@ pub(crate) fn gun_view_animation(
         // without a shot. Aiming, reloading or standing still all mean the
         // weapon is wanted, so none of them reach it.
         gun.since_shot = (gun.since_shot + dt).min(f32::MAX / 2.0);
-        let carrying = local_sprinting.0
-            && local_moving.0
+        let carrying = local.sprinting.0
+            && local.moving.0
             && !aiming
             && gun.reload_remaining <= 0.0
             && gun.since_shot >= SPRINT_CARRY_DELAY;
@@ -604,7 +612,7 @@ pub(crate) fn gun_view_animation(
         gun.sprint_blend += (f32::from(carrying) - gun.sprint_blend) * carry_step;
 
         // One roll per disturbance, so each return lands somewhere new.
-        let disturbed = aiming || leaning || local_sprinting.0;
+        let disturbed = aiming || leaning || local.sprinting.0;
         if disturbed {
             if !gun.settle_rolled {
                 gun.settle_rolled = true;
@@ -752,6 +760,35 @@ pub(crate) fn gun_view_animation(
         let base_pos =
             resting.lerp(sighted, gun.ads_blend) - Vec3::Z * view_pullback() + settle_offset;
 
+        // Breathing and two tremors, read off the clock rather than integrated,
+        // so it is the same motion whatever the frame rate and two weapons
+        // picked up a second apart are not in step.
+        //
+        // Pitch carries the breath because that is the axis a chest moves the
+        // muzzle on. The tremors take yaw as well, and sit at rates with no
+        // common multiple so the loop never lands where the eye can catch it.
+        let clock = time.elapsed_secs();
+        let tau = std::f32::consts::TAU;
+        let breath = ops::sin(tau * HOLD_BREATH_HZ * clock);
+        let tremor_a = ops::sin(tau * HOLD_TREMOR_A_HZ * clock);
+        let tremor_b = ops::sin(tau * HOLD_TREMOR_B_HZ * clock + 1.3);
+        // Braced against the shoulder, most of it goes; what is left the glass
+        // makes the most of.
+        // Each weapon says how much of this its sights show, because a red dot
+        // and a 24x scope do not magnify the same wander by the same amount
+        // and are not braced the same way either.
+        let ads = gun.ads_blend.clamp(0.0, 1.0);
+        let hold = 1.0 - ads * (1.0 - active.def().hold_ads_fraction);
+        let hold_yaw = (HOLD_BREATH_YAW_DEG * breath + HOLD_TREMOR_YAW_DEG * tremor_a) * hold;
+        let hold_pitch = (HOLD_BREATH_PITCH_DEG * breath + HOLD_TREMOR_PITCH_DEG * tremor_b) * hold;
+        let hold_turn = Quat::from_rotation_y(hold_yaw.to_radians())
+            * Quat::from_rotation_x(hold_pitch.to_radians());
+        // Handed to the view, which takes a share of the same numbers rather
+        // than running its own sines and slowly drifting out of step.
+        pose.hold_yaw_deg = hold_yaw;
+        pose.hold_pitch_deg = hold_pitch;
+        pose.sighted = ads;
+
         let outer = Quat::from_rotation_x(WALL_GUN_RAISE_ROT_DEG.to_radians() * gun.wall_raise);
         let sway = Quat::from_rotation_y(gun.look_sway.x.to_radians())
             * Quat::from_rotation_x(gun.look_sway.y.to_radians());
@@ -769,11 +806,16 @@ pub(crate) fn gun_view_animation(
         // before and after the sway reaches it.
         let turned = inner * (Vec3::NEG_Z * SWAY_PIVOT_DOWN_BORE);
         let sway_swing = outer * (turned - sway * turned);
+        // About the firing grip, like the reload and the carry: a hand holding
+        // a rifle is the thing that stays put while the muzzle wanders.
+        let held = inner * grip_in_gun;
+        let hold_swing = outer * sway * (held - hold_turn * held);
 
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);
         transform.translation = Vec3::new(swapped_x, base_pos.y, base_pos.z)
             + pose_swing
             + sway_swing
+            + hold_swing
             + Vec3::new(
                 timings.bob_x,
                 kick.weapon.lift * timings.recoil_t + RELOAD_LIFT * timings.dip - timings.bob_y
@@ -781,7 +823,7 @@ pub(crate) fn gun_view_animation(
                 kick.weapon.slide_back * timings.recoil_t,
             );
 
-        transform.rotation = outer * sway * inner;
+        transform.rotation = outer * sway * hold_turn * inner;
     }
 }
 
