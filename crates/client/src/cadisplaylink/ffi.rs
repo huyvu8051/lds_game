@@ -14,6 +14,8 @@ pub struct GameHost {
     renderer: NativeMetalRenderer,
     frames: u32,
     last_update_ms: f32,
+    last_extract_ms: f32,
+    extract_ms: f32,
     update_ms: f32,
     wait_ms: f32,
     book_ms: f32,
@@ -73,9 +75,11 @@ impl GameHost {
         let update_start = std::time::Instant::now();
         self.app.update();
         self.last_update_ms = update_start.elapsed().as_secs_f32() * 1000.0;
+        let extract_start = std::time::Instant::now();
         let snapshot = super::native_game_extract::extract_render_snapshot(self.app.world_mut(), |id| {
             self.renderer.has_uploaded_mesh(id)
         });
+        self.last_extract_ms = extract_start.elapsed().as_secs_f32() * 1000.0;
         let timings = self.renderer.render_frame(snapshot);
         self.report(timings);
     }
@@ -89,6 +93,7 @@ impl GameHost {
         }
         self.frames += 1;
         self.update_ms += self.last_update_ms;
+        self.extract_ms += self.last_extract_ms;
         self.wait_ms += t.drawable_wait_ms;
         self.book_ms += t.bookkeeping_ms;
         self.scene_ms += t.scene_ms;
@@ -101,9 +106,10 @@ impl GameHost {
         }
         let n = self.frames as f32;
         println!(
-            "[native] {:.0} fps | update {:.2} + wait {:.2} + book {:.2} + prepass {:.2} + scene {:.2} ms | {} draws, {} culled",
+            "[native] {:.0} fps | update {:.2} + extract {:.2} + wait {:.2} + book {:.2} + prepass {:.2} + scene {:.2} ms | {} draws, {} culled",
             n / elapsed,
             self.update_ms / n,
+            self.extract_ms / n,
             self.wait_ms / n,
             self.book_ms / n,
             self.prepass_ms / n,
@@ -115,6 +121,7 @@ impl GameHost {
         let _ = std::io::stdout().flush();
         self.frames = 0;
         self.update_ms = 0.0;
+        self.extract_ms = 0.0;
         self.wait_ms = 0.0;
         self.book_ms = 0.0;
         self.scene_ms = 0.0;
@@ -159,6 +166,8 @@ pub extern "C" fn native_metal_probe_create_real_game(
         renderer,
         frames: 0,
         last_update_ms: 0.0,
+        last_extract_ms: 0.0,
+        extract_ms: 0.0,
         update_ms: 0.0,
         wait_ms: 0.0,
         book_ms: 0.0,

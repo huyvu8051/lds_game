@@ -346,6 +346,11 @@ pub fn extract_render_snapshot(
     let mut cache = world.remove_resource::<StaticMeshCache>().unwrap_or_default();
     let mut used_texture_ids: std::collections::HashSet<AssetId<Image>> = std::collections::HashSet::new();
     let mut freed_any = false;
+    // Only an entity entering or leaving the cache, never one that merely moved.
+    // The gun and the zombies change their transform every frame while the set of
+    // mesh and texture ids stays exactly the same, and sweeping the caches for
+    // that is work against an answer that cannot have changed.
+    let mut meshes_touched = false;
 
     for entity in queries
         .meshes_removed
@@ -358,6 +363,7 @@ pub fn extract_render_snapshot(
             cache.entries[slot].visible = false;
             cache.free_slots.push(slot);
             freed_any = true;
+            meshes_touched = true;
         }
         cache.awaiting_textures.remove(&entity);
     }
@@ -430,7 +436,10 @@ pub fn extract_render_snapshot(
         world.resource_mut::<DecodedTextureCache>().0.retain(|id, _| live.contains(id));
     }
 
+    let slots_now = cache.slot_of.len();
     snapshot.static_meshes = cache.entries.clone();
+    snapshot.static_meshes_changed = meshes_touched || slots_now != world.get_resource::<LastSlotCount>().map_or(usize::MAX, |c| c.0);
+    world.insert_resource(LastSlotCount(slots_now));
     world.insert_resource(cache);
 
     snapshot.debug_lines = extract_hitbox_lines(world, &mut queries);
@@ -679,3 +688,9 @@ fn extract_generic_ui_nodes(
     out.sort_by_key(|node| node.stack_index);
     out
 }
+
+/// How many entities the mesh cache held last frame. An entity entering or
+/// leaving is the only thing that can invalidate the renderer's texture and
+/// mesh caches; a transform moving cannot.
+#[derive(bevy::ecs::resource::Resource)]
+struct LastSlotCount(usize);
