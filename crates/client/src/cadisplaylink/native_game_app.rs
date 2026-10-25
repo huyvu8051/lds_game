@@ -24,10 +24,32 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
     // Without this nothing registers a loader for .wav or .ogg.
     // Seedling rather than bevy_audio, and Steam Audio inside it. The scene
     // comes from Avian's colliders, which this path already builds.
-    app.add_plugins(bevy_seedling::SeedlingPlugins);
+    //
+    // NO_AUDIO=1 keeps everything except the cpal backend, which is the part
+    // that opens the device and runs the real-time output thread. That thread
+    // keeps its own deadline on a performance core and never lands in the
+    // frame's own timings, so removing it is the only way to price it. The
+    // core plugin stays so the AudioSample asset, its loader and every
+    // SamplePlayer still exist -- the game plays into a graph with no output
+    // rather than failing to load its sounds.
+    let audio_off = std::env::var("NO_AUDIO").is_ok();
+    if audio_off {
+        use bevy::app::PluginGroup;
+        app.add_plugins(
+            bevy_seedling::SeedlingPlugins
+                .build()
+                .disable::<bevy_seedling::platform::cpal::CpalPlatformPlugin>(),
+        );
+    } else {
+        app.add_plugins(bevy_seedling::SeedlingPlugins);
+    }
     // Not on iOS: see the note on the dependency in Cargo.toml.
+    //
+    // Nor under NO_AUDIO: Steam Audio reads resources the cpal backend
+    // creates and panics in its first frame without them. Skipping it leaves
+    // the desktop build in the same shape the phone is always in.
     #[cfg(not(target_os = "ios"))]
-    {
+    if !audio_off {
         app.add_plugins(bevy_steam_audio::SteamAudioPlugin::default());
         app.add_plugins(avian_steam_audio::AvianSteamAudioScenePlugin);
     }
