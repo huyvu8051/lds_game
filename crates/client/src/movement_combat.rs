@@ -105,25 +105,23 @@ pub(crate) struct FireShock {
     age: f32,
     /// Varied per shot, so consecutive rounds do not rattle identically.
     seed: f32,
+    /// Taken from the weapon that fired, not the one in hand when this is
+    /// sampled. Swapping mid-burst must not reshape a blow already landed.
+    kick: ShockKick,
 }
 
-/// Hz. Deliberately low: at 60fps anything above about fifteen is sampled
-/// fewer than four times a cycle and aliases into a slow wobble that changes
-/// shape with the frame rate. The sharpness comes from the decay, not the
-/// frequency.
-///
-/// The three are not harmonics of each other, or they would stay in step and
-/// the result would read as one motion along a line rather than a rattle.
-const SHOCK_FREQ_PITCH: f32 = 13.0;
-const SHOCK_FREQ_YAW: f32 = 9.0;
-const SHOCK_FREQ_ROLL: f32 = 11.0;
-/// 1/e in 56ms, so it is gone inside a tenth of a second -- shorter than the
-/// strike, which is what keeps the recovery clean.
-const SHOCK_DECAY: f32 = 18.0;
-
 impl FireShock {
-    /// Pitch, yaw and roll, each scaled by its own peak.
-    pub(crate) fn angles(&self, pitch_peak: f32, yaw_peak: f32, roll_peak: f32) -> (f32, f32, f32) {
+    /// Starts a ring-down. Each round restarts it rather than adding to it:
+    /// an accumulating shock would grow through a burst into a shudder
+    /// nothing in the weapon justifies.
+    pub(crate) fn strike(&mut self, kick: ShockKick, seed: f32) {
+        self.amount = 1.0;
+        self.age = 0.0;
+        self.seed = seed;
+        self.kick = kick;
+    }
+
+    fn angles(&self, pitch_peak: f32, yaw_peak: f32, roll_peak: f32) -> (f32, f32, f32) {
         if self.amount <= 0.0 {
             return (0.0, 0.0, 0.0);
         }
@@ -131,19 +129,46 @@ impl FireShock {
             ops::cos(self.age * hz * std::f32::consts::TAU + phase) * self.amount
         };
         (
-            ring(SHOCK_FREQ_PITCH, 0.0) * pitch_peak,
-            ring(SHOCK_FREQ_YAW, self.seed) * yaw_peak,
-            ring(SHOCK_FREQ_ROLL, self.seed * 2.0 + 1.7) * roll_peak,
+            ring(self.kick.freq_pitch, 0.0) * pitch_peak.to_radians(),
+            ring(self.kick.freq_yaw, self.seed) * yaw_peak.to_radians(),
+            ring(self.kick.freq_roll, self.seed * 2.0 + 1.7) * roll_peak.to_radians(),
         )
+    }
+
+    /// What the eye sees, quieted by `brace` -- the share a cheek weld leaves
+    /// through.
+    pub(crate) fn view_angles(&self, brace: f32) -> (f32, f32, f32) {
+        let (p, y, r) = self.angles(
+            self.kick.view_pitch_deg,
+            self.kick.view_yaw_deg,
+            self.kick.view_roll_deg,
+        );
+        (p * brace, y * brace, r * brace)
+    }
+
+    /// What the weapon does, and how far it travels doing it. The shift
+    /// reuses the angles so the two stay in phase.
+    pub(crate) fn gun_angles(&self) -> (f32, f32, f32) {
+        self.angles(self.kick.gun_pitch_deg, self.kick.gun_yaw_deg, self.kick.gun_roll_deg)
+    }
+
+    pub(crate) fn gun_shift(&self) -> f32 {
+        if self.kick.gun_roll_deg <= 0.0 {
+            return 0.0;
+        }
+        self.kick.gun_shift_m / self.kick.gun_roll_deg.to_radians()
     }
 }
 
 /// Before anything that rides it, and in the same frame -- the weapon and the
 /// view both read this where it stands now, so they cannot drift apart.
 pub(crate) fn advance_fire_shock(time: Res<Time>, mut shock: ResMut<FireShock>) {
+    if shock.amount <= 0.0 {
+        return;
+    }
     let dt = time.delta_secs();
     shock.age += dt;
-    shock.amount *= ops::exp(-SHOCK_DECAY * dt);
+    shock.amount *= ops::exp(-shock.kick.decay * dt);
     // Below this it moves the view by less than a thousandth of a degree, and
     // leaving it running keeps `angles` doing three cosines forever.
     if shock.amount < 1.0e-4 {
@@ -336,11 +361,7 @@ pub(crate) fn apply_view_recoil(
         // takes most of it out: braced is also when the player most needs to
         // read the sight picture.
         let brace = 1.0 - ADS_SHOCK_DAMP * ads_blend;
-        let (shock_pitch, shock_yaw, shock_roll) = shock.angles(
-            CAMERA_SHOCK_PITCH_DEG.to_radians() * brace,
-            CAMERA_SHOCK_YAW_DEG.to_radians() * brace,
-            CAMERA_SHOCK_ROLL_DEG.to_radians() * brace,
-        );
+        let (shock_pitch, shock_yaw, shock_roll) = shock.view_angles(brace);
         let pitch = (cam.pitch + recoil.climb + hold_pitch + shock_pitch).clamp(-1.54, 1.54);
         let yaw = cam.yaw + recoil.wander + hold_yaw + shock_yaw;
 
@@ -786,12 +807,7 @@ pub(crate) fn shoot(
 
     recoil.wander_target += shot_jitter(&mut gun.recoil_rng) * kick.view.wander_per_shot;
 
-    // Restarted rather than added to: each round is its own blow, and a
-    // shock that accumulated would grow through a burst into a shudder
-    // nothing in the weapon justifies.
-    shock.amount = 1.0;
-    shock.age = 0.0;
-    shock.seed = shot_jitter(&mut gun.recoil_rng) * std::f32::consts::PI;
+    shock.strike(kick.shock, shot_jitter(&mut gun.recoil_rng) * std::f32::consts::PI);
     recoil.shove_target = (recoil.shove_target + kick.view.shove_per_shot).min(kick.view.shove_max);
 
     let stance = vfx_assets.stance.single().copied().unwrap_or_default();

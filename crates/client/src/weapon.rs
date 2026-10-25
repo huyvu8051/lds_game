@@ -123,6 +123,48 @@ pub(crate) struct Recoil {
     pub(crate) strike_speed: f32,
     pub(crate) view: ViewKick,
     pub(crate) weapon: WeaponKick,
+    pub(crate) shock: ShockKick,
+}
+
+/// The ring-down a round leaves behind: what shakes, how fast, and for how
+/// long. Separate from the two kicks above because it moves nothing -- it is
+/// spent and gone before either of them has finished, and leaves the aim
+/// exactly where it found it.
+///
+/// Copied into `FireShock` at the shot rather than read from whatever is in
+/// hand when it is sampled: a ring-down belongs to the round that started it,
+/// so swapping weapons mid-burst cannot change the shape of a blow already
+/// landed.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct ShockKick {
+    /// Peak degrees at the eye. Well under the weapon's: the rifle is struck,
+    /// the head only hears about it through a shoulder. Roll carries the most
+    /// of the three because it costs no aim -- it does not move where the
+    /// barrel points.
+    pub(crate) view_pitch_deg: f32,
+    pub(crate) view_yaw_deg: f32,
+    pub(crate) view_roll_deg: f32,
+    /// Peak degrees at the weapon, and metres along its travel. Several times
+    /// the eye's: this is the thing the round was fired out of.
+    pub(crate) gun_pitch_deg: f32,
+    pub(crate) gun_yaw_deg: f32,
+    pub(crate) gun_roll_deg: f32,
+    pub(crate) gun_shift_m: f32,
+    /// Hz, and the one number here with a hard ceiling. At 60fps anything
+    /// above about fifteen is sampled fewer than four times a cycle and
+    /// aliases into a slow wobble that changes shape with the frame rate.
+    /// Heavier calibres sit lower. The three are never harmonics of each
+    /// other, or they stay in step and read as one motion along a line
+    /// rather than a rattle.
+    pub(crate) freq_pitch: f32,
+    pub(crate) freq_yaw: f32,
+    pub(crate) freq_roll: f32,
+    /// How fast the ring-down is spent, as a rate like the others. Matched to
+    /// `strike_speed`, which is what keeps the shake inside the blow: a
+    /// weapon that takes twice as long to reach the top of its kick needs
+    /// half this, or it stops shaking halfway up and the rest of the climb
+    /// glides.
+    pub(crate) decay: f32,
 }
 
 /// What a shot does to the camera: where the player is aiming afterwards.
@@ -251,6 +293,21 @@ static AK47: WeaponDef = WeaponDef {
             yaw_deg: 0.9,
             settle_speed: 21.0,
         },
+        // Low and hard: a heavy round out of a loose action. Spent in 56ms,
+        // inside a strike that takes about 50.
+        shock: ShockKick {
+            view_pitch_deg: 0.32,
+            view_yaw_deg: 0.24,
+            view_roll_deg: 0.60,
+            gun_pitch_deg: 1.2,
+            gun_yaw_deg: 0.9,
+            gun_roll_deg: 1.7,
+            gun_shift_m: 0.0040,
+            freq_pitch: 12.0,
+            freq_yaw: 8.5,
+            freq_roll: 10.0,
+            decay: 18.0,
+        },
     },
 };
 
@@ -303,6 +360,22 @@ static M4A1: WeaponDef = WeaponDef {
             roll_deg: 0.8,
             yaw_deg: 0.6,
             settle_speed: 21.0,
+        },
+        // About two thirds the AK's, pitched higher and gone sooner -- a
+        // lighter round, and a faster cyclic rate that would otherwise pile
+        // one ring-down on the next.
+        shock: ShockKick {
+            view_pitch_deg: 0.21,
+            view_yaw_deg: 0.16,
+            view_roll_deg: 0.40,
+            gun_pitch_deg: 0.80,
+            gun_yaw_deg: 0.60,
+            gun_roll_deg: 1.15,
+            gun_shift_m: 0.0028,
+            freq_pitch: 14.0,
+            freq_yaw: 10.5,
+            freq_roll: 12.5,
+            decay: 22.0,
         },
     },
 };
@@ -364,6 +437,24 @@ static M24: WeaponDef = WeaponDef {
             roll_deg: 3.5,
             yaw_deg: 3.0,
             settle_speed: 5.5,
+        },
+        // One heavy thump rather than a rattle, and the only one that rings
+        // long enough to watch. decay 9 against strike_speed 28: this weapon
+        // takes twice as long as the AK to reach the top of its kick, so the
+        // shake has to last twice as long to cover it. Nothing follows it for
+        // 1.3 seconds, so there is no burst to keep tidy.
+        shock: ShockKick {
+            view_pitch_deg: 0.55,
+            view_yaw_deg: 0.40,
+            view_roll_deg: 0.95,
+            gun_pitch_deg: 2.2,
+            gun_yaw_deg: 1.6,
+            gun_roll_deg: 2.8,
+            gun_shift_m: 0.0070,
+            freq_pitch: 9.0,
+            freq_yaw: 6.5,
+            freq_roll: 7.5,
+            decay: 9.0,
         },
     },
 };

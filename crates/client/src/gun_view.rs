@@ -972,11 +972,7 @@ pub(crate) fn gun_view_animation(
         let inspect_swing =
             outer * sway * hold_turn * (between_hands - inspect_turn * between_hands);
 
-        let (shock_pitch, shock_yaw, shock_roll) = shock.angles(
-            GUN_SHOCK_PITCH_DEG.to_radians(),
-            GUN_SHOCK_YAW_DEG.to_radians(),
-            GUN_SHOCK_ROLL_DEG.to_radians(),
-        );
+        let (shock_pitch, shock_yaw, shock_roll) = shock.gun_angles();
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);
         transform.translation = Vec3::new(swapped_x, base_pos.y, base_pos.z)
             + pose_swing
@@ -993,7 +989,7 @@ pub(crate) fn gun_view_animation(
             // a rifle in the shoulder judders along its own travel, not only
             // about a point. Reusing the angles keeps the two in phase.
             + Vec3::new(shock_yaw, shock_pitch, shock_roll)
-                * (GUN_SHOCK_SHIFT_M / GUN_SHOCK_ROLL_DEG.to_radians());
+                * shock.gun_shift();
 
         // Outermost, so the whole weapon rattles in view rather than each
         // part twisting about its own pivot. Several times what the eye gets:

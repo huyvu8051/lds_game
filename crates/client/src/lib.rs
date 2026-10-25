@@ -277,28 +277,12 @@ const HOLD_TREMOR_PITCH_DEG: f32 = 0.022;
 /// not the world wandering.
 const CAMERA_HOLD_FRACTION: f32 = 0.35;
 
-/// Peak degrees the firing shock throws the eye about each axis. Well under
-/// the weapon's: the rifle is struck, the head only hears about it through a
-/// shoulder.
-const CAMERA_SHOCK_PITCH_DEG: f32 = 0.30;
-const CAMERA_SHOCK_YAW_DEG: f32 = 0.22;
-/// Largest of the three. Roll costs no aim -- it does not move where the
-/// barrel points -- so it carries most of the jolt without making the weapon
-/// harder to hold on target than its recoil already says it is.
-const CAMERA_SHOCK_ROLL_DEG: f32 = 0.55;
 
 /// How much of the shock a cheek weld takes out of the view. A braced
 /// shooter with the stock in the shoulder and the eye on the glass sees far
 /// less of it than one firing from the hip, and ADS is also when the player
 /// most needs to read the sight picture.
 const ADS_SHOCK_DAMP: f32 = 0.6;
-
-/// Peak degrees and metres the shock throws the weapon itself. Several times
-/// the eye's: this is the thing the round was fired out of.
-const GUN_SHOCK_PITCH_DEG: f32 = 1.1;
-const GUN_SHOCK_YAW_DEG: f32 = 0.8;
-const GUN_SHOCK_ROLL_DEG: f32 = 1.6;
-const GUN_SHOCK_SHIFT_M: f32 = 0.0035;
 
 
 /// What the weapon pose is telling the rest of the game, published once.
