@@ -229,12 +229,25 @@ const HEAD_GORE_RADIUS: f32 = 0.105;
 /// The generated arm measures 1.898 along its longest axis, which is Z, and a
 /// real arm is about 0.65m.
 const GORE_ARM_SCALE: f32 = 0.34;
+/// The heads are 0.30m tall as modelled and the collider is a 0.105m sphere,
+/// so they come down to roughly fill it.
+const HEAD_GORE_SCALE: f32 = 0.70;
+
+/// One of several, chosen by where the cut happened rather than by a counter,
+/// so the same corpse picks the same head every time it is looked at.
+fn pick<T>(options: &[T], seed: f32) -> Option<&T> {
+    if options.is_empty() {
+        return None;
+    }
+    let index = (seed * 997.0) as i64;
+    options.get(index.unsigned_abs() as usize % options.len())
+}
 
 #[derive(Resource)]
 pub(crate) struct GoreAssets {
     arm_scene: Handle<WorldAsset>,
-    head_mesh: Handle<Mesh>,
-    head_material: Handle<StandardMaterial>,
+    /// More than one, so a street of severed heads is not the same head.
+    head_scenes: Vec<Handle<WorldAsset>>,
 }
 
 #[derive(Component)]
@@ -250,20 +263,15 @@ pub(crate) struct GorePiece {
 /// Both textures are deliberately generic -- muscle and a bloodied skull --
 /// so one set serves every zombie kind and nobody can tell which body a part
 /// came off.
-pub(crate) fn build_gore_assets(
-    asset_server: &AssetServer,
-    meshes: &mut Assets<Mesh>,
-    materials: &mut Assets<StandardMaterial>,
-) -> GoreAssets {
-    let flesh = |texture: &str| StandardMaterial {
-        base_color_texture: Some(asset_server.load(texture.to_string())),
-        perceptual_roughness: 0.45,
-        ..default()
-    };
+pub(crate) fn build_gore_assets(asset_server: &AssetServer) -> GoreAssets {
     GoreAssets {
         arm_scene: load_gltf_scene(asset_server, "models/gore/severed_arm.glb", crate::gltf_usages()),
-        head_mesh: meshes.add(Sphere::new(HEAD_GORE_RADIUS)),
-        head_material: materials.add(flesh("textures/gore/head.png")),
+        head_scenes: ["zombie_head_screaming", "zombie_head_flayed"]
+            .into_iter()
+            .map(|name| {
+                load_gltf_scene(asset_server, &format!("models/gore/{name}.glb"), crate::gltf_usages())
+            })
+            .collect(),
     }
 }
 
@@ -304,7 +312,14 @@ fn throw_part(commands: &mut Commands, gore: &GoreAssets, part: ZombiePart, from
     ));
 
     if head {
-        piece.insert((Mesh3d(gore.head_mesh.clone()), MeshMaterial3d(gore.head_material.clone())));
+        let Some(scene) = pick(&gore.head_scenes, seed) else { return };
+        piece.with_children(|part| {
+            part.spawn((
+                WorldAssetRoot(scene.clone()),
+                // Modelled upright and to scale already, unlike the arm.
+                Transform::from_scale(Vec3::splat(HEAD_GORE_SCALE)),
+            ));
+        });
         return;
     }
 
