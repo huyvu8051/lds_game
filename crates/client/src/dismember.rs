@@ -229,10 +229,6 @@ const HEAD_GORE_RADIUS: f32 = 0.105;
 /// The generated arm measures 1.898 along its longest axis, which is Z, and a
 /// real arm is about 0.65m.
 const GORE_ARM_SCALE: f32 = 0.34;
-/// The heads are 0.30m tall as modelled and the collider is a 0.105m sphere,
-/// so they come down to roughly fill it.
-const HEAD_GORE_SCALE: f32 = 0.70;
-
 /// One of several, chosen by where the cut happened rather than by a counter,
 /// so the same corpse picks the same head every time it is looked at.
 fn pick<T>(options: &[T], seed: f32) -> Option<&T> {
@@ -313,12 +309,10 @@ fn throw_part(commands: &mut Commands, gore: &GoreAssets, part: ZombiePart, from
 
     if head {
         let Some(scene) = pick(&gore.head_scenes, seed) else { return };
+        // Modelled upright and at the size of the head it came off, unlike
+        // the arm, so nothing here adjusts it.
         piece.with_children(|part| {
-            part.spawn((
-                WorldAssetRoot(scene.clone()),
-                // Modelled upright and to scale already, unlike the arm.
-                Transform::from_scale(Vec3::splat(HEAD_GORE_SCALE)),
-            ));
+            part.spawn(WorldAssetRoot(scene.clone()));
         });
         return;
     }
