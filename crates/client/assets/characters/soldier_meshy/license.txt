@@ -1,0 +1,19 @@
+UNDOCUMENTED -- fill this in before shipping.
+
+Nothing in this folder records where it came from, so there is no way to
+show the right to use it. Anything still marked UNDOCUMENTED at release is
+something to replace or drop.
+
+The folder name and the UUID clip names say Meshy. Meshy's commercial terms
+depend on the plan the asset was generated under -- free and paid differ.
+
+* title:
+* source:
+* author:
+* license type:
+* requirements:
+
+Credit line shown in game, if the licence asks for one. Anything written
+under "attribution:" here is read by the credits screen, one line each.
+
+attribution:

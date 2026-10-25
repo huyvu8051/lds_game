@@ -43,6 +43,7 @@ use autopilot::{autopilot_pick_target, autopilot_think, Autopilot, AutopilotInte
 mod touch_input;
 use touch_input::*;
 
+mod credits;
 mod settings_menu;
 use settings_menu::*;
 
@@ -530,7 +531,7 @@ impl Default for MapSelectionPending {
     }
 }
 
-const SETTINGS_MENU_PAGE_COUNT: usize = 2;
+const SETTINGS_MENU_PAGE_COUNT: usize = 3;
 
 impl Default for GunVisible {
     fn default() -> Self {

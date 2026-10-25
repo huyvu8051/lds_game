@@ -611,6 +611,17 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     });
                 }
             });
+
+            menu.spawn((
+                Node {
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(6.0),
+                    display: Display::None,
+                    ..default()
+                },
+                SettingsMenuPage(2),
+            ))
+            .with_children(crate::credits::spawn_credits);
         });
 }
 
