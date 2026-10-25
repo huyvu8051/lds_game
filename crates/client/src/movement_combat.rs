@@ -413,7 +413,6 @@ pub(crate) fn send_player_input(
     game_over: Res<GameOver>,
     mut sequence: Local<u32>,
     camera_query: Query<&FpsCamera>,
-    cursor: Query<&CursorOptions, With<PrimaryWindow>>,
     mut player_query: Query<(&mut Transform, &mut Player, &PlayerStance), Without<NetPlayer>>,
     noclip: Res<Noclip>,
     touch_move_axis: Res<TouchMoveAxis>,

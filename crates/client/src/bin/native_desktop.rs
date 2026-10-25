@@ -96,9 +96,9 @@ impl ApplicationHandler for Host {
             let _: () = msg_send![view, setWantsLayer: true];
         }
 
-        let game = unsafe { native_metal_probe_create_real_game(view, scale) };
+        let game = native_metal_probe_create_real_game(view, scale);
         assert!(!game.is_null(), "the game host failed to start");
-        unsafe { native_metal_probe_mouse_connected(game, true) };
+        native_metal_probe_mouse_connected(game, true);
 
         let _ = window.set_cursor_grab(CursorGrabMode::Locked);
         window.set_cursor_visible(false);
@@ -128,7 +128,7 @@ impl ApplicationHandler for Host {
                     }
                     if let Some(id) = key_id(code) {
                         let down = event.state == ElementState::Pressed;
-                        unsafe { native_metal_probe_key_changed(game, id, down) };
+                        native_metal_probe_key_changed(game, id, down);
                     }
                 }
             }
@@ -140,22 +140,20 @@ impl ApplicationHandler for Host {
                     _ => return,
                 };
                 let down = state == ElementState::Pressed;
-                unsafe { native_metal_probe_mouse_button_changed(game, index, down) };
+                native_metal_probe_mouse_button_changed(game, index, down);
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let (x, y, pixels) = match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => (x, y, false),
                     winit::event::MouseScrollDelta::PixelDelta(p) => (p.x as f32, p.y as f32, true),
                 };
-                unsafe { native_metal_probe_mouse_wheel(game, x, y, pixels) };
+                native_metal_probe_mouse_wheel(game, x, y, pixels);
             }
             WindowEvent::CursorMoved { position, .. } => {
                 // Only while free. Captured, the pointer does not move and the
                 // camera is driven by DeviceEvent deltas instead.
                 if !self.cursor_locked {
-                    unsafe {
-                        native_metal_probe_cursor_moved_to(game, position.x as f32, position.y as f32)
-                    };
+                    native_metal_probe_cursor_moved_to(game, position.x as f32, position.y as f32);
                 }
             }
             WindowEvent::RedrawRequested => {
@@ -163,8 +161,8 @@ impl ApplicationHandler for Host {
                     event_loop.exit();
                     return;
                 }
-                unsafe { native_metal_probe_render_frame(game) };
-                let wanted = unsafe { native_metal_probe_cursor_locked(game) };
+                native_metal_probe_render_frame(game);
+                let wanted = native_metal_probe_cursor_locked(game);
                 if wanted != self.cursor_locked {
                     if let Some(window) = &self.window {
                         let mode = if wanted { CursorGrabMode::Locked } else { CursorGrabMode::None };
@@ -184,13 +182,13 @@ impl ApplicationHandler for Host {
     fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
         let Some(game) = self.game else { return };
         if let DeviceEvent::MouseMotion { delta } = event {
-            unsafe { native_metal_probe_mouse_moved(game, delta.0 as f32, delta.1 as f32) };
+            native_metal_probe_mouse_moved(game, delta.0 as f32, delta.1 as f32);
         }
     }
 
     fn exiting(&mut self, _: &ActiveEventLoop) {
         if let Some(game) = self.game.take() {
-            unsafe { native_metal_probe_release(game) };
+            native_metal_probe_release(game);
         }
     }
 }

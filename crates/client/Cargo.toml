@@ -60,3 +60,9 @@ bincode = { version = "2.0.1", features = ["serde"] }
 [target.'cfg(not(target_os = "ios"))'.dependencies]
 bevy_steam_audio = { git = "https://github.com/huyvu8051/bevy_steam_audio", branch = "main", features = ["auto-install"] }
 avian_steam_audio = { git = "https://github.com/huyvu8051/bevy_steam_audio", branch = "main" }
+
+# objc's msg_send! expands to #[cfg_attr(feature = "cargo-clippy", ...)], an
+# idiom that predates check-cfg. Declaring the value keeps the lint on for
+# anything genuinely unexpected instead of switching it off wholesale.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }

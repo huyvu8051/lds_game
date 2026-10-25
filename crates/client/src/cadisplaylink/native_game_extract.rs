@@ -1,6 +1,6 @@
 
-use bevy::asset::{AssetId, Assets, Handle};
-use bevy::camera::visibility::{InheritedVisibility, Visibility};
+use bevy::asset::{AssetId, Assets};
+use bevy::camera::visibility::Visibility;
 use bevy::camera::{Camera, Projection, RenderTargetInfo};
 use bevy::ecs::hierarchy::Children;
 use bevy::ecs::query::{With, Without};
@@ -9,10 +9,7 @@ use bevy::ecs::system::{Query, Res, ResMut, SystemState};
 use bevy::image::Image;
 use bevy::mesh::skinning::SkinnedMesh;
 use bevy::light::{DirectionalLight, PointLight};
-use bevy::pbr::{MeshMaterial3d, StandardMaterial};
-use bevy::material::AlphaMode;
 use bevy::mesh::{Mesh, Mesh3d};
-use bevy::render::render_resource::TextureFormat;
 use bevy::text::{FontSize, TextColor, TextFont};
 use bevy::math::Vec3;
 use bevy::transform::components::{GlobalTransform, Transform};
