@@ -2,6 +2,41 @@ use bevy::prelude::*;
 
 use crate::*;
 
+/// A round landing on a body that is still playing its death clip.
+///
+/// Local and unserialised, unlike the shot events in `shared`: it names an
+/// entity, and it is feedback rather than a fact about the world. The body is
+/// already dead, so nothing downstream of this takes damage, scores a kill,
+/// or queues a respawn.
+#[derive(Event, Clone, Copy)]
+pub(crate) struct CorpseHit {
+    pub(crate) body: Entity,
+    pub(crate) point: Vec3,
+    pub(crate) normal: Vec3,
+    pub(crate) damage: f32,
+}
+
+/// The same flinch a living zombie gets. It survives the death clip because
+/// `apply_bone_flinch` runs in PostUpdate after `AnimationSystems` and writes
+/// the bone transform last -- the clip poses the body, the flinch then throws
+/// the limb that was hit.
+pub(crate) fn on_corpse_hit(
+    trigger: On<CorpseHit>,
+    mut commands: Commands,
+    bodies: Query<&ZombieHitboxBones>,
+    globals: Query<&GlobalTransform>,
+    child_of: Query<&ChildOf>,
+) {
+    let CorpseHit { body, point, normal, damage } = *trigger.event();
+    let Ok(bones) = bodies.get(body) else {
+        return;
+    };
+    let Some((bone, _)) = nearest_zombie_bone(bones, point, &globals) else {
+        return;
+    };
+    spawn_bone_flinch(&mut commands, bones, bone, -normal, damage, &globals, &child_of);
+}
+
 pub(crate) fn spawn_zombie_hit_feedback(
     commands: &mut Commands,
     blood_assets: &BloodAssets,

@@ -838,6 +838,7 @@ impl Plugin for GamePlugin {
         .add_observer(note_shot_for_barrel_smoke)
         .add_observer(on_explosion)
         .add_observer(on_shot_confirmed)
+        .add_observer(on_corpse_hit)
         .add_observer(on_game_state_event)
         .add_plugins(F9DebugPlugin)
         .add_plugins(navigation::ClientNavigationPlugin)

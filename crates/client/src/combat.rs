@@ -3,7 +3,8 @@ use bevy::prelude::*;
 
 use crate::dismember::LimbDamage;
 use crate::dissolve::begin_death;
-use crate::ragdoll::DEATH_PUSH_SPEED;
+use crate::ragdoll::{DeathClipPlaying, DEATH_PUSH_SPEED};
+use crate::zombie_reaction::CorpseHit;
 use crate::map::*;
 use crate::sim::*;
 use shared::{
@@ -51,6 +52,7 @@ pub(crate) fn handle_fire_shot(
     mut threats: Query<&mut PlayerThreat>,
     damage_multiplier: Res<DamageMultiplierServer>,
     mut limb_damage: ResMut<LimbDamage>,
+    dying: Query<(Entity, &Transform, &ZombieHitboxBones), (With<DeathClipPlaying>, Without<Zombie>)>,
 ) {
     for mut threat in &mut threats {
         threat.0 += PLAYER_THREAT_PER_SHOT;
@@ -70,6 +72,29 @@ pub(crate) fn handle_fire_shot(
     }
 
     let cylinder = Collider::cylinder(ZOMBIE_OUTER_RADIUS, ZOMBIE_OUTER_HEIGHT);
+
+    // A body still playing its death clip is no longer a Zombie -- begin_death
+    // takes the component off -- so the query above cannot see it and a round
+    // went straight through into the wall behind. It still takes no damage,
+    // and still does not stop the shot: putting a round through a corpse must
+    // not save whatever is standing behind it. Only the limb that was hit has
+    // to move.
+    for (body, transform, bones) in &dying {
+        if cylinder
+            .cast_ray(transform.translation, transform.rotation, shot.origin, *direction, MAX_SHOT_DISTANCE, true)
+            .is_none()
+        {
+            continue;
+        }
+        let resolved = resolve_bone_world_positions(bones, |bone| bone_globals.get(bone).ok().map(|g| g.translation()));
+        let Some(hit) = zombie_hit_damage_ray(shot.origin, direction, MAX_SHOT_DISTANCE, &resolved) else {
+            continue;
+        };
+        if wall_distance.is_some_and(|w| w < shot.origin.distance(hit.point) - 0.1) {
+            continue;
+        }
+        commands.trigger(CorpseHit { body, point: hit.point, normal: hit.normal, damage: hit.damage });
+    }
 
     let mut candidates: Vec<(f32, Entity, BoneWorldPositions)> = zombies
         .iter()

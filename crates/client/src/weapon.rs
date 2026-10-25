@@ -287,10 +287,10 @@ static AK47: WeaponDef = WeaponDef {
         },
         weapon: WeaponKick {
             slide_back: 0.08,
-            lift: 0.0160,
-            pitch_deg: 2.5,
-            roll_deg: 0.9,
-            yaw_deg: 0.9,
+            lift: 0.000,
+            pitch_deg: 0.5,
+            roll_deg: 0.6,
+            yaw_deg: 0.5,
             settle_speed: 10.0,
         },
         // Low: a heavy round out of a loose action. Spent in 56ms, inside a
@@ -311,7 +311,7 @@ static AK47: WeaponDef = WeaponDef {
             freq_pitch: 12.0,
             freq_yaw: 8.5,
             freq_roll: 10.0,
-            decay: 18.0,
+            decay: 25.0,
         },
     },
 };
@@ -459,7 +459,7 @@ static M24: WeaponDef = WeaponDef {
             freq_pitch: 9.0,
             freq_yaw: 6.5,
             freq_roll: 7.5,
-            decay: 9.0,
+            decay: 19.0,
         },
     },
 };
