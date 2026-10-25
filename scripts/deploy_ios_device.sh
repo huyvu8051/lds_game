@@ -61,7 +61,9 @@ echo "    -> $DEVICE_NAME ($DEVICE_ID)"
 echo "==> xcodebuild (device)"
 [ "$CLEAN" = 1 ] && rm -rf "$DERIVED_DATA"
 xcodebuild -project bevy_in_iOS.xcodeproj -scheme bevy_in_iOS -configuration Debug \
-    -destination "id=$DEVICE_ID" -derivedDataPath "$DERIVED_DATA" -allowProvisioningUpdates build
+    -destination "id=$DEVICE_ID" -derivedDataPath "$DERIVED_DATA" -allowProvisioningUpdates \
+    OTHER_LDFLAGS="\$(inherited) -framework AVFAudio -framework AVFoundation" \
+    build
 
 APP_PATH="$DERIVED_DATA/Build/Products/Debug-iphoneos/bevy_in_iOS.app"
 
