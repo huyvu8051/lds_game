@@ -71,7 +71,10 @@ echo "==> Installing on device"
 xcrun devicectl device install app --device "$DEVICE_ID" "$APP_PATH"
 
 echo "==> Launching"
-xcrun devicectl device process launch --device "$DEVICE_ID" "$BUNDLE_ID" || {
+# IOS_CONSOLE=1 streams the app's stdout here, which is the only way to read a
+# println! off the device. Environment reaches the app through devicectl's
+# DEVICECTL_CHILD_ prefix: DEVICECTL_CHILD_FPS_LOG=1 turns the pacing log on.
+xcrun devicectl device process launch ${IOS_CONSOLE:+--console} --device "$DEVICE_ID" "$BUNDLE_ID" || {
     echo "Install succeeded but launch failed — if the device is locked, unlock it and launch the app by hand." >&2
     exit 1
 }

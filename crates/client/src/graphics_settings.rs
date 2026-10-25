@@ -235,6 +235,8 @@ pub(crate) fn distance_fog_for(scenario: Scenario) -> DistanceFog {
 
 /// Frame pacing, printed rather than drawn, so a run can be measured from the
 /// log instead of from the Metal HUD, which the in-game capture cannot see.
+/// `println!` not `info!`: tracing goes to oslog, which the device console
+/// does not show.
 pub(crate) fn log_frame_pacing(
     time: Res<Time<Real>>,
     cap: Res<FpsCap>,
@@ -253,7 +255,7 @@ pub(crate) fn log_frame_pacing(
         return;
     }
     let mean_ms = *window / *frames as f32 * 1000.0;
-    info!(
+    println!(
         "[fps] {:.1} fps | khung {:.2}ms (te nhat {:.2}ms) | tran dat {} = {:.2}ms",
         *frames as f32 / *window,
         mean_ms,
