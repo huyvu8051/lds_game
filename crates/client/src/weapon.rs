@@ -293,16 +293,18 @@ static AK47: WeaponDef = WeaponDef {
             yaw_deg: 0.9,
             settle_speed: 21.0,
         },
-        // Low and hard: a heavy round out of a loose action. Spent in 56ms,
-        // inside a strike that takes about 50.
+        // Low: a heavy round out of a loose action. Spent in 56ms, inside a
+        // strike that takes about 50. Amplitudes are a little over half what
+        // they first were -- the rattle still reads, and the sights stay
+        // readable through a burst, which they did not before.
         shock: ShockKick {
-            view_pitch_deg: 0.32,
-            view_yaw_deg: 0.24,
-            view_roll_deg: 0.60,
-            gun_pitch_deg: 1.2,
-            gun_yaw_deg: 0.9,
-            gun_roll_deg: 1.7,
-            gun_shift_m: 0.0040,
+            view_pitch_deg: 0.19,
+            view_yaw_deg: 0.14,
+            view_roll_deg: 0.36,
+            gun_pitch_deg: 0.72,
+            gun_yaw_deg: 0.54,
+            gun_roll_deg: 1.00,
+            gun_shift_m: 0.0024,
             freq_pitch: 12.0,
             freq_yaw: 8.5,
             freq_roll: 10.0,
@@ -365,13 +367,13 @@ static M4A1: WeaponDef = WeaponDef {
         // lighter round, and a faster cyclic rate that would otherwise pile
         // one ring-down on the next.
         shock: ShockKick {
-            view_pitch_deg: 0.21,
-            view_yaw_deg: 0.16,
-            view_roll_deg: 0.40,
-            gun_pitch_deg: 0.80,
-            gun_yaw_deg: 0.60,
-            gun_roll_deg: 1.15,
-            gun_shift_m: 0.0028,
+            view_pitch_deg: 0.13,
+            view_yaw_deg: 0.10,
+            view_roll_deg: 0.24,
+            gun_pitch_deg: 0.48,
+            gun_yaw_deg: 0.36,
+            gun_roll_deg: 0.70,
+            gun_shift_m: 0.0017,
             freq_pitch: 14.0,
             freq_yaw: 10.5,
             freq_roll: 12.5,
@@ -444,13 +446,13 @@ static M24: WeaponDef = WeaponDef {
         // shake has to last twice as long to cover it. Nothing follows it for
         // 1.3 seconds, so there is no burst to keep tidy.
         shock: ShockKick {
-            view_pitch_deg: 0.55,
-            view_yaw_deg: 0.40,
-            view_roll_deg: 0.95,
-            gun_pitch_deg: 2.2,
-            gun_yaw_deg: 1.6,
-            gun_roll_deg: 2.8,
-            gun_shift_m: 0.0070,
+            view_pitch_deg: 0.33,
+            view_yaw_deg: 0.24,
+            view_roll_deg: 0.57,
+            gun_pitch_deg: 1.3,
+            gun_yaw_deg: 0.95,
+            gun_roll_deg: 1.7,
+            gun_shift_m: 0.0042,
             freq_pitch: 9.0,
             freq_yaw: 6.5,
             freq_roll: 7.5,
