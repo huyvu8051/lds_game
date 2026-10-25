@@ -365,6 +365,8 @@ pub(crate) fn setup_gameplay(
                 shoulder_blend: 0.0,
                 ready_blend: 0.0,
                 ready_armed: false,
+                sprint_blend: 0.0,
+                since_shot: f32::MAX,
                 recoil_jitter: Vec2::ZERO,
                 // Off the wall clock, or every session sprays its first
                 // magazine the same way.

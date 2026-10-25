@@ -88,6 +88,11 @@ pub(crate) struct Gun {
     /// Yaw and roll of the kick, drawn fresh each shot. Two numbers rather
     /// than one scaling both: sharing a scalar fixes the direction of the
     /// kick and only varies how far along it the weapon goes.
+    /// How far across the body the weapon is carried, and how long since the
+    /// last shot. The clock is what keeps a player firing on the move in a
+    /// pose they can fire from.
+    pub(crate) sprint_blend: f32,
+    pub(crate) since_shot: f32,
     pub(crate) recoil_jitter: Vec2,
     /// Advanced once per draw, so the sequence depends on shots fired rather
     /// than on when they were fired.
@@ -534,7 +539,7 @@ pub(crate) fn wire_zombie_animations(
             let (graph, clips) = kind_anims.slot(kind.unwrap_or_default());
             commands
                 .entity(player_entity)
-                .try_insert(AnimationGraphHandle(graph.clone()));
+                .try_insert((AnimationGraphHandle(graph.clone()), AnimationTransitions::new()));
             if let Some(&node) = clips.get(clip % clips.len().max(1)) {
                 player.play(node).repeat();
             }
@@ -542,7 +547,7 @@ pub(crate) fn wire_zombie_animations(
             let slot = anim.slot(kind.unwrap_or_default());
             commands
                 .entity(player_entity)
-                .try_insert(AnimationGraphHandle(slot.graph.clone()));
+                .try_insert((AnimationGraphHandle(slot.graph.clone()), AnimationTransitions::new()));
             player.play(slot.idle()).repeat();
         }
         commands.entity(root).try_insert(ZombieAnimationPlayer(player_entity));
@@ -782,31 +787,59 @@ pub(crate) fn update_zombie_animation(
             &Health,
             &ZombieAnimationPlayer,
             Option<&ZombieKind>,
+            Option<&crate::dismember::SeveredParts>,
             &mut ZombiePose,
             &mut ZombieWalkVariant,
         ),
         (With<Zombie>, Without<ZombieShowcaseClip>),
     >,
     mut players: Query<&mut AnimationPlayer>,
+    mut transitions: Query<&mut AnimationTransitions>,
 ) {
     let Ok(player_transform) = player.single() else {
         return;
     };
-    for (entity, zombie_transform, net_transform, health, link, kind, mut pose, mut walk) in &mut zombies {
+    for (entity, zombie_transform, net_transform, health, link, kind, cuts, mut pose, mut walk) in &mut zombies {
         let distance = zombie_transform.translation.distance(player_transform.translation);
         let health_fraction = health.0 / ZOMBIE_MAX_HEALTH;
-        let new_pose = zombie_pose_for(distance, health_fraction, net_transform.moving);
+        let new_pose = zombie_pose_for(distance, health_fraction, net_transform.moving, cuts.is_some_and(crate::dismember::SeveredParts::lost_a_leg));
         let slot = anim.slot(kind.copied().unwrap_or_default());
-        let new_walk = (new_pose == ZombiePose::Walk)
-            .then(|| slot.walk(entity.to_bits() as usize, health_fraction));
+        let seed = entity.to_bits() as usize;
+        let new_walk = match new_pose {
+            ZombiePose::Walk => Some(slot.walk(seed, health_fraction)),
+            ZombiePose::Crawl => Some(slot.crawl(seed)),
+            _ => None,
+        };
         if new_pose == *pose && new_walk == walk.0 {
             continue;
         }
+        // Only the flavour of the walk changed, not the gait. Those two clips
+        // are the same stride at a different limp, so the phase carries: a
+        // zombie that takes a hit mid-step keeps the step instead of snapping
+        // back to the top of the cycle.
+        let gait_kept = new_pose == *pose;
+        let was = walk.0.unwrap_or_else(|| slot.node(*pose));
         *pose = new_pose;
         walk.0 = new_walk;
-        if let Ok(mut player) = players.get_mut(link.0) {
-            player.stop_all();
-            player.play(new_walk.unwrap_or_else(|| slot.node(new_pose))).repeat();
+        let node = new_walk.unwrap_or_else(|| slot.node(new_pose));
+        let (Ok(mut player), Ok(mut fade)) = (players.get_mut(link.0), transitions.get_mut(link.0))
+        else {
+            continue;
+        };
+        let phase = gait_kept.then(|| player.animation(was).map(|a| a.seek_time())).flatten();
+        let blend = if new_pose == ZombiePose::Bite {
+            ZOMBIE_BLEND_BITE
+        } else if gait_kept {
+            ZOMBIE_BLEND_GAIT
+        } else {
+            ZOMBIE_BLEND
+        };
+        fade.play(&mut player, node, blend).repeat();
+        // play() starts the new clip from zero; this puts it back where the
+        // old one had got to. Over the new clip's length is fine -- a repeat
+        // takes it modulo its duration on the next advance.
+        if let (Some(at), Some(active)) = (phase, player.animation_mut(node)) {
+            active.seek_to(at);
         }
     }
 }

@@ -110,12 +110,29 @@ pub const ZOMBIE_CHASE_RANGE: f32 = 60.0;
 
 pub const ZOMBIE_WALK_SPEED: f32 = 1.5;
 pub const ZOMBIE_RUN_SPEED: f32 = 3.0;
+/// What the crawl clips themselves travel at: 1.13m of ground in 2.97s, read
+/// off the hips track before it was flattened. Move the body any faster than
+/// the animation is dragging it and the hands cycle on the spot while the
+/// zombie slides away from them.
+pub const ZOMBIE_CRAWL_SPEED: f32 = 0.4;
 
-pub fn zombie_speed_for(distance: f32) -> f32 {
-    if distance <= ZOMBIE_RUN_DISTANCE {
-        ZOMBIE_RUN_SPEED
-    } else {
-        ZOMBIE_WALK_SPEED
+/// Read off the pose, so the body can only ever travel at the speed of the
+/// clip being drawn on it.
+///
+/// Distance and health used to decide the speed here while they decided the
+/// pose somewhere else, and the two disagreed in both directions: a zombie too
+/// hurt to run still covered ground at the running speed, and one dragging
+/// itself on one leg did it at eight times what the crawl drags at.
+///
+/// Idle is the walking speed and not zero. The pose is Idle because the zombie
+/// is not moving yet, and a zombie whose speed were zero for that reason could
+/// never start.
+pub fn zombie_speed_for(pose: ZombiePose) -> f32 {
+    match pose {
+        ZombiePose::Run => ZOMBIE_RUN_SPEED,
+        ZombiePose::Walk | ZombiePose::Idle => ZOMBIE_WALK_SPEED,
+        ZombiePose::Crawl => ZOMBIE_CRAWL_SPEED,
+        ZombiePose::Bite => 0.0,
     }
 }
 
@@ -195,7 +212,7 @@ pub fn zombie_kind_mesh_path(kind: ZombieKind) -> &'static str {
 
 pub fn zombie_kind_clip_count(kind: ZombieKind) -> usize {
     match kind {
-        ZombieKind::Classic => 47,
+        ZombieKind::Classic => 49,
         ZombieKind::Soldier => 3,
         ZombieKind::Female => 4,
     }
@@ -247,8 +264,18 @@ pub const ZOMBIE_LIE_STILL_SECONDS: f32 = 0.0;
 
 pub fn zombie_kind_pose_clips(kind: ZombieKind) -> [usize; ZombiePose::COUNT] {
     match kind {
-        ZombieKind::Classic => [20, 16, 0, 20, 2],
+        ZombieKind::Classic => [20, 16, 0, 47, 2],
         ZombieKind::Soldier | ZombieKind::Female => [2, 1, 0, 2, 2],
+    }
+}
+
+/// Appended to the end of the file on purpose: these are looked up by index,
+/// so anything inserted ahead of them moves every clip after it.
+pub fn zombie_kind_crawl_clips(kind: ZombieKind) -> &'static [usize] {
+    match kind {
+        ZombieKind::Classic => &[47, 48],
+        // Neither has one yet, so they fall back to the pose slot.
+        ZombieKind::Soldier | ZombieKind::Female => &[],
     }
 }
 
@@ -301,6 +328,7 @@ pub struct ZombieKindAnim {
     pub graph: Handle<AnimationGraph>,
     poses: [AnimationNodeIndex; ZombiePose::COUNT],
     deaths: Vec<(AnimationNodeIndex, f32)>,
+    crawls: Vec<AnimationNodeIndex>,
     healthy_walks: Vec<AnimationNodeIndex>,
     limping_walks: Vec<AnimationNodeIndex>,
 }
@@ -312,6 +340,13 @@ impl ZombieKindAnim {
 
     pub fn death(&self, seed: usize) -> (AnimationNodeIndex, f32) {
         self.deaths[seed % self.deaths.len()]
+    }
+
+    pub fn crawl(&self, seed: usize) -> AnimationNodeIndex {
+        if self.crawls.is_empty() {
+            return self.poses[ZombiePose::Crawl.clip_slot()];
+        }
+        self.crawls[seed % self.crawls.len()]
     }
 
     pub fn walk(&self, seed: usize, health_fraction: f32) -> AnimationNodeIndex {
@@ -360,9 +395,10 @@ impl ZombieAnim {
             let mut add_walks = |clips: &[usize]| -> Vec<AnimationNodeIndex> {
                 clips.iter().map(|&index| graph.add_clip(load_clip(kind, index), 1.0, root)).collect()
             };
+            let crawls = add_walks(zombie_kind_crawl_clips(kind));
             let healthy_walks = add_walks(zombie_kind_healthy_walk_clips(kind));
             let limping_walks = add_walks(zombie_kind_limping_walk_clips(kind));
-            ZombieKindAnim { graph: graphs.add(graph), poses, deaths, healthy_walks, limping_walks }
+            ZombieKindAnim { graph: graphs.add(graph), poses, deaths, crawls, healthy_walks, limping_walks }
         };
         Self {
             classic: build_kind(ZombieKind::Classic),
@@ -372,9 +408,19 @@ impl ZombieAnim {
     }
 }
 
-pub const ZOMBIE_CRAWL_HEALTH_FRACTION: f32 = 0.35;
+/// Below this a zombie is too far gone to run, and walks the rest of the way.
+pub const ZOMBIE_NO_RUN_HEALTH_FRACTION: f32 = 0.35;
 
 pub const ZOMBIE_RUN_DISTANCE: f32 = 20.0;
+
+/// There is a zombie body here, alive or not.
+///
+/// `Zombie` is removed the moment one dies -- it has to be, or a corpse would
+/// still be chased, shot at and counted. The renderer asks a different
+/// question: it wants the mesh drawn right through the death clip, the
+/// ragdoll and the dissolve, so it asks this instead.
+#[derive(Component)]
+pub struct ZombieBody;
 
 #[derive(Component)]
 pub struct ZombieAnimationPlayer(pub Entity);
@@ -390,12 +436,15 @@ pub fn find_animation_root(entity: Entity, child_of: &Query<&ChildOf>, is_root: 
     None
 }
 
-pub fn zombie_pose_for(distance: f32, health_fraction: f32, moving: bool) -> ZombiePose {
+/// Crawling is for a zombie that has lost a leg, not one that is merely hurt.
+/// Being hurt costs it the run instead: it keeps walking, slower to arrive,
+/// still upright.
+pub fn zombie_pose_for(distance: f32, health_fraction: f32, moving: bool, lost_a_leg: bool) -> ZombiePose {
     if distance <= ZOMBIE_STOP_DISTANCE {
         ZombiePose::Bite
-    } else if health_fraction <= ZOMBIE_CRAWL_HEALTH_FRACTION {
+    } else if lost_a_leg {
         ZombiePose::Crawl
-    } else if moving && distance <= ZOMBIE_RUN_DISTANCE {
+    } else if moving && distance <= ZOMBIE_RUN_DISTANCE && health_fraction > ZOMBIE_NO_RUN_HEALTH_FRACTION {
         ZombiePose::Run
     } else if moving {
         ZombiePose::Walk

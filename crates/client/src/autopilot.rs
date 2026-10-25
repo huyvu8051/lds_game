@@ -3,6 +3,7 @@ use avian3d::prelude::{SpatialQuery, SpatialQueryFilter};
 use bevy::math::ops;
 use bevy::prelude::*;
 
+use crate::dismember::{is_severed, SeveredParts};
 use crate::{ActiveWeapon, FpsCamera, Lean, Player, TouchAiming, LEAN_SIDE_OFFSET};
 use shared::{random_aim_point, resolve_bone_world_positions, Health, NetPlayer, Zombie, ZombieHitboxBones, PLAYER_MAX_HEALTH};
 
@@ -167,7 +168,7 @@ pub(crate) fn autopilot_think(
     mut state: ResMut<AutopilotState>,
     mut intent: ResMut<AutopilotIntent>,
     player: Query<&Transform, (With<Player>, Without<NetPlayer>, Without<FpsCamera>)>,
-    zombies: Query<(Entity, &Transform, &ZombieHitboxBones), With<Zombie>>,
+    zombies: Query<(Entity, &Transform, &ZombieHitboxBones, Option<&SeveredParts>), With<Zombie>>,
     globals: Query<&GlobalTransform>,
     health: Query<&Health, With<Player>>,
     mut camera: Query<(&mut FpsCamera, &GlobalTransform)>,
@@ -201,8 +202,8 @@ pub(crate) fn autopilot_think(
     };
     let dt = time.delta_secs();
 
-    let Some((target_entity, target_transform, target_bones)) =
-        state.target.and_then(|target| zombies.get(target).ok().map(|(e, t, b)| (e, t, b)))
+    let Some((target_entity, target_transform, target_bones, target_cuts)) =
+        state.target.and_then(|target| zombies.get(target).ok())
     else {
 
         cam.yaw += AUTOPILOT_IDLE_SCAN_DEG_PER_SEC.to_radians() * dt;
@@ -214,7 +215,13 @@ pub(crate) fn autopilot_think(
         return;
     };
 
-    let resolved_bones = resolve_bone_world_positions(target_bones, |bone| globals.get(bone).ok().map(|g| g.translation()));
+    // A limb on the floor is still a bone with a world position, and aiming at
+    // one walks the shot past the zombie entirely.
+    let resolved_bones = resolve_bone_world_positions(target_bones, |bone| {
+        (!is_severed(target_cuts, target_bones, bone))
+            .then(|| globals.get(bone).ok().map(|g| g.translation()))
+            .flatten()
+    });
     let (aim_point, aiming_region) = random_aim_point(&resolved_bones, target_entity)
         .map_or((target_transform.translation, None), |(point, region)| (point, Some(region)));
     state.aiming_region = aiming_region;
@@ -314,7 +321,7 @@ pub(crate) fn autopilot_think(
 
     let nearby: Vec<Vec3> = zombies
         .iter()
-        .map(|(_, t, _)| t.translation)
+        .map(|(_, t, _, _)| t.translation)
         .filter(|p| player_transform.translation.distance(*p) <= retreat_range)
         .collect();
 

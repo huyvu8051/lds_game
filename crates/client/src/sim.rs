@@ -25,7 +25,7 @@ pub(crate) struct SimPlugin;
 
 impl Plugin for SimPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(BigBrainPlugin::new(PreUpdate))
+        app.add_plugins(BigBrainPlugin::new(FixedPreUpdate))
             .insert_resource(crate::current_scenario())
             .init_resource::<GameOver>()
             .init_resource::<FreezeZombiesServer>()
@@ -38,8 +38,13 @@ impl Plugin for SimPlugin {
             .init_resource::<WorldReady>()
             .add_systems(Startup, load_zombie_spawn_points)
             .add_systems(Update, (track_world_ready, spawn_initial_zombies.run_if(world_ready)).chain())
+            // Scored and acted on at the rate the acting is read at. In
+            // PreUpdate this ran at the refresh rate to feed move_zombies,
+            // which only looks 64 times a second, so nearly half of every
+            // score was thrown away. FixedPreUpdate also puts it inside the
+            // same tick as the move rather than a frame ahead of it.
             .add_systems(
-                PreUpdate,
+                FixedPreUpdate,
                 (
                     chase_action_system.in_set(BigBrainSet::Actions),
                     near_player_scorer.in_set(BigBrainSet::Scorers),
@@ -173,6 +178,7 @@ fn spawn_zombie(commands: &mut Commands, position: Vec3, yaw: f32, ai_enabled: b
     zombie.insert((
         Transform::from_translation(position).with_rotation(Quat::from_rotation_y(yaw)),
         Zombie,
+        shared::ZombieBody,
 
         zombie_kind_for_phase(phase, ZOMBIE_KIND_WEIGHTS),
         ZombieMotion {
@@ -323,6 +329,7 @@ fn move_zombies(
             &mut KnockbackVelocity,
             Option<&mut AgentTarget3d>,
             Option<&AgentDesiredVelocity3d>,
+            &ZombiePose,
         ),
         (With<Zombie>, With<Chase>),
     >,
@@ -353,17 +360,17 @@ fn move_zombies(
     // skipped unless at least one of them is due.
     let anyone_retargeting = zombies
         .iter()
-        .any(|(.., chase_target, _, _, _)| chase_target.reevaluate_timer - time.delta_secs() <= 0.0);
+        .any(|(.., chase_target, _, _, _, _)| chase_target.reevaluate_timer - time.delta_secs() <= 0.0);
     if anyone_retargeting {
         chase_load.clear();
-        for (.., chase_target, _, _, _) in &zombies {
+        for (.., chase_target, _, _, _, _) in &zombies {
             if let Some(target) = chase_target.entity {
                 *chase_load.entry(target).or_insert(0) += 1;
             }
         }
     }
 
-    for (entity, mut transform, mut motion, mut chase_target, mut knockback, mut agent_target, desired_velocity) in
+    for (entity, mut transform, mut motion, mut chase_target, mut knockback, mut agent_target, desired_velocity, pose) in
         &mut zombies
     {
 
@@ -442,7 +449,7 @@ fn move_zombies(
                     .map(|d| steer_around_obstacles(&mover.spatial_query, transform.translation, d, distance, &filter))
                     .unwrap_or(Vec3::ZERO);
             }
-            motion.cached_path_dir * zombie_speed_for(distance)
+            motion.cached_path_dir * zombie_speed_for(*pose)
         } else {
             Vec3::ZERO
         };

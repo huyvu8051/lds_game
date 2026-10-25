@@ -591,6 +591,18 @@ pub(crate) fn gun_view_animation(
         let ready_step = (GUN_READY_SPEED * time.delta_secs()).min(1.0);
         gun.ready_blend += (ready_target - gun.ready_blend) * ready_step;
 
+        // Carried across the body, but only once the sprint has gone a second
+        // without a shot. Aiming, reloading or standing still all mean the
+        // weapon is wanted, so none of them reach it.
+        gun.since_shot = (gun.since_shot + dt).min(f32::MAX / 2.0);
+        let carrying = local_sprinting.0
+            && local_moving.0
+            && !aiming
+            && gun.reload_remaining <= 0.0
+            && gun.since_shot >= SPRINT_CARRY_DELAY;
+        let carry_step = (SPRINT_CARRY_SPEED * dt).min(1.0);
+        gun.sprint_blend += (f32::from(carrying) - gun.sprint_blend) * carry_step;
+
         // One roll per disturbance, so each return lands somewhere new.
         let disturbed = aiming || leaning || local_sprinting.0;
         if disturbed {
@@ -662,13 +674,25 @@ pub(crate) fn gun_view_animation(
             .single()
             .map(|socket| socket.reparented_to(gun_global).translation)
             .unwrap_or(Vec3::ZERO);
-        let reload_swing = grip_in_gun - reload_turn * grip_in_gun;
+        let carry = &active.def().sprint_carry;
+        let sprint_turn = Quat::IDENTITY.slerp(
+            Quat::from_rotation_y(carry.yaw_deg.to_radians())
+                * Quat::from_rotation_x(carry.pitch_deg.to_radians())
+                * Quat::from_rotation_z(carry.roll_deg.to_radians()),
+            gun.sprint_blend,
+        );
+        // One turn for both poses, so the correction below is exact rather
+        // than two approximations added together.
+        let pose_turn = reload_turn * sprint_turn;
+        let pose_swing = grip_in_gun - pose_turn * grip_in_gun;
 
         let base_rotation = Quat::from_rotation_z(settle_twist.to_radians())
-            * reload_turn
+            * pose_turn
             * Quat::IDENTITY.slerp(gun.optical_fix, gun.ads_blend);
 
-        let resting = gun.base_offset.lerp(active.def().ready_offset, gun.ready_blend) + gun.settle_current;
+        let resting = gun.base_offset.lerp(active.def().ready_offset, gun.ready_blend)
+            + gun.settle_current
+            + active.def().sprint_carry.offset * gun.sprint_blend;
         // Sighted means Socket_Aim on the camera axis at this weapon.s eye
         // relief; the mesh says where that point is, so the offset is a
         // subtraction rather than a dialled-in vector. Where it sits inside
@@ -748,11 +772,11 @@ pub(crate) fn gun_view_animation(
 
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);
         transform.translation = Vec3::new(swapped_x, base_pos.y, base_pos.z)
-            + reload_swing
+            + pose_swing
             + sway_swing
             + Vec3::new(
                 timings.bob_x,
-                kick.weapon.lift * timings.recoil_t - RELOAD_DIP * timings.dip - timings.bob_y
+                kick.weapon.lift * timings.recoil_t + RELOAD_LIFT * timings.dip - timings.bob_y
                     + WALL_GUN_RAISE_HEIGHT * gun.wall_raise,
                 kick.weapon.slide_back * timings.recoil_t,
             );

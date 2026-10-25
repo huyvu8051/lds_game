@@ -42,7 +42,7 @@ pub struct ExtractQueries {
         Q<'static, 'static, (&'static GlobalTransform, &'static Transform), With<crate::ScopeScreen>>,
     )>,
     zombies: SystemState<(
-        Q<'static, 'static, (bevy::ecs::entity::Entity, &'static GlobalTransform, Option<&'static ZombieKind>), With<Zombie>>,
+        Q<'static, 'static, (bevy::ecs::entity::Entity, &'static GlobalTransform, Option<&'static ZombieKind>), With<shared::ZombieBody>>,
         Q<'static, 'static, &'static Children>,
         Q<'static, 'static, &'static SkinnedMesh>,
         Q<'static, 'static, &'static GlobalTransform>,

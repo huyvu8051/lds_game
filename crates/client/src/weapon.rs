@@ -18,6 +18,7 @@ pub(crate) struct WeaponDef {
     /// lands on the camera axis, which is the whole of ads_offset.
     pub(crate) ads_eye_relief: f32,
     pub(crate) ads_speed: AdsSpeed,
+    pub(crate) sprint_carry: SprintCarry,
     /// Metres the weapon slides off the sight line per unit of settling
     /// velocity -- how far it misses before it corrects on. Scaled roughly
     /// against how fast each weapon handles: the one that comes up slowest
@@ -72,6 +73,18 @@ pub(crate) struct WeaponDef {
 pub(crate) struct AdsSpeed {
     pub(crate) from_ready: f32,
     pub(crate) from_rest: f32,
+}
+
+/// Where a weapon sits when it is being carried rather than held ready.
+///
+/// The offset is in camera space off the rest pose -- x right, y up, -z away.
+/// The angles are in the weapon's own, turned about the trigger grip, so yaw
+/// swings the muzzle across the body and pitch tips it down.
+pub(crate) struct SprintCarry {
+    pub(crate) offset: Vec3,
+    pub(crate) yaw_deg: f32,
+    pub(crate) pitch_deg: f32,
+    pub(crate) roll_deg: f32,
 }
 
 /// Cut by tools/make_weapon_sounds.sh. The reload is composed against
@@ -192,9 +205,10 @@ static AK47: WeaponDef = WeaponDef {
     ready_offset: Vec3::new(0.045, -0.1905, -0.6194),
     ads_eye_relief: 0.12,
     ads_speed: AdsSpeed { from_ready: 8.0, from_rest: 5.5 },
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.03, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.028,
     ads_settle_miss_deg: 0.5,
-    aim_fov_multiplier: 0.75,
+    aim_fov_multiplier: 0.65,
     autopilot_ads_min_distance: 7.0,
     autopilot_engage_range: 30.0,
     autopilot_sprint_approach_distance: 22.0,
@@ -244,6 +258,7 @@ static M4A1: WeaponDef = WeaponDef {
     ready_offset: Vec3::new(0.071, -0.2268, -0.536),
     ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.07, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.014,
     ads_settle_miss_deg: 1.2,
     aim_fov_multiplier: 0.75,
@@ -305,9 +320,10 @@ static M24: WeaponDef = WeaponDef {
     // there is still room before the near plane at 100mm.
     ads_eye_relief: 0.02,
     ads_speed: AdsSpeed { from_ready: 5.5, from_rest: 2.575 },
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.02, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.040,
     ads_settle_miss_deg: 0.3,
-    aim_fov_multiplier: 0.70,
+    aim_fov_multiplier: 0.50,
     autopilot_ads_min_distance: 32.0,
     autopilot_engage_range: 60.0,
     autopilot_sprint_approach_distance: 55.0,

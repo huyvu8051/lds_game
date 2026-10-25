@@ -151,6 +151,14 @@ const GUN_SETTLE_JITTER: Vec3 = Vec3::new(0.030, 0.024, 0.020);
 const GUN_SETTLE_TWIST_DEG: f32 = 3.0;
 const GUN_SETTLE_SPEED: f32 = 3.0;
 const GUN_SHOULDER_SPEED: f32 = 9.0;
+
+/// A sprint this long with nothing fired takes the weapon across the body,
+/// the way it is carried when nobody expects to use it in the next second.
+/// Firing drops it straight back to the ready pose and starts the clock over,
+/// so a player shooting on the move never leaves the pose they can shoot from.
+const SPRINT_CARRY_DELAY: f32 = 1.0;
+const SPRINT_CARRY_SPEED: f32 = 6.0;
+
 const GUN_BOB_SPEED: f32 = 8.0;
 const GUN_BOB_AMOUNT_X: f32 = 0.015;
 const GUN_BOB_AMOUNT_Y: f32 = 0.012;
@@ -198,7 +206,9 @@ const WALL_GUN_RAISE_ROT_DEG: f32 = 90.0;
 const WALL_GUN_RAISE_SPEED: f32 = 10.0;
 
 
-const RELOAD_DIP: f32 = 0.12;
+/// The weapon rises to reload rather than dropping out of the way, so the
+/// magazine coming out of the well is in frame while it falls.
+const RELOAD_LIFT: f32 = 0.10;
 /// Muzzle up, about the firing grip. Degrees.
 const RELOAD_TILT_DEG: f32 = 22.0;
 /// Roll about the bore during a reload. Negative brings the magazine well
@@ -359,6 +369,36 @@ const BASE_FOV: f32 = std::f32::consts::PI / 4.0;
 
 pub(crate) const PHYSICS_SUBSTEPS: u32 = 4;
 pub(crate) const UI_LAYOUT_HZ: u64 = 30;
+pub(crate) const CLIP_SELECT_HZ: u64 = 60;
+
+/// How long one zombie clip takes to give way to the next. A bite is a
+/// decision and lands almost cut; everything else eases across.
+pub(crate) const ZOMBIE_BLEND: std::time::Duration = std::time::Duration::from_millis(150);
+pub(crate) const ZOMBIE_BLEND_BITE: std::time::Duration = std::time::Duration::from_millis(40);
+/// Between two walk variants the gait is unchanged, so the blend is short and
+/// the phase is carried rather than restarted.
+pub(crate) const ZOMBIE_BLEND_GAIT: std::time::Duration = std::time::Duration::from_millis(80);
+
+/// Panels and readouts run at the rate their layout already runs at. Each
+/// call makes its own timer, so the gated groups land on different frames
+/// instead of all waking together.
+///
+/// Only for systems that read state and write state. Anything integrating
+/// `delta_secs` would run at a third speed, since Time is still the frame's
+/// delta and not the time since that system last ran -- and anything reading
+/// `just_pressed` or a message would miss most of them, both being gone
+/// within a frame or two of arriving.
+/// Which clip a body should be playing, decided half as often as it is drawn.
+/// Picking one 16ms late is a transition starting 16ms late, which nothing
+/// can see; it is only the sampling of the clip that has to keep up, and that
+/// is a different set of systems.
+fn clip_tick() -> impl FnMut(Res<Time>) -> bool + Clone {
+    bevy::time::common_conditions::on_timer(std::time::Duration::from_millis(1000 / CLIP_SELECT_HZ))
+}
+
+fn ui_tick() -> impl FnMut(Res<Time>) -> bool + Clone {
+    bevy::time::common_conditions::on_timer(std::time::Duration::from_millis(1000 / UI_LAYOUT_HZ))
+}
 
 /// Damping ratio of the spring that raises the sights. Below 1 is
 /// underdamped, which is what overshoots.
@@ -785,9 +825,18 @@ impl Plugin for GamePlugin {
                 update_touch_button_press_visual,
             )
                 .chain(),
+            // Reaching the menu is input, and input is not gateable: the key
+            // is cleared the frame after it is pressed and the scroll message
+            // is gone in two.
+            (
+                toggle_settings_menu,
+                scroll_settings_menu,
+                touch_scroll_settings_menu,
+                update_touch_controls_idle_hidden,
+            )
+                .chain(),
             (
                 (
-                    toggle_settings_menu,
                     update_settings_menu,
                     open_settings_menu_from_env,
                     settings_menu_page_buttons,
@@ -797,8 +846,6 @@ impl Plugin for GamePlugin {
                 update_resolution_scale_button_colors,
                 (fps_cap_buttons, update_fps_cap_button_colors, apply_fps_cap_desktop).chain(),
                     resize_scene_render_target,
-                    scroll_settings_menu,
-                    touch_scroll_settings_menu,
                     cheat_toggle_buttons,
                     apply_map_render_toggles,
                 )
@@ -816,7 +863,6 @@ impl Plugin for GamePlugin {
                     update_damage_multiplier_text,
                     auto_maintain_button,
                     update_auto_maintain_button_color,
-                    update_touch_controls_idle_hidden,
                     hide_ui_when_locked,
                 )
                     .chain(),
@@ -836,7 +882,8 @@ impl Plugin for GamePlugin {
                 )
                     .chain(),
             )
-                .chain(),
+                .chain()
+                .run_if(ui_tick()),
             (
                 (
                     grab_cursor,
@@ -891,31 +938,35 @@ impl Plugin for GamePlugin {
                 wire_weapon_sockets,
                 log_frame_pacing,
                 (track_muzzle_socket, track_optical_axis),
-                update_zombie_animation.run_if(resource_exists::<ZombieAnim>),
-                freeze_zombie_animations,
+                update_zombie_animation.run_if(resource_exists::<ZombieAnim>).run_if(clip_tick()),
+                freeze_zombie_animations.run_if(clip_tick()),
 
                 (
                     wire_player_model_scene_nodes,
                     (spawn_viewmodel_body, wire_viewmodel_body_meshes, apply_player_model_visible),
                     spawn_grip_sockets,
                     wire_player_model_animations.run_if(resource_exists::<PlayerModelAnim>),
-                    update_local_player_model_animation.run_if(resource_exists::<PlayerModelAnim>),
-                    apply_player_model_pose_override.run_if(resource_exists::<PlayerModelAnim>),
-                    update_health_ui,
-                    update_compass_ui,
+                    update_local_player_model_animation
+                        .run_if(resource_exists::<PlayerModelAnim>)
+                        .run_if(clip_tick()),
+                    apply_player_model_pose_override
+                        .run_if(resource_exists::<PlayerModelAnim>)
+                        .run_if(clip_tick()),
+                    update_health_ui.run_if(ui_tick()),
+                    update_compass_ui.run_if(ui_tick()),
                     update_radar_ui,
-                    update_zombie_health_bars,
+                    update_zombie_health_bars.run_if(ui_tick()),
                     update_floating_damage_texts,
                     play_footsteps,
                     play_zombie_footsteps,
                     update_damage_overlay,
                     update_screen_effects,
                     demote_fully_metallic_imports,
-                    exclude_oversized_shadow_casters,
+                    exclude_oversized_shadow_casters.run_if(ui_tick()),
                     (
                     test_blast_key.run_if(debug_keys_allowed),
                     switch_weapon,
-                    forget_gone_zombies,
+                    forget_gone_zombies.run_if(ui_tick()),
                     update_gore,
                     update_death,
                     spawn_what_was_armed_last_frame,
@@ -931,15 +982,15 @@ impl Plugin for GamePlugin {
                 .chain(),
             (
                 adjust_scope_zoom,
-                update_scope_zoom_slider_visual,
-                update_scope_zoom_slider_visibility,
+                update_scope_zoom_slider_visual.run_if(ui_tick()),
+                update_scope_zoom_slider_visibility.run_if(ui_tick()),
                 sync_scope_camera,
                 (place_scope_reticle, swap_scope_reticle),
                 (update_scope_lens, apply_scope_lens_distortion, apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
-                update_ammo_ui,
+                update_ammo_ui.run_if(ui_tick()),
                 update_crosshair,
-                set_hitbox_gizmo_depth_bias,
-                draw_zombie_hitboxes,
+                set_hitbox_gizmo_depth_bias.run_if(ui_tick()),
+                draw_zombie_hitboxes.run_if(ui_tick()),
                 update_splash_screen,
                 despawn_hit_markers,
                 despawn_muzzle_flashes,

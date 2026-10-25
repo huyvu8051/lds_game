@@ -90,6 +90,12 @@ pub(crate) struct SeveredPart {
 pub(crate) struct SeveredParts(pub(crate) Vec<SeveredPart>);
 
 impl SeveredParts {
+    pub(crate) fn lost_a_leg(&self) -> bool {
+        self.0
+            .iter()
+            .any(|cut| matches!(cut.part, ZombiePart::LeftLeg | ZombiePart::RightLeg))
+    }
+
     /// Keeps the state already set, so adding a second cut does not reopen the
     /// first one's jet.
     pub(crate) fn merge(&mut self, fresh: Vec<SeveredPart>) {
@@ -273,6 +279,11 @@ fn throw_part(commands: &mut Commands, gore: &GoreAssets, part: ZombiePart, from
 
     let mut piece = commands.spawn((
         Name::new("SeveredPart"),
+        // The head branch gets this free with Mesh3d; the limb branch hangs a
+        // scene off this entity instead, and a child with InheritedVisibility
+        // under a parent without it is what B0004 has been warning about every
+        // time a limb came off.
+        Visibility::default(),
         // The body carries the physics and keeps its own axes: the capsule is
         // Y aligned, so the rotation maps Y onto the direction the part left
         // in. Anything mounted on it has to be brought into that frame.

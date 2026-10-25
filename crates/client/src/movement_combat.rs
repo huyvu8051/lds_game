@@ -641,6 +641,7 @@ pub(crate) fn shoot(
     gun.ammo -= 1;
     gun.recoil_target = 1.0;
 
+    gun.since_shot = 0.0;
     gun.recoil_jitter = Vec2::new(shot_jitter(&mut gun.recoil_rng), shot_jitter(&mut gun.recoil_rng));
     commands.spawn((AudioPlayer(vfx_assets.gunshot.of(active.0)), PlaybackSettings::DESPAWN, GunshotVoice));
     if gun.ammo == 0 {

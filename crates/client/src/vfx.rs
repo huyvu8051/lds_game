@@ -215,7 +215,7 @@ fn draw_bone_capsule(gizmos: &mut Gizmos, a: Vec3, b: Vec3, radius: f32, color: 
 
 pub(crate) fn draw_zombie_hitboxes(
     show: Res<ShowHitboxes>,
-    zombies: Query<(Entity, &Transform, &ZombieHitboxBones), With<Zombie>>,
+    zombies: Query<(Entity, &Transform, &ZombieHitboxBones, Option<&crate::dismember::SeveredParts>), With<Zombie>>,
     globals: Query<&GlobalTransform>,
     mut gizmos: Gizmos,
     autopilot_state: Res<AutopilotState>,
@@ -225,7 +225,7 @@ pub(crate) fn draw_zombie_hitboxes(
         return;
     }
 
-    for (zombie_entity, transform, bones) in &zombies {
+    for (zombie_entity, transform, bones, cuts) in &zombies {
         let is_autopilot_target = autopilot_state.target == Some(zombie_entity);
 
         gizmos.primitive_3d(
@@ -273,7 +273,13 @@ pub(crate) fn draw_zombie_hitboxes(
         }
 
         if is_autopilot_target && show_aim.0 {
-            let resolved_bones = resolve_bone_world_positions(bones, |bone| globals.get(bone).ok().map(|g| g.translation()));
+            // The same bones the autopilot will consider, severed ones left
+            // out, or the marker shows an aim point it would never pick.
+            let resolved_bones = resolve_bone_world_positions(bones, |bone| {
+                (!crate::dismember::is_severed(cuts, bones, bone))
+                    .then(|| globals.get(bone).ok().map(|g| g.translation()))
+                    .flatten()
+            });
             if let Some((aim_point, _)) = shared::random_aim_point(&resolved_bones, zombie_entity) {
                 gizmos.sphere(Isometry3d::from_translation(aim_point), 0.08, Color::srgb(1.0, 0.0, 0.0));
             }
