@@ -93,6 +93,14 @@ pub(crate) struct Gun {
     /// pose they can fire from.
     pub(crate) sprint_blend: f32,
     pub(crate) since_shot: f32,
+    /// How long the weapon has had nothing asked of it, how far through the
+    /// look-over it is, how much of that pose is showing, and how many times
+    /// it has already been done -- each round of idling waits longer than the
+    /// last.
+    pub(crate) idle_elapsed: f32,
+    pub(crate) inspect_t: f32,
+    pub(crate) inspect_blend: f32,
+    pub(crate) inspect_done: u32,
     pub(crate) recoil_jitter: Vec2,
     /// Advanced once per draw, so the sequence depends on shots fired rather
     /// than on when they were fired.

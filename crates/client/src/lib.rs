@@ -172,6 +172,28 @@ const GUN_SHOULDER_SPEED: f32 = 9.0;
 /// wall is a wall and nothing the player presses will move it.
 const WEAPON_ON_AXIS_BLEND: f32 = 0.25;
 
+/// Left alone for this long and the weapon gets looked over, the way someone
+/// with nothing to shoot at checks what they are holding.
+///
+/// Each round waits longer than the last, so a player standing still for a
+/// while is not shown the same thing on a loop.
+/// Asks for the look-over without waiting for it. F is the usual key for this
+/// and the HUD already has it.
+const INSPECT_KEY: KeyCode = KeyCode::KeyT;
+const INSPECT_WAIT: f32 = 9.0;
+const INSPECT_WAIT_EXTRA: f32 = 7.0;
+const INSPECT_SECONDS: f32 = 3.6;
+/// In, home, and out of the way -- three different endings.
+///
+/// The sequence never returns to the rest pose itself; it ends on the last
+/// look and RETURN carries the weapon back, so the gesture is one movement
+/// rather than a braking followed by a fade. OUT is for a cancellation: the
+/// player wants to shoot, and making them wait for an animation to finish is
+/// how this feature becomes a trap.
+const INSPECT_IN_SPEED: f32 = 5.0;
+const INSPECT_RETURN_SPEED: f32 = 6.5;
+const INSPECT_OUT_SPEED: f32 = 14.0;
+
 const SPRINT_CARRY_DELAY: f32 = 1.0;
 const SPRINT_CARRY_SPEED: f32 = 6.0;
 
@@ -407,13 +429,13 @@ const TOUCH_JOYSTICK_RADIUS_PX: f32 = (TOUCH_JOYSTICK_BASE_PX - TOUCH_JOYSTICK_K
 /// Measured against the raw drag rather than the clamped one, so the extra
 /// travel beyond full tilt is what asks for it. A thumb that merely reaches
 /// full speed is not asking; one that keeps going is.
-const TOUCH_SPRINT_RADIUS_PX: f32 = TOUCH_JOYSTICK_RADIUS_PX * 1.55;
+const TOUCH_SPRINT_RADIUS_PX: f32 = TOUCH_JOYSTICK_RADIUS_PX * 2.30;
 /// And it has to be forward. Sprinting sideways or backwards is not a thing
 /// the player can do anyway, so a stick shoved left should not light it up.
 const TOUCH_SPRINT_FORWARD_DOT: f32 = 0.72;
 /// Once running, it takes coming most of the way back to stop -- otherwise
 /// the run flickers off every time the thumb drifts across the line.
-const TOUCH_SPRINT_RELEASE_PX: f32 = TOUCH_JOYSTICK_RADIUS_PX * 1.20;
+const TOUCH_SPRINT_RELEASE_PX: f32 = TOUCH_JOYSTICK_RADIUS_PX * 1.70;
 const TOUCH_FIRE_BUTTON_PX: f32 = 90.0;
 
 const TOUCH_SCOPE_ZOOM_TRACK_WIDTH_PX: f32 = 44.0;

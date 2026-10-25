@@ -130,35 +130,38 @@ pub(crate) fn suppress_touch_buttons_while_menu_open(
     }
 }
 
-/// Holds a button down for the finger that pressed it, for as many fingers as
-/// are on the screen.
+/// Owns the interaction state of the on-screen controls outright, both ways,
+/// for as many fingers as are on the screen.
 ///
-/// Two things have to be true at once here, and each one broke when it was the
-/// only one.
+/// Three things have to be true at once, and each one broke on its own.
 ///
 /// Every finger counts. This used to skip `touches.iter().next()`, on the
-/// theory that Bevy was already holding that one. `Touches::pressed` is a
-/// HashMap, so that is not the first finger down -- it is whichever hashed out
-/// first, and the order changes the moment another finger arrives. Put a
-/// second finger anywhere and the button under the first was sometimes the
-/// skipped one, with Bevy having just moved its pointer to the new finger and
-/// set that button back to None. Nobody was left holding it, and it let go.
+/// theory that Bevy was holding that one. `Touches::pressed` is a HashMap, so
+/// that is not the first finger down -- it is whichever hashed out first, and
+/// the order changes the moment another finger arrives. A second finger
+/// anywhere could leave the button under the first one as the skipped one,
+/// with Bevy having just moved its pointer across and set it back to None.
 ///
-/// And a button belongs to the finger that landed on it. Honouring whatever a
-/// finger is merely over, rather than what it pressed, means the thumb working
-/// the stick fires every button it slides across on its way round. Which
-/// button a touch owns is decided once, when it goes down, and held until it
-/// lifts -- so a finger that went down on empty ground owns nothing, however
-/// far it wanders.
+/// A button belongs to the finger that landed on it, decided at touch-down and
+/// held until it lifts. Otherwise the thumb working the stick fires every
+/// button it slides across.
 ///
-/// Nothing here clears an interaction, only sets Pressed, and it runs in
-/// Update after the picking backend has had its say in PreUpdate.
+/// And saying Pressed is not enough, because the picking backend is still
+/// running and still setting these from hover. Drag the stick over the crouch
+/// button, touch anywhere with the other hand, and Bevy pressed crouch. Only
+/// by writing both Pressed and None does this decide the matter rather than
+/// argue about it -- and it only does so while a finger is down, so a mouse on
+/// the desktop is left to the backend as before.
 pub(crate) fn multi_touch_button_interaction(
     touches: Res<Touches>,
     hover_map: Res<HoverMap>,
     mut held: Local<std::collections::HashMap<u64, Entity>>,
-    mut buttons: Query<&mut Interaction, With<Button>>,
+    mut buttons: Query<(Entity, &mut Interaction), (With<TouchControlButton>, Without<SettingsToggleButton>)>,
 ) {
+    if touches.iter().next().is_none() {
+        held.clear();
+        return;
+    }
     for touch in touches.iter_just_pressed() {
         let Some(hits) = hover_map.get(&PointerId::Touch(touch.id())) else {
             continue;
@@ -168,10 +171,13 @@ pub(crate) fn multi_touch_button_interaction(
         }
     }
     held.retain(|id, _| touches.get_pressed(*id).is_some());
-    for &entity in held.values() {
-        if let Ok(mut interaction) = buttons.get_mut(entity) {
-            interaction.set_if_neq(Interaction::Pressed);
-        }
+    for (entity, mut interaction) in &mut buttons {
+        let wanted = if held.values().any(|&held| held == entity) {
+            Interaction::Pressed
+        } else {
+            Interaction::None
+        };
+        interaction.set_if_neq(wanted);
     }
 }
 

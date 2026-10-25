@@ -456,8 +456,59 @@ pub(crate) fn update_scope_lens(
 /// holds still on screen while the rest swings.
 const SWAY_PIVOT_DOWN_BORE: f32 = 0.40;
 
-/// Two resources as one parameter: gun_view_animation is at Bevy's sixteen
-/// and the zoom has to get in.
+/// The look-over, as a handful of poses with times against them.
+///
+/// Offset is camera space off the rest pose; the angles are the weapon's own,
+/// turned about the trigger grip. Roll does most of the work -- the point is
+/// to bring the receiver round where it can be seen, first one flank and then
+/// the other.
+///
+/// The weapon carries no clips of its own. It is a static mesh posed by code,
+/// with the hands following it through the grip IK, so this table is the
+/// animation.
+/// A hold repeats the key before it exactly. Carrying a little drift through
+/// one looks like the right idea and is not: each segment eases in and out, so
+/// a few degrees spread over most of a second become a slow creep that starts
+/// and stops, and the eye reads it as the animation labouring rather than the
+/// weapon being looked at. A hold that holds is still.
+const INSPECT_KEYS: [(f32, Vec3, Vec3); 6] = [
+    //  t     offset (x, y, z)                 yaw, pitch, roll (degrees)
+    (0.00, Vec3::new(0.00, 0.00, 0.00), Vec3::new(0.0, 0.0, 0.0)),
+    (0.17, Vec3::new(-0.18, 0.03, 0.00), Vec3::new(56.0, 6.0, -30.0)),
+    (0.42, Vec3::new(-0.18, 0.03, 0.00), Vec3::new(56.0, 6.0, -30.0)),
+    (0.68, Vec3::new(-0.07, 0.01, 0.06), Vec3::new(-7.0, -5.0, 62.0)),
+    (0.86, Vec3::new(-0.07, 0.01, 0.06), Vec3::new(-7.0, -5.0, 62.0)),
+    (1.00, Vec3::new(0.00, 0.00, 0.00), Vec3::new(0.0, 0.0, 0.0)),
+];
+
+/// Reads that table at `t`, smoothed between the two keys it falls between so
+/// each turn arrives and leaves rather than starting and stopping.
+fn inspect_pose(t: f32) -> (Vec3, Vec3) {
+    let t = t.clamp(0.0, 1.0);
+    let last = INSPECT_KEYS.len() - 1;
+    let mut from = &INSPECT_KEYS[0];
+    let mut to = &INSPECT_KEYS[last];
+    for pair in INSPECT_KEYS.windows(2) {
+        if t <= pair[1].0 {
+            from = &pair[0];
+            to = &pair[1];
+            break;
+        }
+    }
+    let span = (to.0 - from.0).max(1e-6);
+    let k = ((t - from.0) / span).clamp(0.0, 1.0);
+    let eased = k * k * (3.0 - 2.0 * k);
+    (from.1.lerp(to.1, eased), from.2.lerp(to.2, eased))
+}
+
+/// The two points a pair of hands holds the weapon at, as one parameter.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct GripSockets<'w, 's> {
+    trigger: Query<'w, 's, &'static GlobalTransform, With<TriggerGripSocket>>,
+    fore: Query<'w, 's, &'static GlobalTransform, With<ForeGripSocket>>,
+}
+
+/// Two resources as one parameter: gun_view_animation is at Bevy's sixteen.
 #[derive(bevy::ecs::system::SystemParam)]
 pub(crate) struct LocalPlayerState<'w> {
     moving: Res<'w, LocalPlayerMoving>,
@@ -465,11 +516,12 @@ pub(crate) struct LocalPlayerState<'w> {
 }
 
 pub(crate) fn gun_view_animation(
-    trigger_grip: Query<&GlobalTransform, With<TriggerGripSocket>>,
+    grips: GripSockets,
     time: Res<Time>,
     aim_held: Res<AimHeld>,
     touch_aiming: Res<TouchAiming>,
     game_over: Res<GameOver>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut look_delta: ResMut<MouseLookDelta>,
     mut pose: ResMut<WeaponPose>,
     cursor: Query<&CursorOptions, With<PrimaryWindow>>,
@@ -611,6 +663,66 @@ pub(crate) fn gun_view_animation(
         let carry_step = (SPRINT_CARRY_SPEED * dt).min(1.0);
         gun.sprint_blend += (f32::from(carrying) - gun.sprint_blend) * carry_step;
 
+        // Nothing asked of the weapon for long enough and it gets looked over.
+        // Walking still counts as idle -- standing perfectly still is rare in
+        // a game where the dead come to you -- but running does not.
+        let busy = aiming
+            || local.sprinting.0
+            || gun.reload_remaining > 0.0
+            || gun.since_shot < SPRINT_CARRY_DELAY;
+        if busy {
+            gun.idle_elapsed = 0.0;
+        } else {
+            gun.idle_elapsed += dt;
+        }
+        // T asks for it directly, so nobody has to stand around to see it.
+        // Still refused while busy: the weapon is in the middle of something.
+        let asked = keys.just_pressed(INSPECT_KEY);
+        let wait = INSPECT_WAIT + gun.inspect_done as f32 * INSPECT_WAIT_EXTRA;
+        if gun.inspect_t <= 0.0 && !busy && (asked || gun.idle_elapsed >= wait) {
+            gun.inspect_t = f32::EPSILON;
+        }
+        if gun.inspect_t > 0.0 {
+            gun.inspect_t += dt / INSPECT_SECONDS;
+            // Held at the end rather than wound back to the start.
+            //
+            // A frame lands wherever dt puts it, so the last one before the
+            // end sits at something like 0.97 -- a twentieth of the way back
+            // from the final look, still turned. Winding t to zero there read
+            // as the pose jumping the rest of the way home in one frame, and
+            // that was the jolt. Clamped, the sequence always finishes on its
+            // own last key.
+            if gun.inspect_t >= 1.0 {
+                gun.inspect_t = 1.0;
+                gun.inspect_done += 1;
+                gun.idle_elapsed = 0.0;
+            }
+            // Cancelled is different: the player wants to shoot, so it stops
+            // where it is and the blend takes it away.
+            if busy {
+                gun.inspect_t = 0.0;
+                gun.idle_elapsed = 0.0;
+            }
+        }
+        let inspecting = gun.inspect_t > 0.0 && gun.inspect_t < 1.0;
+        if !inspecting && gun.inspect_blend < 0.01 {
+            gun.inspect_t = 0.0;
+        }
+        // Three rates, because the three ways out are not the same thing. Going
+        // in is a decision and takes its time; finishing is the weapon coming
+        // home; being cancelled is the player wanting to shoot, and that one
+        // gets out of the way.
+        let inspect_rate = if inspecting {
+            INSPECT_IN_SPEED
+        } else if busy {
+            INSPECT_OUT_SPEED
+        } else {
+            INSPECT_RETURN_SPEED
+        };
+        gun.inspect_blend +=
+            (f32::from(inspecting) - gun.inspect_blend) * (inspect_rate * dt).min(1.0);
+        let (inspect_offset, inspect_angles) = inspect_pose(gun.inspect_t);
+
         // One roll per disturbance, so each return lands somewhere new.
         let disturbed = aiming || leaning || local.sprinting.0;
         if disturbed {
@@ -678,7 +790,8 @@ pub(crate) fn gun_view_animation(
         // turn moved that point by.
         let reload_turn = Quat::from_rotation_x(RELOAD_TILT_DEG.to_radians() * timings.dip)
             * Quat::from_rotation_z(RELOAD_ROLL_DEG.to_radians() * timings.dip);
-        let grip_in_gun = trigger_grip
+        let grip_in_gun = grips
+            .trigger
             .single()
             .map(|socket| socket.reparented_to(gun_global).translation)
             .unwrap_or(Vec3::ZERO);
@@ -691,6 +804,12 @@ pub(crate) fn gun_view_animation(
         );
         // One turn for both poses, so the correction below is exact rather
         // than two approximations added together.
+        let inspect_turn = Quat::IDENTITY.slerp(
+            Quat::from_rotation_y(inspect_angles.x.to_radians())
+                * Quat::from_rotation_x(inspect_angles.y.to_radians())
+                * Quat::from_rotation_z(inspect_angles.z.to_radians()),
+            gun.inspect_blend,
+        );
         let pose_turn = reload_turn * sprint_turn;
         let pose_swing = grip_in_gun - pose_turn * grip_in_gun;
 
@@ -698,9 +817,19 @@ pub(crate) fn gun_view_animation(
             * pose_turn
             * Quat::IDENTITY.slerp(gun.optical_fix, gun.ads_blend);
 
-        let resting = gun.base_offset.lerp(active.def().ready_offset, gun.ready_blend)
+        // Back to the rest height first. The ready pose deliberately sits a
+        // hand lower -- muzzle down, waiting -- and the look-over was being
+        // added on top of wherever the weapon happened to be, so starting it
+        // from ready put the whole gesture ten centimetres under where
+        // starting it from rest did. It is the same gesture either way.
+        let posture = gun
+            .base_offset
+            .lerp(active.def().ready_offset, gun.ready_blend)
+            .lerp(gun.base_offset, gun.inspect_blend);
+        let resting = posture
             + gun.settle_current
-            + active.def().sprint_carry.offset * gun.sprint_blend;
+            + active.def().sprint_carry.offset * gun.sprint_blend
+            + inspect_offset * gun.inspect_blend;
         // Sighted means Socket_Aim on the camera axis at this weapon.s eye
         // relief; the mesh says where that point is, so the offset is a
         // subtraction rather than a dialled-in vector. Where it sits inside
@@ -811,11 +940,26 @@ pub(crate) fn gun_view_animation(
         let held = inner * grip_in_gun;
         let hold_swing = outer * sway * (held - hold_turn * held);
 
+        // Between the hands, not at the trigger. Rolling about the firing grip
+        // alone swings the muzzle through an arc of whatever the grip sits
+        // below the bore, which reads as the weapon being thrown around rather
+        // than turned over. Both hands turning it together pivot it near its
+        // own middle, and that is what the gesture looks like.
+        let fore_in_gun = grips
+            .fore
+            .single()
+            .map(|socket| socket.reparented_to(gun_global).translation)
+            .unwrap_or(grip_in_gun);
+        let between_hands = inner * ((grip_in_gun + fore_in_gun) * 0.5);
+        let inspect_swing =
+            outer * sway * hold_turn * (between_hands - inspect_turn * between_hands);
+
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);
         transform.translation = Vec3::new(swapped_x, base_pos.y, base_pos.z)
             + pose_swing
             + sway_swing
             + hold_swing
+            + inspect_swing
             + Vec3::new(
                 timings.bob_x,
                 kick.weapon.lift * timings.recoil_t + RELOAD_LIFT * timings.dip - timings.bob_y
@@ -823,7 +967,7 @@ pub(crate) fn gun_view_animation(
                 kick.weapon.slide_back * timings.recoil_t,
             );
 
-        transform.rotation = outer * sway * hold_turn * inner;
+        transform.rotation = outer * sway * hold_turn * inspect_turn * inner;
     }
 }
 
