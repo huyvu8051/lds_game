@@ -221,6 +221,17 @@ pub(crate) fn mouse_look(
     }
 }
 
+/// `ALWAYS_FIRE=1` holds the trigger down for the whole run.
+///
+/// Measuring what the impact effects cost means producing them steadily, and
+/// a human or an autopilot firing in bursts gives a different answer every
+/// time. Paired with FREEZE_ZOMBIES and NO_AUTOPILOT, the scene stops moving
+/// and the only thing changing between two runs is the thing being measured.
+pub(crate) fn always_fire() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("ALWAYS_FIRE").is_ok())
+}
+
 pub(crate) fn apply_view_recoil(
     time: Res<Time>,
     active: Res<ActiveWeapon>,
@@ -633,11 +644,12 @@ pub(crate) fn shoot(
         return;
     };
 
-    let firing = if autopilot.0 {
-        intent.fire
-    } else {
-        (cursor.grab_mode != CursorGrabMode::None && mouse.pressed(MouseButton::Left)) || touch_firing.0
-    };
+    let firing = always_fire()
+        || if autopilot.0 {
+            intent.fire
+        } else {
+            (cursor.grab_mode != CursorGrabMode::None && mouse.pressed(MouseButton::Left)) || touch_firing.0
+        };
     if !firing || *cooldown > 0.0 {
         return;
     }

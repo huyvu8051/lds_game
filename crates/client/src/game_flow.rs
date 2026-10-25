@@ -128,8 +128,10 @@ pub(crate) fn current_scenario() -> Scenario {
     map_id_override().map(Scenario::from_map_id).unwrap_or_default()
 }
 
+/// `NO_AUTOPILOT=1` leaves the player standing where they spawned, which is
+/// what a repeatable measurement wants.
 pub(crate) fn autopilot_enabled_by_default(_scenario: Scenario) -> bool {
-    true
+    std::env::var("NO_AUTOPILOT").is_err()
 }
 
 pub(crate) fn check_game_over(

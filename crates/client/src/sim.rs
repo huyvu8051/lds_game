@@ -78,8 +78,16 @@ impl Plugin for SimPlugin {
     }
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 struct FreezeZombiesServer(bool);
+
+impl Default for FreezeZombiesServer {
+    /// `FREEZE_ZOMBIES=1` stops them where they stand, so a measurement is not
+    /// also measuring however many of them happened to be on screen.
+    fn default() -> Self {
+        Self(std::env::var("FREEZE_ZOMBIES").is_ok())
+    }
+}
 
 fn on_set_freeze_zombies(trigger: On<SetFreezeZombies>, mut freeze: ResMut<FreezeZombiesServer>) {
     freeze.0 = trigger.event().0;
