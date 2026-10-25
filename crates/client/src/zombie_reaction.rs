@@ -16,6 +16,7 @@ pub(crate) fn spawn_zombie_hit_feedback(
     show_floating_damage: bool,
     shot_direction: Vec3,
     blood: BloodEnabled,
+    sparks: bool,
 ) {
     if damage > 0.0 {
         if show_floating_damage {
@@ -23,7 +24,7 @@ pub(crate) fn spawn_zombie_hit_feedback(
         }
         spawn_blood_effects(commands, blood_assets, spatial_query, time, point, normal, bone_for_blood, killed, shot_direction, blood);
     } else {
-        spawn_spark_effects(commands, spark_assets, time, point, normal);
+        spawn_spark_effects(commands, spark_assets, time, point, normal, sparks);
     }
 }
 

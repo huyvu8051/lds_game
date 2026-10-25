@@ -896,6 +896,9 @@ impl Plugin for GamePlugin {
         .init_resource::<BulletHolesEnabled>()
         .init_resource::<BloodEnabled>()
         .init_resource::<PlayerModelVisible>()
+        .init_resource::<MuzzleFlashEnabled>()
+        .init_resource::<ImpactSparksEnabled>()
+        .init_resource::<ShellCasingsEnabled>()
         .init_resource::<MuzzleSmokeEnabled>()
         .init_resource::<PortSmokeEnabled>()
         .init_resource::<BarrelSmokeEnabled>()
@@ -1006,6 +1009,7 @@ impl Plugin for GamePlugin {
                 (
                     cheat_toggle_buttons_3,
                     (render_toggle_buttons, update_render_toggle_colors).chain(),
+                    (fire_fx_toggle_buttons, update_fire_fx_toggle_colors).chain(),
                     autopilot_toggle_button,
                     update_extra_toggle_colors,
                     cheat_spawn_zombie_button,

@@ -203,6 +203,24 @@ macro_rules! smoke_switch {
     };
 }
 
+/// Whether firing produces a flash at all: the quad, the dynamic point light
+/// that lights the room with it, the embers thrown forward, and the flame
+/// blade. The smoke switches below cover none of it, which is why turning
+/// every one of them off still left the barrel flashing.
+///
+/// The light is the part worth a setting. It is a real PointLight, so it
+/// becomes the nearest light in the snapshot and can pull the point-shadow
+/// pass in behind it -- for two frames, sixty times a second, while the
+/// trigger is held.
+#[derive(Resource)]
+pub(crate) struct MuzzleFlashEnabled(pub(crate) bool);
+
+impl Default for MuzzleFlashEnabled {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 smoke_switch!(MuzzleSmokeEnabled);
 smoke_switch!(PortSmokeEnabled);
 smoke_switch!(BarrelSmokeEnabled);

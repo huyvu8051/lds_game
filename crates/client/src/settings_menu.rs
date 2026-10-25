@@ -465,6 +465,9 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                         spawn_cheat_toggle_button(row, "Blood", CheatBloodButton);
                         spawn_cheat_toggle_button(row, "Pools", CheatPoolsButton);
                         spawn_cheat_toggle_button(row, "LensWarp", CheatLensWarpButton);
+                        spawn_cheat_toggle_button(row, "Flash", CheatMuzzleFlashButton);
+                        spawn_cheat_toggle_button(row, "Sparks", CheatImpactSparksButton);
+                        spawn_cheat_toggle_button(row, "Brass", CheatShellCasingsButton);
                     });
                     page.spawn(Node {
                         flex_direction: FlexDirection::Row,
@@ -1651,6 +1654,57 @@ pub(crate) fn render_toggle_buttons(
     }
 }
 
+/// What firing throws into the world, on its own system: the one above sits
+/// on Bevy's sixteen parameter limit and three more toggles is six more
+/// parameters.
+pub(crate) fn fire_fx_toggle_buttons(
+    mut flash: ResMut<MuzzleFlashEnabled>,
+    mut sparks: ResMut<ImpactSparksEnabled>,
+    mut casings: ResMut<ShellCasingsEnabled>,
+    flash_btn: Query<&Interaction, (With<CheatMuzzleFlashButton>, Changed<Interaction>)>,
+    sparks_btn: Query<&Interaction, (With<CheatImpactSparksButton>, Changed<Interaction>)>,
+    casings_btn: Query<&Interaction, (With<CheatShellCasingsButton>, Changed<Interaction>)>,
+) {
+    if tapped(&flash_btn) {
+        flash.0 = !flash.0;
+    }
+    if tapped(&sparks_btn) {
+        sparks.0 = !sparks.0;
+    }
+    if tapped(&casings_btn) {
+        casings.0 = !casings.0;
+    }
+}
+
+pub(crate) fn update_fire_fx_toggle_colors(
+    flash: Res<MuzzleFlashEnabled>,
+    sparks: Res<ImpactSparksEnabled>,
+    casings: Res<ShellCasingsEnabled>,
+    mut buttons: Query<
+        (&mut BackgroundColor, Option<&CheatMuzzleFlashButton>, Option<&CheatImpactSparksButton>),
+        Or<(
+            With<CheatMuzzleFlashButton>,
+            With<CheatImpactSparksButton>,
+            With<CheatShellCasingsButton>,
+        )>,
+    >,
+) {
+    for (mut bg, is_flash, is_sparks) in &mut buttons {
+        let on = if is_flash.is_some() {
+            flash.0
+        } else if is_sparks.is_some() {
+            sparks.0
+        } else {
+            casings.0
+        };
+        *bg = BackgroundColor(if on {
+            Color::srgba(0.3, 1.0, 0.4, 0.5)
+        } else {
+            Color::srgba(1.0, 1.0, 1.0, 0.2)
+        });
+    }
+}
+
 pub(crate) fn update_render_toggle_colors(
     bloom: Res<BloomEnabled>,
     grain: Res<ScreenEffectsEnabled>,
@@ -1712,3 +1766,9 @@ pub(crate) struct CheatBloodButton;
 pub(crate) struct CheatPoolsButton;
 #[derive(Component)]
 pub(crate) struct CheatLensWarpButton;
+#[derive(Component)]
+pub(crate) struct CheatMuzzleFlashButton;
+#[derive(Component)]
+pub(crate) struct CheatImpactSparksButton;
+#[derive(Component)]
+pub(crate) struct CheatShellCasingsButton;

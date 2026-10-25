@@ -48,6 +48,17 @@ pub(crate) struct ShellCasing {
     remaining: f32,
 }
 
+/// Whether a fired round throws a brass case. Each one is a mesh entity with
+/// its own rigid body, tumbling until it settles.
+#[derive(Resource)]
+pub(crate) struct ShellCasingsEnabled(pub(crate) bool);
+
+impl Default for ShellCasingsEnabled {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 pub(crate) fn build_casing_assets(
     asset_server: &AssetServer,
     meshes: &mut Assets<Mesh>,
@@ -85,33 +96,38 @@ pub(crate) fn eject_casing(
     // metre down the weapon, so every degree of sway threw the brass wide.
     port_in_eye: Vec3,
     smoke: bool,
+    // Only the brass. Port smoke keeps its own switch: it reads as heat
+    // leaving the gun and makes sense without a case to go with it.
+    casings: bool,
 ) {
     let port = eye.translation + eye.rotation * port_in_eye;
     let right = *eye.right();
     let up = *eye.up();
     let away = (right + up * EJECT_UP + scatter(seed) * EJECT_SCATTER).normalize_or_zero();
 
-    commands.spawn((
-        Name::new("ShellCasing"),
-        Mesh3d(assets.mesh.clone()),
-        MeshMaterial3d(assets.material.clone()),
-        Transform::from_translation(port).with_rotation(eye.rotation),
-        RigidBody::Dynamic,
-        Collider::cylinder(CASING_RADIUS, CASING_LENGTH),
-        ColliderDensity(CASING_DENSITY),
-        // Debris, so the player capsule cast never sees it. Ejected at the
-        // chest, a shell otherwise lands inside the capsule and the character
-        // controller slides the player off it, once per shot.
-        CollisionLayers::new(GameLayer::Debris, [GameLayer::Default]),
-        // Map geometry is a trimesh, which has no thickness, and a 5mm casing
-        // covers 8cm in a physics step once gravity has it. Without swept
-        // collision it passes straight through the floor and is never seen
-        // landing.
-        SweptCcd::default(),
-        LinearVelocity(away * EJECT_SPEED + player_velocity),
-        AngularVelocity(scatter(seed * 1.9) * EJECT_SPIN),
-        ShellCasing { remaining: CASING_LIFETIME },
-    ));
+    if casings {
+        commands.spawn((
+            Name::new("ShellCasing"),
+            Mesh3d(assets.mesh.clone()),
+            MeshMaterial3d(assets.material.clone()),
+            Transform::from_translation(port).with_rotation(eye.rotation),
+            RigidBody::Dynamic,
+            Collider::cylinder(CASING_RADIUS, CASING_LENGTH),
+            ColliderDensity(CASING_DENSITY),
+            // Debris, so the player capsule cast never sees it. Ejected at the
+            // chest, a shell otherwise lands inside the capsule and the character
+            // controller slides the player off it, once per shot.
+            CollisionLayers::new(GameLayer::Debris, [GameLayer::Default]),
+            // Map geometry is a trimesh, which has no thickness, and a 5mm casing
+            // covers 8cm in a physics step once gravity has it. Without swept
+            // collision it passes straight through the floor and is never seen
+            // landing.
+            SweptCcd::default(),
+            LinearVelocity(away * EJECT_SPEED + player_velocity),
+            AngularVelocity(scatter(seed * 1.9) * EJECT_SPIN),
+            ShellCasing { remaining: CASING_LIFETIME },
+        ));
+    }
 
     for i in 0..(if smoke { PORT_SMOKE_COUNT } else { 0 }) {
         let seed = seed + i as f32 * 53.7;

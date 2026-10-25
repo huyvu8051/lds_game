@@ -622,7 +622,7 @@ pub(crate) fn shoot(
         ResMut<Assets<MuzzleSmokeMaterial>>,
         ResMut<Assets<MuzzleFlashMaterial>>,
     ),
-    (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke): (
+    (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings): (
         Res<Autopilot>,
         Res<AutopilotIntent>,
         Res<LocalPlayerMoving>,
@@ -632,6 +632,8 @@ pub(crate) fn shoot(
         Res<ActiveWeapon>,
         Res<MuzzleSmokeEnabled>,
         Res<PortSmokeEnabled>,
+        Res<MuzzleFlashEnabled>,
+        Res<ShellCasingsEnabled>,
     ),
 ) {
     *cooldown = (*cooldown - time.delta_secs()).max(0.0);
@@ -755,21 +757,23 @@ pub(crate) fn shoot(
     let spread_dir = bore_axis + bore * Vec3::X * spread_x + bore * Vec3::Y * spread_y;
     let direction = Dir3::new(spread_dir).unwrap_or(Dir3::new(bore_axis).unwrap_or(Dir3::NEG_Z));
 
-    commands.spawn((
-        Mesh3d(vfx_assets.muzzle_fx.flash_mesh.clone()),
-        MeshMaterial3d(flash_materials.add(muzzle_flash_material(time.elapsed_secs() * 419.0))),
-        Transform::from_translation(muzzle_world_pos).with_rotation(camera_transform.rotation),
-        PointLight {
-            intensity: MUZZLE_LIGHT_INTENSITY,
-            range: MUZZLE_LIGHT_RANGE,
-            color: Color::srgb(1.0, 0.7, 0.3),
-            shadow_maps_enabled: false,
-            ..default()
-        },
-        MuzzleFlash {
-            remaining: MUZZLE_FLASH_LIFETIME,
-        },
-    ));
+    if muzzle_flash.0 {
+        commands.spawn((
+            Mesh3d(vfx_assets.muzzle_fx.flash_mesh.clone()),
+            MeshMaterial3d(flash_materials.add(muzzle_flash_material(time.elapsed_secs() * 419.0))),
+            Transform::from_translation(muzzle_world_pos).with_rotation(camera_transform.rotation),
+            PointLight {
+                intensity: MUZZLE_LIGHT_INTENSITY,
+                range: MUZZLE_LIGHT_RANGE,
+                color: Color::srgb(1.0, 0.7, 0.3),
+                shadow_maps_enabled: false,
+                ..default()
+            },
+            MuzzleFlash {
+                remaining: MUZZLE_FLASH_LIFETIME,
+            },
+        ));
+    }
 
     if muzzle_smoke.0 {
         commands.spawn((
@@ -795,20 +799,22 @@ pub(crate) fn shoot(
     let right = *camera_transform.right();
     let up = *camera_transform.up();
 
-    for i in 0..MUZZLE_EMBER_COUNT {
-        let seed = time.elapsed_secs() * 617.0 + i as f32 * 143.9;
-        let spread = (right * ops::sin(seed * 1.7) + up * ops::sin(seed * 2.9)) * MUZZLE_EMBER_CONE;
-        let dir = (forward + spread).normalize_or_zero();
-        let speed = MUZZLE_EMBER_SPEED * (0.7 + ops::sin(seed * 3.1).abs() * 0.3);
-        commands.spawn((
-            Mesh3d(vfx_assets.muzzle_fx.ember_mesh.clone()),
-            MeshMaterial3d(vfx_assets.sparks.material.clone()),
-            Transform::from_translation(muzzle_world_pos),
-            SparkParticle {
-                velocity: dir * speed,
-                remaining: MUZZLE_EMBER_LIFETIME,
-            },
-        ));
+    if muzzle_flash.0 {
+        for i in 0..MUZZLE_EMBER_COUNT {
+            let seed = time.elapsed_secs() * 617.0 + i as f32 * 143.9;
+            let spread = (right * ops::sin(seed * 1.7) + up * ops::sin(seed * 2.9)) * MUZZLE_EMBER_CONE;
+            let dir = (forward + spread).normalize_or_zero();
+            let speed = MUZZLE_EMBER_SPEED * (0.7 + ops::sin(seed * 3.1).abs() * 0.3);
+            commands.spawn((
+                Mesh3d(vfx_assets.muzzle_fx.ember_mesh.clone()),
+                MeshMaterial3d(vfx_assets.sparks.material.clone()),
+                Transform::from_translation(muzzle_world_pos),
+                SparkParticle {
+                    velocity: dir * speed,
+                    remaining: MUZZLE_EMBER_LIFETIME,
+                },
+            ));
+        }
     }
 
     eject_casing(
@@ -820,10 +826,11 @@ pub(crate) fn shoot(
         time.elapsed_secs() * 311.0,
         gun_transform.mul_transform(gun.eject_local).translation,
         port_smoke.0,
+        shell_casings.0,
     );
 
     let shot_shows_flame_blade =
-        ops::sin(time.elapsed_secs() * 733.0).abs() < MUZZLE_BLADE_CHANCE;
+        muzzle_flash.0 && ops::sin(time.elapsed_secs() * 733.0).abs() < MUZZLE_BLADE_CHANCE;
     if shot_shows_flame_blade {
         let half_length = FLASH_QUAD_SIZE * MUZZLE_BLADE_LENGTH * 0.5;
         commands.spawn((

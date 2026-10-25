@@ -61,6 +61,18 @@ pub(crate) struct TracerAssets {
 }
 
 
+/// Whether a bullet striking a surface throws dust and sparks. Several
+/// particle entities per shot, each its own draw, and every shot that misses
+/// a zombie makes some.
+#[derive(Resource)]
+pub(crate) struct ImpactSparksEnabled(pub(crate) bool);
+
+impl Default for ImpactSparksEnabled {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
 #[derive(Resource)]
 pub(crate) struct SparkAssets {
     pub(crate) mesh: Handle<Mesh>,
@@ -93,6 +105,7 @@ pub(crate) fn on_shot_confirmed(
     child_of: Query<&ChildOf>,
     show_floating_damage: Res<ShowFloatingDamage>,
     blood_enabled: Res<BloodEnabled>,
+    sparks_enabled: Res<ImpactSparksEnabled>,
 ) {
     let ShotConfirmed { origin, point, normal, damage, killed } = *trigger.event();
     if damage > 0.0 {
@@ -113,12 +126,15 @@ pub(crate) fn on_shot_confirmed(
     }
 
     let bone_for_blood = nearest_bone.as_ref().map(|(entity, global)| (*entity, global));
-    spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled);
+    spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled, sparks_enabled.0);
 }
 
 
 
-pub(crate) fn spawn_spark_effects(commands: &mut Commands, spark_assets: &SparkAssets, time: &Time, hit_point: Vec3, hit_normal: Vec3) {
+pub(crate) fn spawn_spark_effects(commands: &mut Commands, spark_assets: &SparkAssets, time: &Time, hit_point: Vec3, hit_normal: Vec3, enabled: bool) {
+    if !enabled {
+        return;
+    }
     let normal = hit_normal.normalize_or_zero();
     let range = (SPARK_PARTICLE_MAX - SPARK_PARTICLE_MIN + 1) as f32;
     let count = SPARK_PARTICLE_MIN + (ops::sin(time.elapsed_secs() * 349.0).abs() * range) as usize;
@@ -328,6 +344,7 @@ pub(crate) fn on_shot_fx(
     holes: Res<BulletHoleAssets>,
     holes_enabled: Res<BulletHolesEnabled>,
     blood_enabled: Res<BloodEnabled>,
+    sparks_enabled: Res<ImpactSparksEnabled>,
 ) {
     match *trigger.event() {
         ShotFx::ZombieHit { origin, point, normal, damage, killed } => {
@@ -358,7 +375,7 @@ pub(crate) fn on_shot_fx(
                     .and_then(|(_, _, bones)| nearest_zombie_bone(bones, point, &globals))
             };
             let bone_for_blood = nearest_bone.as_ref().map(|(entity, global)| (*entity, global));
-            spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled);
+            spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled, sparks_enabled.0);
         }
         ShotFx::SurfaceHit { origin, point, normal } => {
             if show_hit_markers.0 {
@@ -373,11 +390,11 @@ pub(crate) fn on_shot_fx(
             }
             let seed = time.elapsed_secs() * 619.0 + point.x * 13.7 + point.z * 7.3;
             spawn_bullet_tracer(&mut commands, &vfx_assets.tracer, seed, origin, point, show_tracers.0);
-            spawn_spark_effects(&mut commands, &vfx_assets.sparks, &time, point, normal);
+            spawn_spark_effects(&mut commands, &vfx_assets.sparks, &time, point, normal, sparks_enabled.0);
             spawn_bullet_hole(&mut commands, &holes, point, normal, seed, holes_enabled.0);
         }
         ShotFx::Penetrated { point, normal } => {
-            spawn_spark_effects(&mut commands, &vfx_assets.sparks, &time, point, normal);
+            spawn_spark_effects(&mut commands, &vfx_assets.sparks, &time, point, normal, sparks_enabled.0);
         }
     }
 }

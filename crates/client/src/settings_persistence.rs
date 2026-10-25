@@ -23,6 +23,9 @@ pub(crate) struct PersistedSettings {
     pub(crate) blood_stains_enabled: Option<bool>,
     pub(crate) muzzle_smoke_enabled: Option<bool>,
     pub(crate) port_smoke_enabled: Option<bool>,
+    pub(crate) muzzle_flash_enabled: Option<bool>,
+    pub(crate) impact_sparks_enabled: Option<bool>,
+    pub(crate) shell_casings_enabled: Option<bool>,
     pub(crate) barrel_smoke_enabled: Option<bool>,
     pub(crate) sensitivity_scale: Option<f32>,
     pub(crate) damage_multiplier: Option<f32>,
@@ -149,6 +152,9 @@ fn apply_settings_to_world(world: &mut World, settings: &PersistedSettings) {
     }
     apply!(muzzle_smoke_enabled, MuzzleSmokeEnabled);
     apply!(port_smoke_enabled, PortSmokeEnabled);
+    apply!(muzzle_flash_enabled, MuzzleFlashEnabled);
+    apply!(impact_sparks_enabled, ImpactSparksEnabled);
+    apply!(shell_casings_enabled, ShellCasingsEnabled);
     apply!(barrel_smoke_enabled, BarrelSmokeEnabled);
     apply!(sensitivity_scale, SensitivityScale);
     apply!(damage_multiplier, DamageMultiplierUi);
@@ -222,6 +228,9 @@ pub(crate) fn persist_settings_on_change(world: &mut World) {
         || changed!(BloodEnabled)
         || changed!(MuzzleSmokeEnabled)
         || changed!(PortSmokeEnabled)
+        || changed!(MuzzleFlashEnabled)
+        || changed!(ImpactSparksEnabled)
+        || changed!(ShellCasingsEnabled)
         || changed!(BarrelSmokeEnabled)
         || changed!(SensitivityScale)
         || changed!(DamageMultiplierUi)
@@ -270,6 +279,9 @@ fn read_settings_from_world(world: &World) -> PersistedSettings {
         blood_stains_enabled: world.get_resource::<BloodEnabled>().map(|r| r.stains),
         muzzle_smoke_enabled: world.get_resource::<MuzzleSmokeEnabled>().map(|r| r.0),
         port_smoke_enabled: world.get_resource::<PortSmokeEnabled>().map(|r| r.0),
+        muzzle_flash_enabled: world.get_resource::<MuzzleFlashEnabled>().map(|r| r.0),
+        impact_sparks_enabled: world.get_resource::<ImpactSparksEnabled>().map(|r| r.0),
+        shell_casings_enabled: world.get_resource::<ShellCasingsEnabled>().map(|r| r.0),
         barrel_smoke_enabled: world.get_resource::<BarrelSmokeEnabled>().map(|r| r.0),
         sensitivity_scale: world.get_resource::<SensitivityScale>().map(|r| r.0),
         damage_multiplier: world.get_resource::<DamageMultiplierUi>().map(|r| r.0),
