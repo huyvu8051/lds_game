@@ -542,9 +542,11 @@ static UMP45: WeaponDef = WeaponDef {
     // carbine and far faster than the bolt gun.
     ads_speed: AdsSpeed { from_ready: 18.0, from_rest: 10.0 },
     hold_ads_fraction: 0.330,
-    // Up beside the head rather than across the body, and pitch_deg positive
-    // where every rifle's is negative -- the muzzle goes up, not down.
-    sprint_carry: SprintCarry { offset: Vec3::new(0.02, 0.13, 0.10), yaw_deg: 16.0, pitch_deg: 52.0, roll_deg: 10.0 },
+    // Muzzle up rather than across the body, and pitch_deg positive where
+    // every rifle's is negative. The lift is small: the angle is what says
+    // the weapon is pointed somewhere safe, and raising it as well put the
+    // whole gun up by the ear where it covered half the run.
+    sprint_carry: SprintCarry { offset: Vec3::new(0.02, 0.05, 0.10), yaw_deg: 16.0, pitch_deg: 52.0, roll_deg: 10.0 },
     // Little mass to stop, so it misses the sight line by less than the
     // carbines; but almost no magnification, so it can afford to swim more.
     ads_settle_miss_m: 0.010,
@@ -631,7 +633,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     // points of contact short of a rifle, and the sights show every one of
     // them missing.
     hold_ads_fraction: 0.550,
-    sprint_carry: SprintCarry { offset: Vec3::new(0.03, 0.15, 0.12), yaw_deg: 12.0, pitch_deg: 60.0, roll_deg: 8.0 },
+    sprint_carry: SprintCarry { offset: Vec3::new(0.03, 0.06, 0.12), yaw_deg: 12.0, pitch_deg: 60.0, roll_deg: 8.0 },
     ads_settle_miss_m: 0.008,
     ads_settle_miss_deg: 1.8,
     aim_fov_multiplier: 0.90,
