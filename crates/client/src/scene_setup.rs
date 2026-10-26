@@ -195,6 +195,59 @@ fn review_yaw_pitch() -> (f32, f32) {
 
 
 
+fn push_bar(positions: &mut Vec<[f32; 3]>, indices: &mut Vec<u32>, cx: f32, cy: f32, hw: f32, hh: f32) {
+    let base = positions.len() as u32;
+    positions.extend_from_slice(&[
+        [cx - hw, cy - hh, 0.0],
+        [cx + hw, cy - hh, 0.0],
+        [cx + hw, cy + hh, 0.0],
+        [cx - hw, cy + hh, 0.0],
+    ]);
+    indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+}
+
+/// Four posts thickening toward the edge, a hairline cross in the middle and
+/// ranging dots along it: a duplex, the mark an M24 carries.
+fn duplex_reticle_mesh() -> Mesh {
+    let mut positions: Vec<[f32; 3]> = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+
+    let reach = SCOPE_RETICLE_REACH;
+    let taper = reach * SCOPE_RETICLE_TAPER;
+    let gap = reach * SCOPE_RETICLE_CENTRE_GAP;
+    let post = SCOPE_RETICLE_POST_WIDTH / 2.0;
+    let line = SCOPE_RETICLE_LINE_WIDTH / 2.0;
+    let dot = SCOPE_RETICLE_DOT_SIZE / 2.0;
+
+    for side in [-1.0f32, 1.0] {
+        let post_mid = side * (taper + reach) / 2.0;
+        let post_half = (reach - taper) / 2.0;
+        let line_mid = side * (gap + taper) / 2.0;
+        let line_half = (taper - gap) / 2.0;
+
+        push_bar(&mut positions, &mut indices, post_mid, 0.0, post_half, post);
+        push_bar(&mut positions, &mut indices, 0.0, post_mid, post, post_half);
+        push_bar(&mut positions, &mut indices, line_mid, 0.0, line_half, line);
+        push_bar(&mut positions, &mut indices, 0.0, line_mid, line, line_half);
+
+        // Spaced along the fine section only, as on the real glass: dots out
+        // on the thick posts would be swallowed by them.
+        let step = (taper - gap) / (SCOPE_RETICLE_DOTS_PER_ARM + 1) as f32;
+        for i in 1..=SCOPE_RETICLE_DOTS_PER_ARM {
+            let at = side * (gap + step * i as f32);
+            push_bar(&mut positions, &mut indices, at, 0.0, dot, dot);
+            push_bar(&mut positions, &mut indices, 0.0, at, dot, dot);
+        }
+    }
+
+    let count = positions.len();
+    Mesh::new(bevy::mesh::PrimitiveTopology::TriangleList, RenderAssetUsages::default())
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; count])
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; count])
+        .with_inserted_indices(bevy::mesh::Indices::U32(indices))
+}
+
 pub(crate) fn setup_gameplay(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -364,8 +417,28 @@ pub(crate) fn setup_gameplay(
         Transform::default(),
         Visibility::Hidden,
         RenderLayers::layer(VIEWMODEL_LAYER),
-        HoloReticle,
+        Reticle(ReticleKind::Dot),
         ChildOf(camera),
+    ));
+
+    // The scope's own mark, hung off the eye exactly like the dot.
+    commands.spawn((
+        Mesh3d(meshes.add(duplex_reticle_mesh())),
+        MeshMaterial3d(materials.add(mark_material(Color::BLACK))),
+        Transform::default(),
+        Visibility::Hidden,
+        RenderLayers::layer(VIEWMODEL_LAYER),
+        Reticle(ReticleKind::Duplex),
+        ChildOf(camera),
+        // The red centre sits in the duplex's gap. A child, so it is carried
+        // and hidden with the cross; render layers do not propagate, hence it
+        // names its own.
+        children![(
+            Mesh3d(meshes.add(Circle::new(SCOPE_RETICLE_CENTRE_DOT_SIZE / 2.0).mesh())),
+            MeshMaterial3d(materials.add(mark_material(Color::linear_rgb(35.0, 0.0, 0.0)))),
+            Transform::default(),
+            RenderLayers::layer(VIEWMODEL_LAYER),
+        )],
     ));
 
     spawn_crosshair(&mut commands);

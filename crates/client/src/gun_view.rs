@@ -154,7 +154,7 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
 /// The socket says which way that is, so no weapon carries its own copy.
 /// The holographic dot. Marks the main view, not the scope's.
 #[derive(Component)]
-pub(crate) struct HoloReticle;
+pub(crate) struct Reticle(pub(crate) ReticleKind);
 
 /// Aims the dot down the bore and decides whether the eye can see it.
 ///
@@ -179,16 +179,17 @@ pub(crate) fn place_holo_reticle(
     active: Res<ActiveWeapon>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
     aim: Query<&GlobalTransform, With<AimSocket>>,
-    gun: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<HoloReticle>)>,
+    gun: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<Reticle>)>,
     pose: Res<WeaponPose>,
-    mut reticle: Query<(&mut Transform, &mut Visibility), With<HoloReticle>>,
+    mut marks: Query<(&Reticle, &mut Transform, &mut Visibility)>,
 ) {
-    let Ok((mut dot, mut visibility)) = reticle.single_mut() else { return };
+    let def = active.def();
     let (Ok(eye), Ok((gun_local, gun_global))) = (camera.single(), gun.single()) else {
-        *visibility = Visibility::Hidden;
+        for (_, _, mut visibility) in &mut marks {
+            *visibility = Visibility::Hidden;
+        }
         return;
     };
-    let def = active.def();
 
     // A scope's mark answers to the sights being up, not to a window. There
     // is no window: past four times the glass is not what the player is
@@ -207,10 +208,6 @@ pub(crate) fn place_holo_reticle(
         }
         None => def.scoped && pose.sighted > SCOPED_RETICLE_SIGHTED,
     };
-    *visibility = if visible { Visibility::Visible } else { Visibility::Hidden };
-    if !visible {
-        return;
-    }
 
     // The same throw the scope mark takes, and for the same reason: only the
     // direction survives, since the quad hangs off the eye.
@@ -218,8 +215,16 @@ pub(crate) fn place_holo_reticle(
         Ok(aim) => gun_local.rotation * aim.reparented_to(gun_global).rotation * Vec3::NEG_Z,
         Err(_) => gun_local.rotation * Vec3::NEG_Z,
     };
-    dot.translation = down_the_barrel;
-    dot.rotation = Quat::IDENTITY;
+    // Which mark is the weapon's own business; whether it shows is not, so
+    // the rule above is asked once and only the matching shape hears a yes.
+    for (kind, mut mark, mut visibility) in &mut marks {
+        let wanted = visible && kind.0 == def.reticle;
+        *visibility = if wanted { Visibility::Visible } else { Visibility::Hidden };
+        if wanted {
+            mark.translation = down_the_barrel;
+            mark.rotation = Quat::IDENTITY;
+        }
+    }
 }
 
 

@@ -665,6 +665,23 @@ const HOLO_DOT_RADIANS: f32 = 0.0013;
 /// frame when the magnification arrives.
 const SCOPED_RETICLE_SIGHTED: f32 = 0.6;
 
+/// The duplex reticle, in radians subtended -- hung a unit down the barrel
+/// like the holo dot, so the numbers are angles. Sized against a twelve times
+/// view, which is what the M24's aim multiplier comes out at, so the thick
+/// posts enter from the edge of the picture and the fine cross holds the
+/// middle.
+const SCOPE_RETICLE_REACH: f32 = 0.070;
+/// Where each arm stops being a thick post and becomes a hairline, as a
+/// fraction of the reach.
+const SCOPE_RETICLE_TAPER: f32 = 0.42;
+const SCOPE_RETICLE_POST_WIDTH: f32 = 0.0013;
+const SCOPE_RETICLE_LINE_WIDTH: f32 = 0.00035;
+/// The hole left in the middle, so the mark never covers what it is on.
+const SCOPE_RETICLE_CENTRE_GAP: f32 = 0.035;
+const SCOPE_RETICLE_DOT_SIZE: f32 = 0.0011;
+const SCOPE_RETICLE_CENTRE_DOT_SIZE: f32 = 0.0013;
+const SCOPE_RETICLE_DOTS_PER_ARM: usize = 4;
+
 const STATIONARY_SPREAD_MULTIPLIER: f32 = 0.4;
 
 const SPRINT_SPREAD_MULTIPLIER: f32 = 2.2;

@@ -77,6 +77,11 @@ pub(crate) struct WeaponDef {
     /// scope looks like: the rifle is not in the picture.
     pub(crate) scoped: bool,
 
+/// Which mark this weapon's optic draws. Separate from `holo` and `scoped`,
+/// which decide *whether* it shows: a bored AK scope hides its mark on a
+/// window test and still draws a PSO, not a dot.
+pub(crate) reticle: ReticleKind,
+
     /// The opening a holographic sight leaves, in the weapon's own frame, or
     /// None for a weapon that has no glass to look through.
     ///
@@ -98,6 +103,14 @@ pub(crate) struct WeaponDef {
     pub(crate) fire_rate: f32,
     pub(crate) magazine: u32,
     pub(crate) recoil: Recoil,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReticleKind {
+    /// One lit dot at infinity, as a holographic sight carries.
+    Dot,
+    /// Thick posts tapering to a hairline cross: a hunting scope.
+    Duplex,
 }
 
 /// The rectangle cut through a holographic sight, in the weapon's own frame.
@@ -314,6 +327,7 @@ static AK47: WeaponDef = WeaponDef {
     // exactly the hip fire rate.
     sprint_one_handed: false,
     scoped: true,
+    reticle: ReticleKind::Dot,
     // The bored aperture, as the rectangle that fits inside it. Magnified or
     // not, the eye still has to be behind the hole: swing hard enough that it
     // is not and the mark goes, the same as the UMP's.
@@ -391,6 +405,7 @@ static M4A1: WeaponDef = WeaponDef {
     // Irons: the scope view never comes on, so these only have to be sane.
     sprint_one_handed: false,
     scoped: false,
+    reticle: ReticleKind::Dot,
     holo: None,
     sound: WeaponSound { fire: "audio/weapons/m4a1_fire.wav", reload: "audio/weapons/m4a1_reload.wav" },
     reload_duration: 1.9,
@@ -413,7 +428,7 @@ static M4A1: WeaponDef = WeaponDef {
         weapon: WeaponKick {
             slide_back: 0.12,
             lift: 0.0,
-            pitch_deg: 1.0,
+            pitch_deg: 0.2,
             roll_deg: 0.8,
             yaw_deg: 0.6,
             settle_speed: 15.0,
@@ -475,6 +490,7 @@ static M24: WeaponDef = WeaponDef {
     // rifle is for.
     sprint_one_handed: false,
     scoped: true,
+    reticle: ReticleKind::Duplex,
     holo: None,
     sound: WeaponSound { fire: "audio/weapons/m24_fire.wav", reload: "audio/weapons/m24_reload.wav" },
     reload_duration: 3.1,
@@ -566,6 +582,7 @@ static UMP45: WeaponDef = WeaponDef {
     // cutting it reads as a sight until the eye goes to the glass and finds
     // the view blocked 9mm higher up.
     scoped: false,
+    reticle: ReticleKind::Dot,
     holo: Some(HoloWindow { min: Vec2::new(-0.0100, 0.0655), max: Vec2::new(0.0110, 0.0805) }),
     sound: WeaponSound { fire: "audio/weapons/ump45_fire.wav", reload: "audio/weapons/ump45_reload.wav" },
     reload_duration: 2.0,
@@ -588,7 +605,7 @@ static UMP45: WeaponDef = WeaponDef {
         weapon: WeaponKick {
             slide_back: 0.130,
             lift: 0.0,
-            pitch_deg: 1.0,
+            pitch_deg: 0.5,
             roll_deg: 0.7,
             yaw_deg: 0.7,
             settle_speed: 20.0,
@@ -645,6 +662,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     autopilot_sprint_pathing_distance: 6.0,
     sprint_one_handed: true,
     scoped: false,
+    reticle: ReticleKind::Dot,
     holo: None,
     sound: WeaponSound { fire: "audio/weapons/deagle_fire.wav", reload: "audio/weapons/deagle_reload.wav" },
     reload_duration: 2.2,
