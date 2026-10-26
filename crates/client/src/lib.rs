@@ -239,6 +239,15 @@ const GUN_STEP_PITCH_DEG: f32 = 1.8;
 /// How fast both follow the stick. Slower than the step itself, so changing
 /// direction takes the weapon through level rather than snapping it.
 const GUN_STEP_LEAN_SPEED: f32 = 7.0;
+/// The share of the step lean that survives the sights coming up, the way
+/// `AIM_BOB_MULTIPLIER` works for the bob.
+///
+/// Not zero any more: a weapon that goes perfectly rigid the moment it
+/// reaches the eye reads as a prop on a rail. But kept well down, because
+/// this is the one place the lean costs something -- the pitch is read along
+/// the barrel, so in the sights it moves the point of aim rather than just
+/// the picture.
+const AIM_STEP_LEAN_MULTIPLIER: f32 = 0.30;
 const GUN_BOB_PITCH_DEG: f32 = 0.55;
 /// Cadence and amplitude together, so a sprint is a different gait rather
 /// than a walk with the volume turned up.

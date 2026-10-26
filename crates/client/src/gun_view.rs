@@ -790,11 +790,14 @@ pub(crate) fn gun_view_animation(
         gun.look_sway = (x * f + v * dt + sway_target * hhoo) * det_inv;
         gun.look_sway_velocity = (v + (sway_target - x) * hoo) * det_inv;
 
-        // Hip fire only: in the sights the weapon has to stay level with the
-        // eye, and a canted rifle puts the reticle somewhere the barrel is
-        // not. Faded by ads_blend rather than switched, so bringing the
-        // sights up rolls the weapon level on the way.
-        let lean_target = local.move_axis.0.clamp_length_max(1.0) * (1.0 - gun.ads_blend);
+        // Cut rather than cancelled in the sights. Most of it has to go --
+        // the pitch is read along the barrel, so sighted it moves the point
+        // of aim and not just the picture -- but a weapon that goes
+        // perfectly rigid the moment it reaches the eye reads as a prop on a
+        // rail. Scaled through ads_blend, so bringing the sights up settles
+        // the weapon on the way instead of snapping it level.
+        let aim_damp = 1.0 - gun.ads_blend * (1.0 - AIM_STEP_LEAN_MULTIPLIER);
+        let lean_target = local.move_axis.0.clamp_length_max(1.0) * aim_damp;
         let lean = gun.step_lean;
         gun.step_lean = lean + (lean_target - lean) * (GUN_STEP_LEAN_SPEED * dt).min(1.0);
 
