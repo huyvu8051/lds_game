@@ -375,8 +375,8 @@ static AK47: WeaponDef = WeaponDef {
 static M4A1: WeaponDef = WeaponDef {
     name: "M4A1",
     mesh_path: "models/m4a1/mesh/m4a1_rigged.glb",
-    rest_offset: Vec3::new(0.160, -0.1268, -0.626),
-    ready_offset: Vec3::new(0.071, -0.2268, -0.536),
+    rest_offset: Vec3::new(0.160, -0.1018, -0.626),
+    ready_offset: Vec3::new(0.071, -0.2018, -0.536),
     ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
     hold_ads_fraction: 0.300,
