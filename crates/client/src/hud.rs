@@ -16,9 +16,12 @@ pub(crate) struct RecentlyHitZombies(pub(crate) std::collections::HashMap<Entity
 
 pub(crate) fn count_local_kills(
     time: Res<Time>,
+    mut commands: Commands,
+    active: Res<ActiveWeapon>,
     mut removed_zombies: RemovedComponents<Zombie>,
     mut recently_hit: ResMut<RecentlyHitZombies>,
     mut kill_count: ResMut<KillCount>,
+    feed: Query<Entity, With<KillFeedRoot>>,
 ) {
     let dt = time.delta_secs();
     recently_hit.0.retain(|_, ttl| {
@@ -28,6 +31,135 @@ pub(crate) fn count_local_kills(
     for entity in removed_zombies.read() {
         if recently_hit.0.remove(&entity).is_some() {
             kill_count.0 += 1;
+            if let Ok(root) = feed.single() {
+                push_kill_feed(&mut commands, root, active.def().name);
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+pub(crate) struct KillCountUi;
+
+#[derive(Component)]
+pub(crate) struct KillFeedRoot;
+
+#[derive(Component)]
+pub(crate) struct KillFeedEntry {
+    remaining: f32,
+}
+
+/// The kill tally and the feed under it, in the one corner nothing else uses.
+pub(crate) fn spawn_kill_ui(commands: &mut Commands) {
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(12.0),
+                right: Val::Px(16.0),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::End,
+                row_gap: Val::Px(6.0),
+                ..default()
+            },
+            GlobalZIndex(STATIC_UI_Z_INDEX),
+            KillFeedRoot,
+            NativeUiRoot,
+        ))
+        .with_children(|root| {
+            root.spawn((
+                Text::new("KILLS  0"),
+                TextFont {
+                    font_size: FontSize::Px(20.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(1.0, 0.85, 0.2)),
+                KillCountUi,
+            ));
+        });
+}
+
+pub(crate) fn update_kill_count_ui(
+    kills: Res<KillCount>,
+    mut text: Query<&mut Text, With<KillCountUi>>,
+) {
+    if !kills.is_changed() {
+        return;
+    }
+    for mut text in &mut text {
+        text.0 = format!("KILLS  {}", kills.0);
+    }
+}
+
+/// One line of the feed: who, with what, and on whom -- the shape a battle
+/// royale's feed uses, which reads at a glance precisely because the middle
+/// is always the weapon.
+fn push_kill_feed(commands: &mut Commands, root: Entity, weapon: &'static str) {
+    commands.entity(root).with_children(|feed| {
+        feed.spawn((
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(7.0),
+                padding: UiRect::axes(Val::Px(9.0), Val::Px(4.0)),
+                border_radius: BorderRadius::all(Val::Px(3.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
+            KillFeedEntry {
+                remaining: KILL_FEED_LIFETIME,
+            },
+        ))
+        .with_children(|row| {
+            let label = |text: &str, colour: Color| {
+                (
+                    Text::new(text.to_string()),
+                    TextFont {
+                        font_size: FontSize::Px(15.0),
+                        ..default()
+                    },
+                    TextColor(colour),
+                )
+            };
+            row.spawn(label("YOU", Color::srgb(1.0, 0.85, 0.2)));
+            row.spawn(label(&format!("[ {weapon} ]"), Color::srgb(0.85, 0.85, 0.85)));
+            row.spawn(label("ZOMBIE", Color::srgb(1.0, 0.35, 0.3)));
+        });
+    });
+}
+
+pub(crate) fn update_kill_feed(
+    mut commands: Commands,
+    time: Res<Time>,
+    children: Query<&Children>,
+    mut entries: Query<(Entity, &mut KillFeedEntry, &mut BackgroundColor)>,
+    mut colours: Query<&mut TextColor>,
+) {
+    // Oldest first, since that is the order they were spawned in.
+    let mut alive: Vec<(Entity, f32)> = Vec::new();
+    for (entity, mut entry, mut bg) in &mut entries {
+        entry.remaining -= time.delta_secs();
+        if entry.remaining <= 0.0 {
+            commands.entity(entity).try_despawn();
+            continue;
+        }
+        let fade = (entry.remaining / KILL_FEED_FADE).clamp(0.0, 1.0);
+        bg.0.set_alpha(0.55 * fade);
+        if let Ok(kids) = children.get(entity) {
+            for kid in kids {
+                if let Ok(mut colour) = colours.get_mut(*kid) {
+                    colour.0.set_alpha(fade);
+                }
+            }
+        }
+        alive.push((entity, entry.remaining));
+    }
+    // Retiring the longest-standing first keeps the newest kill on screen,
+    // which is the one the player is looking for.
+    if alive.len() > KILL_FEED_MAX {
+        alive.sort_by(|a, b| a.1.total_cmp(&b.1));
+        for (entity, _) in alive.iter().take(alive.len() - KILL_FEED_MAX) {
+            commands.entity(*entity).try_despawn();
         }
     }
 }

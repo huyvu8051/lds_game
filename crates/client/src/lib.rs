@@ -547,6 +547,13 @@ const TOUCH_SPRINT_RELEASE_PX: f32 = TOUCH_JOYSTICK_RADIUS_PX * 1.70;
 const TOUCH_FIRE_BUTTON_PX: f32 = 90.0;
 
 
+/// How long a kill stays in the feed, and how much of that is spent fading.
+const KILL_FEED_LIFETIME: f32 = 4.5;
+const KILL_FEED_FADE: f32 = 1.0;
+/// Older entries are dropped rather than scrolled: a feed that fills the
+/// right-hand side of the screen is worse than one that forgets.
+const KILL_FEED_MAX: usize = 5;
+
 const STATIC_UI_Z_INDEX: i32 = 100;
 
 const TOUCH_LOOK_SENSITIVITY_MULTIPLIER: f32 = 1.0;
@@ -1148,7 +1155,7 @@ impl Plugin for GamePlugin {
                 )
                     .chain(),
 
-                (count_local_kills,).chain(),
+                (count_local_kills, update_kill_count_ui, update_kill_feed).chain(),
             )
                 .chain()
                 .run_if(in_state(AppState::InGame)),
