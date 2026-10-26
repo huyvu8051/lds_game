@@ -14,10 +14,22 @@ pub(crate) const RECENTLY_HIT_ZOMBIE_TTL: f32 = 2.0;
 #[derive(Resource, Default)]
 pub(crate) struct RecentlyHitZombies(pub(crate) std::collections::HashMap<Entity, f32>);
 
+/// Kills close enough together to be read as one piece of work.
+#[derive(Resource, Default)]
+pub(crate) struct KillStreak {
+    /// Seconds since the streak's most recent kill. The window runs from the
+    /// last kill rather than the first, so a long run of them keeps going
+    /// instead of expiring mid-fight.
+    since_last: f32,
+    kills: u32,
+}
+
 pub(crate) fn count_local_kills(
     time: Res<Time>,
     mut commands: Commands,
     active: Res<ActiveWeapon>,
+    sounds: Res<KillFeedbackSounds>,
+    mut streak: ResMut<KillStreak>,
     mut removed_zombies: RemovedComponents<Zombie>,
     mut recently_hit: ResMut<RecentlyHitZombies>,
     mut kill_count: ResMut<KillCount>,
@@ -28,12 +40,28 @@ pub(crate) fn count_local_kills(
         *ttl -= dt;
         *ttl > 0.0
     });
+
+    streak.since_last += dt;
+    if streak.since_last > MULTI_KILL_WINDOW {
+        streak.kills = 0;
+    }
+
     for entity in removed_zombies.read() {
-        if recently_hit.0.remove(&entity).is_some() {
-            kill_count.0 += 1;
-            if let Ok(root) = feed.single() {
-                push_kill_feed(&mut commands, root, active.def().name);
-            }
+        if recently_hit.0.remove(&entity).is_none() {
+            continue;
+        }
+        kill_count.0 += 1;
+        if let Ok(root) = feed.single() {
+            push_kill_feed(&mut commands, root, active.def().name);
+        }
+        // Zeroed before the test, so two kills in the one frame are a double
+        // rather than two singles.
+        streak.since_last = 0.0;
+        streak.kills += 1;
+        // Each rung announces as it is reached, which is what makes a run of
+        // kills escalate instead of being summarised once it is over.
+        if let Some(sample) = sounds.for_streak(streak.kills) {
+            announce_streak(&mut commands, sample);
         }
     }
 }

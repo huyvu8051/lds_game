@@ -22,3 +22,11 @@ weapons/
                  and SAIGA-12 cocking foley
 
     tools/make_weapon_sounds.sh fetches the sources and rebuilds all six.
+
+feedback/
+    Not sampled from anything, so no third-party licence applies. The
+    headshot and kill chimes are decaying sine partials written out by
+    ffmpeg; the multi-kill announcements are the macOS system voice pitched
+    down and given a small room.
+
+    tools/make_feedback_sounds.sh rebuilds all five.

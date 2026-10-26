@@ -27,6 +27,54 @@ pub(crate) struct FootstepSounds {
     pub(crate) zombie: Vec<Handle<seedling::AudioSample>>,
 }
 
+/// The marks a shooter gets told about: a head hit, a kill, and the ladder
+/// for kills that land close enough together to be one piece of work.
+#[derive(Resource)]
+pub(crate) struct KillFeedbackSounds {
+    pub(crate) headshot: Handle<seedling::AudioSample>,
+    pub(crate) kill: Handle<seedling::AudioSample>,
+    /// Double, triple, then everything above it.
+    pub(crate) multi: Vec<Handle<seedling::AudioSample>>,
+}
+
+impl KillFeedbackSounds {
+    /// The announcement for an n-kill streak, or nothing for the first.
+    pub(crate) fn for_streak(&self, kills: u32) -> Option<Handle<seedling::AudioSample>> {
+        if kills < 2 {
+            return None;
+        }
+        // Saturating at the top rung rather than going silent: a five-kill
+        // streak is still worth saying something about.
+        let rung = ((kills - 2) as usize).min(self.multi.len().saturating_sub(1));
+        self.multi.get(rung).cloned()
+    }
+}
+
+/// How long after a kill another one still counts as part of the same streak.
+/// Generous by arena-shooter standards, because a zombie takes longer to put
+/// down than a player does.
+pub(crate) const MULTI_KILL_WINDOW: f32 = 3.0;
+
+const KILL_FEEDBACK_VOLUME: f32 = 0.8;
+const MULTI_KILL_VOLUME: f32 = 1.0;
+
+/// Plays one of these clips, which are announcements rather than world sounds
+/// -- no position, no spatialisation, straight down the middle.
+pub(crate) fn announce(commands: &mut Commands, sample: Handle<seedling::AudioSample>, volume: f32) {
+    commands.spawn((
+        seedling::SamplePlayer::new(sample).with_volume(seedling::Volume::Linear(volume)),
+        seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
+    ));
+}
+
+pub(crate) fn announce_hit(commands: &mut Commands, sample: Handle<seedling::AudioSample>) {
+    announce(commands, sample, KILL_FEEDBACK_VOLUME);
+}
+
+pub(crate) fn announce_streak(commands: &mut Commands, sample: Handle<seedling::AudioSample>) {
+    announce(commands, sample, MULTI_KILL_VOLUME);
+}
+
 #[derive(Component)]
 pub(crate) struct GunshotVoice;
 

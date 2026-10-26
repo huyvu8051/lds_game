@@ -1020,6 +1020,7 @@ impl Plugin for GamePlugin {
         .init_resource::<KillCount>()
         .init_resource::<MapSelectionPending>()
         .init_resource::<RecentlyHitZombies>()
+        .init_resource::<KillStreak>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, spawn_pole_targets)
         .add_systems(OnEnter(AppState::Menu), enter_menu)

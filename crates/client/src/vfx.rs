@@ -92,6 +92,8 @@ pub(crate) struct VfxAssets<'w, 's> {
     pub(crate) stance: Query<'w, 's, &'static PlayerStance, With<Player>>,
 
     pub(crate) recently_hit: ResMut<'w, RecentlyHitZombies>,
+
+    pub(crate) kill_feedback: Res<'w, KillFeedbackSounds>,
 }
 
 pub(crate) fn on_shot_confirmed(
@@ -108,8 +110,13 @@ pub(crate) fn on_shot_confirmed(
     sparks_enabled: Res<ImpactSparksEnabled>,
 ) {
     let ShotConfirmed { origin, point, normal, damage, killed } = *trigger.event();
-    if damage > 0.0 {
-    } else {
+    // The chime answers to where the round landed, not to whether the body
+    // fell: a head hit that something survives is still the shot worth
+    // telling the player they made.
+    if damage >= HEAD_DAMAGE {
+        announce_hit(&mut commands, vfx_assets.kill_feedback.headshot.clone());
+    } else if killed {
+        announce_hit(&mut commands, vfx_assets.kill_feedback.kill.clone());
     }
 
     let hit_zombie = if killed {

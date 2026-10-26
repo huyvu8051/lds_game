@@ -71,6 +71,14 @@ pub(crate) fn setup_common(
     commands.insert_resource(ReloadSound(
         WeaponId::ALL.iter().map(|w| asset_server.load(w.def().sound.reload)).collect(),
     ));
+    commands.insert_resource(KillFeedbackSounds {
+        headshot: asset_server.load("audio/feedback/headshot.wav"),
+        kill: asset_server.load("audio/feedback/kill.wav"),
+        multi: ["double_kill", "triple_kill", "multi_kill"]
+            .iter()
+            .map(|name| asset_server.load(format!("audio/feedback/{name}.wav")))
+            .collect(),
+    });
     commands.insert_resource(FootstepSounds {
         player: (0..PLAYER_FOOTSTEP_SAMPLES)
             .map(|i| asset_server.load(format!("audio/footsteps/{PLAYER_FOOTSTEP_SURFACE}/{i}.ogg")))
