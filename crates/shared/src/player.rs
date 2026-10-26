@@ -47,6 +47,8 @@ pub const PLAYER_MAX_HEALTH: f32 = 100.0;
 pub const MOVE_SPEED: f32 = 4.0;
 pub const AIM_MOVE_SPEED_MULTIPLIER: f32 = 0.5;
 pub const SPRINT_MULTIPLIER: f32 = 1.6;
+/// What a full boost meter adds on top of a sprint.
+pub const BOOST_SPRINT_MULTIPLIER: f32 = 1.18;
 pub const CROUCH_SPEED_MULTIPLIER: f32 = 0.5;
 pub const PRONE_SPEED_MULTIPLIER: f32 = 0.25;
 
@@ -78,6 +80,10 @@ pub struct ClientInput {
     pub stance: PlayerStance,
 
     pub noclip: bool,
+    /// Whether the boost meter is high enough to be giving a turn of speed.
+    /// Carried on the input rather than read from a resource because the step
+    /// below is the authority on movement and runs on both sides.
+    pub boosted: bool,
 }
 
 #[derive(Component, Clone, Copy, Default, Serialize, Deserialize)]

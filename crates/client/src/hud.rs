@@ -201,9 +201,6 @@ pub(crate) fn update_kill_feed(
     }
 }
 
-#[derive(Component)]
-pub(crate) struct HealthUi;
-
 
 #[derive(Component)]
 pub(crate) struct FloatingDamageText {
@@ -273,39 +270,7 @@ pub(crate) fn update_floating_damage_texts(
     }
 }
 
-pub(crate) fn spawn_health_ui(commands: &mut Commands) {
-    commands.spawn((
-        Text::new("HP: 100"),
-        TextFont {
-            font_size: FontSize::Px(24.0),
-            ..default()
-        },
-        TextColor(Color::srgb(1.0, 0.3, 0.3)),
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Percent(50.0),
-            bottom: Val::Px(16.0),
-            ..default()
-        },
-        UiTransform::from_translation(Val2::percent(-50.0, 0.0)),
-        GlobalZIndex(STATIC_UI_Z_INDEX),
-        HealthUi,
-        NativeUiRoot,
-    ));
-}
 
-pub(crate) fn update_health_ui(
-    player: Query<&Health, (With<Player>, Changed<Health>)>,
-    mut text: Query<&mut Text, With<HealthUi>>,
-) {
-    let Ok(health) = player.single() else {
-        return;
-    };
-    let Ok(mut text) = text.single_mut() else {
-        return;
-    };
-    text.0 = format!("HP: {}", health.0.max(0.0).round() as i32);
-}
 
 
 

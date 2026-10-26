@@ -31,7 +31,11 @@ use shared::{
 pub mod cadisplaylink;
 
 mod weapon;
+mod inventory;
+mod loadout_hud;
 use weapon::*;
+use inventory::*;
+use loadout_hud::*;
 mod dismember;
 use dismember::*;
 mod auto_lean;
@@ -926,6 +930,7 @@ impl Plugin for GamePlugin {
         .add_observer(note_shot_for_barrel_smoke)
         .add_observer(on_explosion)
         .add_observer(on_shot_confirmed)
+        .add_observer(drop_loot_on_kill)
         .add_observer(on_corpse_hit)
         .add_observer(on_game_state_event)
         .add_plugins(F9DebugPlugin)
@@ -1021,8 +1026,11 @@ impl Plugin for GamePlugin {
         .init_resource::<MapSelectionPending>()
         .init_resource::<RecentlyHitZombies>()
         .init_resource::<KillStreak>()
+        .init_resource::<Loadout>()
+        .init_resource::<Inventory>()
+        .init_resource::<Boost>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
-        .add_systems(Startup, spawn_pole_targets)
+        .add_systems(Startup, (spawn_pole_targets, init_pickup_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
         .add_systems(OnExit(AppState::Menu), exit_menu)
         // Gameplay is built while the loading screen is still up, so the map
@@ -1099,6 +1107,10 @@ impl Plugin for GamePlugin {
                     update_sensitivity_text,
                     gyro_buttons,
                     update_gyro_ui,
+                    loadout_hud_buttons,
+                    update_bars,
+                    update_weapon_slots,
+                    update_item_ui,
                     damage_multiplier_buttons,
                     update_damage_multiplier_text,
                     auto_maintain_button,
@@ -1196,7 +1208,6 @@ impl Plugin for GamePlugin {
                     apply_player_model_pose_override
                         .run_if(resource_exists::<PlayerModelAnim>)
                         .run_if(clip_tick()),
-                    update_health_ui.run_if(ui_tick()),
                     update_compass_ui.run_if(ui_tick()),
                     update_radar_ui,
                     update_zombie_health_bars.run_if(ui_tick()),
@@ -1209,7 +1220,13 @@ impl Plugin for GamePlugin {
                     exclude_oversized_shadow_casters.run_if(ui_tick()),
                     (
                     test_blast_key.run_if(debug_keys_allowed),
+                    select_weapon_slot,
                     switch_weapon,
+                    use_consumable_key,
+                    advance_use_cooldown,
+                    advance_boost,
+                    advance_pickups,
+                    collect_pickups,
                     forget_gone_zombies.run_if(ui_tick()),
                     update_gore,
                     update_death,

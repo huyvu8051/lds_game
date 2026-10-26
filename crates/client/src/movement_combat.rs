@@ -517,12 +517,13 @@ pub(crate) fn send_player_input(
     noclip: Res<Noclip>,
     touch_move_axis: Res<TouchMoveAxis>,
 
-    (mut local_moving, mut local_sprinting, mut local_move_axis, autopilot, intent): (
+    (mut local_moving, mut local_sprinting, mut local_move_axis, autopilot, intent, boost): (
         ResMut<LocalPlayerMoving>,
         ResMut<LocalPlayerSprinting>,
         ResMut<LocalPlayerMoveAxis>,
         Res<Autopilot>,
         Res<AutopilotIntent>,
+        Res<Boost>,
     ),
     mover: MoveAndSlide,
 
@@ -588,6 +589,7 @@ pub(crate) fn send_player_input(
         aiming,
         stance: effective_stance,
         noclip: noclip.0,
+        boosted: crate::inventory::boosted(&boost),
     };
 
     shared::movement::simulate_player_step(&mover, &mut transform, &mut player, stance, &input, dt);

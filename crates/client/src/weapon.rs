@@ -724,7 +724,6 @@ pub(crate) struct WeaponSwitchRequest(pub(crate) Option<WeaponId>);
 /// The mesh and the IK sockets are both built against one weapon's geometry,
 /// so both are thrown away and made again rather than retargeted.
 pub(crate) fn switch_weapon(
-    keys: Res<ButtonInput<KeyCode>>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -734,21 +733,10 @@ pub(crate) fn switch_weapon(
     mesh_parts: Query<Entity, With<GunMeshPart>>,
     sockets: Query<Entity, Or<(With<TriggerGripSocket>, With<ForeGripSocket>)>>,
 ) {
-    let wanted = if let Some(wanted) = request.0.take() {
-        wanted
-    } else if keys.just_pressed(KeyCode::Digit1) {
-        WeaponId::Ak47
-    } else if keys.just_pressed(KeyCode::Digit2) {
-        WeaponId::M4a1
-    } else if keys.just_pressed(KeyCode::Digit3) {
-        WeaponId::M24
-    } else if keys.just_pressed(KeyCode::Digit4) {
-        WeaponId::Ump45
-    } else if keys.just_pressed(KeyCode::Digit5) {
-        WeaponId::Deagle
-    } else {
-        return;
-    };
+    // The number keys no longer name a weapon. They name a slot, and what is
+    // in the slot is the player's business -- select_weapon_slot turns one
+    // into the other and puts the answer here.
+    let Some(wanted) = request.0.take() else { return };
     if wanted == active.0 {
         return;
     }
