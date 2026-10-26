@@ -958,22 +958,3 @@ pub(crate) fn advance_walk_cycle(
         .unwrap_or(1.0);
 }
 
-/// Takes the weapon out of the picture while a scope is up.
-///
-/// At twelve times the rifle is magnified with everything else and fills the
-/// view, which is both useless and not what a scope looks like. Keyed off
-/// `scoped` rather than the sights alone, so irons and the holo keep the
-/// weapon they are aimed along.
-pub(crate) fn hide_scoped_weapon(
-    active: Res<ActiveWeapon>,
-    pose: Res<WeaponPose>,
-    mut parts: Query<&mut Visibility, With<GunMeshPart>>,
-) {
-    let hidden = active.def().scoped && pose.sighted > SCOPED_RETICLE_SIGHTED;
-    for mut visibility in &mut parts {
-        let wanted = if hidden { Visibility::Hidden } else { Visibility::Inherited };
-        if *visibility != wanted {
-            *visibility = wanted;
-        }
-    }
-}

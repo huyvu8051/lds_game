@@ -1181,7 +1181,7 @@ impl Plugin for GamePlugin {
             )
                 .chain(),
             (
-                (place_holo_reticle, hide_scoped_weapon),
+                place_holo_reticle,
                 (apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
                 update_ammo_ui.run_if(ui_tick()),
                 update_crosshair,

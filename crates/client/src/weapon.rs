@@ -335,7 +335,7 @@ static AK47: WeaponDef = WeaponDef {
         weapon: WeaponKick {
             slide_back: 0.14,
             lift: 0.000,
-            pitch_deg: 0.5,
+            pitch_deg: 0.0,
             roll_deg: 0.6,
             yaw_deg: 0.5,
             settle_speed: 10.0,
@@ -409,8 +409,8 @@ static M4A1: WeaponDef = WeaponDef {
         },
         weapon: WeaponKick {
             slide_back: 0.12,
-            lift: 0.020,
-            pitch_deg: 2.4,
+            lift: 0.0,
+            pitch_deg: 0.0,
             roll_deg: 0.8,
             yaw_deg: 0.6,
             settle_speed: 15.0,
@@ -584,8 +584,8 @@ static UMP45: WeaponDef = WeaponDef {
         },
         weapon: WeaponKick {
             slide_back: 0.130,
-            lift: 0.012,
-            pitch_deg: 1.8,
+            lift: 0.0,
+            pitch_deg: 0.0,
             roll_deg: 0.7,
             yaw_deg: 0.7,
             settle_speed: 20.0,
