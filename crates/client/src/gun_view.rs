@@ -402,7 +402,7 @@ pub(crate) fn update_scope_lens(
     let visible = !view_socket.is_empty()
         && scope_camera_enabled.0
         && gun.ads_blend > SCOPE_ACTIVE_ADS_THRESHOLD
-        && gun.wall_raise < SCOPE_HIDDEN_WALL_RAISE_THRESHOLD;
+        && gun.wall_raise.abs() < SCOPE_HIDDEN_WALL_RAISE_THRESHOLD;
 
     if let Ok((mut camera, mut projection)) = scope_camera.single_mut() {
         camera.is_active = visible;
@@ -607,6 +607,21 @@ pub(crate) fn gun_view_animation(
     }
     let wall_target = wall_probe.target;
     let wall_side = wall_probe.side;
+
+    // Which way there is room to move the weapon. Up by default, because that
+    // is where the room usually is. Looking down there is floor in front of
+    // the muzzle and open air behind the stock, so it drops away from the
+    // wall rather than being hoisted into it.
+    //
+    // Read every frame rather than with the probe: this is the player's own
+    // look, which costs nothing to ask and would lag visibly at twelve
+    // samples a second.
+    let raise_sign = camera_single.map_or(1.0, |(camera_transform, _)| {
+        let pitch_deg = camera_transform.forward().y.clamp(-1.0, 1.0).asin().to_degrees();
+        let span = WALL_RAISE_DOWN_FULL_DEG - WALL_RAISE_DOWN_START_DEG;
+        let down = ((-pitch_deg - WALL_RAISE_DOWN_START_DEG) / span).clamp(0.0, 1.0);
+        1.0 - 2.0 * down
+    });
     for (mut transform, gun_global, mut gun) in &mut query {
         // The mark eases home while the kick runs after it. Two rates, so the
         // blow lands fast and the weapon comes back slowly, which is the
@@ -817,14 +832,12 @@ pub(crate) fn gun_view_animation(
         let twist_gap = gun.settle_twist_jitter - gun.settle_twist_current;
         gun.settle_twist_current += twist_gap * settle_step;
 
-        // The raise is the flinch: the muzzle swings 90 degrees up the instant
-        // the wall is there, which is right for the first moment and wrong for
-        // every one after it -- nobody stands holding a rifle vertical. Once
-        // the second is up it comes back down and the ready pose above takes
-        // over, which is the whole point of the timer.
-        let raise_target = if wall_ready { 0.0 } else { wall_target };
+        // Signed, so one chased value carries both how far the weapon is moved
+        // and which way, and the flip between them is eased by the same rate
+        // the raise itself is. Everything reading this for "is the weapon out
+        // of position" wants its size and not its direction, and says abs().
         let wall_raise_step = (WALL_GUN_RAISE_SPEED * time.delta_secs()).min(1.0);
-        gun.wall_raise += (raise_target - gun.wall_raise) * wall_raise_step;
+        gun.wall_raise += (wall_target * raise_sign - gun.wall_raise) * wall_raise_step;
 
         let shoulder_step = (GUN_SHOULDER_SPEED * time.delta_secs()).min(1.0);
         gun.shoulder_blend += (shoulder_target - gun.shoulder_blend) * shoulder_step;

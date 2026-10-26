@@ -775,7 +775,7 @@ pub(crate) fn shoot(
     // spent: it goes off the moment the weapon is back on axis, which for the
     // sprint carry is about a sixth of a second, and for a wall is whenever
     // the player steps away from it.
-    if gun.sprint_blend > WEAPON_ON_AXIS_BLEND || gun.wall_raise > WEAPON_ON_AXIS_BLEND {
+    if gun.sprint_blend > WEAPON_ON_AXIS_BLEND || gun.wall_raise.abs() > WEAPON_ON_AXIS_BLEND {
         return;
     }
 

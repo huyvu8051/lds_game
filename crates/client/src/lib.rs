@@ -336,6 +336,17 @@ const LOOK_SWAY_DAMPING: f32 = 0.65;
 const WALL_GUN_RAISE_DISTANCE: f32 = 1.5;
 const WALL_GUN_RAISE_HEIGHT: f32 = 0.18;
 const WALL_GUN_RAISE_ROT_DEG: f32 = 90.0;
+/// Where the look has to be before the weapon goes down instead of up to
+/// clear a wall ahead, in degrees below level, and where it is fully
+/// committed to that.
+///
+/// Up is the default because that is where the room usually is. Looking down,
+/// it is not: there is floor in front of the muzzle and open air behind the
+/// stock, so the weapon drops away from the wall instead of being hoisted
+/// into it. The band between the two is what keeps the flip from being a
+/// switch thrown at exactly level.
+const WALL_RAISE_DOWN_START_DEG: f32 = 4.0;
+const WALL_RAISE_DOWN_FULL_DEG: f32 = 20.0;
 const WALL_GUN_RAISE_SPEED: f32 = 10.0;
 /// How often the wall in front is measured, in seconds. One ray into Avian's
 /// whole collision tree was running every frame to answer a question about
