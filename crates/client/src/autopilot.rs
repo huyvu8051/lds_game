@@ -40,6 +40,13 @@ pub(crate) struct AutopilotState {
     /// widened once they are, instead of flipping on a zombie that happens to
     /// stand on the threshold.
     aiming: bool,
+
+    /// The last line-of-sight reading and how long it has left. Held here
+    /// rather than cast fresh, so the rays run at their own rate instead of
+    /// the display's.
+    los_timer: f32,
+    straight_los: bool,
+    peek_dir: f32,
 }
 
 #[derive(Resource, Default)]
@@ -85,6 +92,15 @@ const AUTOPILOT_DODGE_CYCLE_HZ: f32 = 0.4;
 const AUTOPILOT_DODGE_DUTY_CYCLE: f32 = 0.35;
 
 const AUTOPILOT_DECISION_HZ: f32 = 20.0;
+
+/// How often the three line-of-sight rays are cast.
+///
+/// These sat in front of the decision gate, so unlike everything behind it
+/// they were running at the display rate -- up to three rays into Avian's
+/// whole collision tree, 120 times a second, to decide which way to lean.
+/// Thirty is four readings per shot at the AK's cycle, which is as fresh as
+/// a firing decision can use.
+const AUTOPILOT_LOS_HZ: f32 = 30.0;
 
 const AUTOPILOT_TARGET_BEHIND_PENALTY: f32 = 0.6;
 
@@ -153,6 +169,9 @@ pub(crate) fn autopilot_pick_target(
             state.hold_fire_timer =
                 AUTOPILOT_TARGET_SWITCH_HOLD_MIN + base * (AUTOPILOT_TARGET_SWITCH_HOLD_MAX - AUTOPILOT_TARGET_SWITCH_HOLD_MIN);
             state.time_since_swap = 0.0;
+            // The cached sight line was to the old zombie. Holding it for a
+            // thirtieth of a second would aim at the new one through a wall.
+            state.los_timer = 0.0;
         }
         state.target = new_target;
         state.retarget_timer = AUTOPILOT_RETARGET_INTERVAL;
@@ -231,19 +250,30 @@ pub(crate) fn autopilot_think(
 
     let horizontal_distance = Vec2::new(to_target.x, to_target.z).length();
 
-    let clear_to_aim_from = |eye: Vec3| -> bool { has_line_of_sight(&spatial_query, eye, aim_point) };
-    let straight_los = clear_to_aim_from(camera_position);
-
-    let cam_right = Vec3::new(ops::cos(cam.yaw), 0.0, -ops::sin(cam.yaw));
-    let peek_dir = if straight_los || horizontal_distance > AUTOPILOT_PEEK_MAX_DISTANCE {
-        0.0
-    } else if clear_to_aim_from(camera_position + cam_right * LEAN_SIDE_OFFSET) {
-        1.0
-    } else if clear_to_aim_from(camera_position - cam_right * LEAN_SIDE_OFFSET) {
-        -1.0
-    } else {
-        0.0
-    };
+    // Sampled, not cast every frame. Nothing downstream of these can use a
+    // reading fresher than the fire rate: the lean is eased over a sixth of a
+    // second and the trigger comes round every nine hundredths.
+    state.los_timer -= dt;
+    if state.los_timer <= 0.0 {
+        state.los_timer = 1.0 / AUTOPILOT_LOS_HZ;
+        let clear_to_aim_from = |eye: Vec3| -> bool { has_line_of_sight(&spatial_query, eye, aim_point) };
+        let straight = clear_to_aim_from(camera_position);
+        let cam_right = Vec3::new(ops::cos(cam.yaw), 0.0, -ops::sin(cam.yaw));
+        // Two more only when the first fails, which is the uncommon case --
+        // most of the time there is a clear shot and this costs one ray.
+        state.peek_dir = if straight || horizontal_distance > AUTOPILOT_PEEK_MAX_DISTANCE {
+            0.0
+        } else if clear_to_aim_from(camera_position + cam_right * LEAN_SIDE_OFFSET) {
+            1.0
+        } else if clear_to_aim_from(camera_position - cam_right * LEAN_SIDE_OFFSET) {
+            -1.0
+        } else {
+            0.0
+        };
+        state.straight_los = straight;
+    }
+    let straight_los = state.straight_los;
+    let peek_dir = state.peek_dir;
 
     if autopilot.0 {
         if let Ok(mut lean) = lean_query.single_mut() {
