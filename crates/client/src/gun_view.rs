@@ -794,8 +794,9 @@ pub(crate) fn gun_view_animation(
         // eye, and a canted rifle puts the reticle somewhere the barrel is
         // not. Faded by ads_blend rather than switched, so bringing the
         // sights up rolls the weapon level on the way.
-        let strafe_target = local.move_axis.0.x.clamp(-1.0, 1.0) * (1.0 - gun.ads_blend);
-        gun.strafe_roll += (strafe_target - gun.strafe_roll) * (GUN_STRAFE_ROLL_SPEED * dt).min(1.0);
+        let lean_target = local.move_axis.0.clamp_length_max(1.0) * (1.0 - gun.ads_blend);
+        let lean = gun.step_lean;
+        gun.step_lean = lean + (lean_target - lean) * (GUN_STEP_LEAN_SPEED * dt).min(1.0);
 
         let kick = &active.def().recoil;
         let timings = gun_pose_timings(&gun, active.def(), &cycle);
@@ -952,7 +953,10 @@ pub(crate) fn gun_view_animation(
             // this is a roll along the barrel rather than a tilt across it.
             // Negated so the cant goes with the step -- strafing right drops
             // the weapon's right side, the way a shoulder does.
-            * Quat::from_rotation_z(-GUN_STRAFE_ROLL_DEG.to_radians() * gun.strafe_roll)
+            * Quat::from_rotation_z(-GUN_STRAFE_ROLL_DEG.to_radians() * gun.step_lean.x)
+            // About X. A positive turn here takes NEG_Z towards +Y, which is
+            // the muzzle coming up, so forward has to be negative to drop it.
+            * Quat::from_rotation_x(-GUN_STEP_PITCH_DEG.to_radians() * gun.step_lean.y)
             * Quat::from_rotation_z(timings.bob_roll.to_radians())
             * Quat::from_rotation_x(timings.bob_pitch.to_radians())
             * Quat::from_rotation_y(kick.weapon.yaw_deg.to_radians() * gun.recoil_jitter.x * timings.recoil_t)

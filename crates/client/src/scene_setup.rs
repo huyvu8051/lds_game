@@ -384,7 +384,7 @@ pub(crate) fn setup_gameplay(
                     .map_or(0x9E37_79B9, |since| since.subsec_nanos())
                     | 1,
                 look_sway: Vec2::ZERO,
-                strafe_roll: 0.0,
+                step_lean: Vec2::ZERO,
                 look_sway_velocity: Vec2::ZERO,
             },
             ChildOf(camera),

@@ -229,9 +229,16 @@ const GUN_BOB_ROLL_DEG: f32 = 1.1;
 /// Hip fire only. The sights have to stay level with the eye, and a canted
 /// weapon in ADS puts the reticle somewhere the barrel is not.
 const GUN_STRAFE_ROLL_DEG: f32 = 3.2;
-/// How fast that cant follows the stick. Slower than the step itself, so
-/// changing direction rolls the weapon through level rather than snapping it.
-const GUN_STRAFE_ROLL_SPEED: f32 = 7.0;
+/// Degrees the muzzle drops walking forward, and lifts walking back. The
+/// weapon leads the body into a step and trails it out of one, which is the
+/// same compliance `GUN_BOB_LAG` is about -- arms are not a clamp.
+///
+/// Smaller than the cant: this one is read down the barrel, so it moves the
+/// point of aim where a roll does not.
+const GUN_STEP_PITCH_DEG: f32 = 1.8;
+/// How fast both follow the stick. Slower than the step itself, so changing
+/// direction takes the weapon through level rather than snapping it.
+const GUN_STEP_LEAN_SPEED: f32 = 7.0;
 const GUN_BOB_PITCH_DEG: f32 = 0.55;
 /// Cadence and amplitude together, so a sprint is a different gait rather
 /// than a walk with the volume turned up.
