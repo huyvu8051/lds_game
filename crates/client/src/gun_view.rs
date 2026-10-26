@@ -606,7 +606,10 @@ pub(crate) fn gun_view_animation(
         wall_probe.side = side;
     }
     let wall_target = wall_probe.target;
-    let wall_side = wall_probe.side;
+    // A wall close ahead takes the weapon over completely. Letting both rules
+    // speak would have the muzzle asked up and in at the same time, and the
+    // one the player is about to walk into is the one worth answering.
+    let wall_side = if wall_target >= WALL_AHEAD_OWNS { 0.0 } else { wall_probe.side };
 
     // Which way there is room to move the weapon. Up by default, because that
     // is where the room usually is. Looking down there is floor in front of

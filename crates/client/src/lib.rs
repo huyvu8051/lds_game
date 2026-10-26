@@ -372,6 +372,17 @@ const WALL_SIDE_DISTANCE: f32 = 1.2;
 /// 1.2m is anything inside 85cm. Near enough that the weapon has nowhere to
 /// swing on that side, which is the thing being detected.
 const WALL_SIDE_PROXIMITY: f32 = 0.3;
+/// How close a wall ahead has to be before it owns the weapon outright and
+/// the side rule stands down, as a share of `WALL_GUN_RAISE_DISTANCE`.
+///
+/// The two rules must never fire on the same wall: one asks the weapon up and
+/// the other asks it in, and a flat face in front is seen by both. The
+/// forward ray finds it at `d`, and the innermost ray of the fan is 45
+/// degrees off, so it finds the same face at `d / cos 45` = 1.414d. The fan
+/// trips at 0.85m, so it reaches that wall once `d` is 0.6m -- which reads
+/// 0.6 here. Half is that with room to spare, and leaves the side rule
+/// working for anything beyond 75cm ahead.
+const WALL_AHEAD_OWNS: f32 = 0.5;
 /// How much further the wall has to fall away before the weapon goes back
 /// out, as the same share -- 0.08 of 1.2m is about 10cm of slack.
 ///
