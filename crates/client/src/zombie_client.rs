@@ -79,9 +79,10 @@ pub(crate) struct Gun {
     pub(crate) ads_settle_error: f32,
 
     pub(crate) wall_raise: f32,
-    /// Seconds spent up against that wall without a break. Drives the weapon
-    /// to the ready on its own, so a player backed into cover is not left
-    /// holding the muzzle in the brickwork.
+    /// Seconds spent with a wall close on one side without a break. Drives
+    /// the weapon to the ready on its own: there is no room out there to hold
+    /// it, and unlike a wall in front there is nothing to raise the muzzle
+    /// over.
     pub(crate) wall_hold: f32,
 
     pub(crate) shoulder_blend: f32,

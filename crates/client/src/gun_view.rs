@@ -520,7 +520,11 @@ pub(crate) struct LocalPlayerState<'w> {
 /// frames so the ray can run at its own rate rather than the display's.
 #[derive(Default)]
 pub(crate) struct WallProbe {
+    /// The wall ahead, which raises the muzzle over it.
     target: f32,
+    /// The nearer of the two walls beside the player, which does not -- there
+    /// is nothing out there to raise the weapon over, only nowhere to hold it.
+    side: f32,
     until_next: f32,
 }
 
@@ -574,22 +578,30 @@ pub(crate) fn gun_view_animation(
     wall_probe.until_next -= time.delta_secs();
     if wall_probe.until_next <= 0.0 {
         wall_probe.until_next = WALL_PROBE_INTERVAL;
-        wall_probe.target = camera_single.map_or(0.0, |(camera_transform, _)| {
-            let filter = SpatialQueryFilter::default();
-            spatial_query
-                .cast_ray(
-                    camera_transform.translation,
-                    camera_transform.forward(),
-                    WALL_GUN_RAISE_DISTANCE,
-                    true,
-                    &filter,
-                )
-                .map_or(0.0, |hit| {
-                    1.0 - (hit.distance / WALL_GUN_RAISE_DISTANCE).clamp(0.0, 1.0)
-                })
+        let filter = SpatialQueryFilter::default();
+        let reading = |origin: Vec3, dir: Vec3, reach: f32| {
+            Dir3::new(dir)
+                .ok()
+                .and_then(|dir| spatial_query.cast_ray(origin, dir, reach, true, &filter))
+                .map_or(0.0, |hit| 1.0 - (hit.distance / reach).clamp(0.0, 1.0))
+        };
+        let (target, side) = camera_single.map_or((0.0, 0.0), |(camera_transform, _)| {
+            let eye = camera_transform.translation;
+            // Flattened: a lean rolls the camera, and a side probe that rolls
+            // with it stops measuring the wall and starts measuring the floor.
+            let right = camera_transform.right().as_vec3();
+            let flat_right = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
+            (
+                reading(eye, camera_transform.forward().as_vec3(), WALL_GUN_RAISE_DISTANCE),
+                reading(eye, flat_right, WALL_SIDE_DISTANCE)
+                    .max(reading(eye, -flat_right, WALL_SIDE_DISTANCE)),
+            )
         });
+        wall_probe.target = target;
+        wall_probe.side = side;
     }
     let wall_target = wall_probe.target;
+    let wall_side = wall_probe.side;
     for (mut transform, gun_global, mut gun) in &mut query {
         // The mark eases home while the kick runs after it. Two rates, so the
         // blow lands fast and the weapon comes back slowly, which is the
@@ -669,12 +681,12 @@ pub(crate) fn gun_view_animation(
         // Leaning takes the gun back to its shoulder: the swap is a deliberate
         // move to the other side of cover, and a centred ready pose has nothing
         // to swap. Releasing the lean settles back to ready.
-        // Backed into cover with the muzzle in the brickwork is not a pose
-        // anyone holds, so being up against a wall brings the weapon to the
-        // ready by itself -- armed or not, since this one does not need the
-        // player to have aimed first. Timed so a doorway crossed at pace
-        // does not trip it.
-        if wall_target >= WALL_READY_PROXIMITY {
+        // A wall *beside* the player, not the one in front. The one in front
+        // has something to raise the muzzle over and keeps doing it; a wall
+        // at the shoulder has nowhere to hold the weapon out, so after a
+        // moment it comes in to the ready. Timed, so a doorway crossed at
+        // pace does not trip it.
+        if wall_side >= WALL_SIDE_PROXIMITY {
             gun.wall_hold += dt;
         } else {
             gun.wall_hold = 0.0;
@@ -795,8 +807,14 @@ pub(crate) fn gun_view_animation(
         let twist_gap = gun.settle_twist_jitter - gun.settle_twist_current;
         gun.settle_twist_current += twist_gap * settle_step;
 
+        // The raise is the flinch: the muzzle swings 90 degrees up the instant
+        // the wall is there, which is right for the first moment and wrong for
+        // every one after it -- nobody stands holding a rifle vertical. Once
+        // the second is up it comes back down and the ready pose above takes
+        // over, which is the whole point of the timer.
+        let raise_target = if wall_ready { 0.0 } else { wall_target };
         let wall_raise_step = (WALL_GUN_RAISE_SPEED * time.delta_secs()).min(1.0);
-        gun.wall_raise += (wall_target - gun.wall_raise) * wall_raise_step;
+        gun.wall_raise += (raise_target - gun.wall_raise) * wall_raise_step;
 
         let shoulder_step = (GUN_SHOULDER_SPEED * time.delta_secs()).min(1.0);
         gun.shoulder_blend += (shoulder_target - gun.shoulder_blend) * shoulder_step;

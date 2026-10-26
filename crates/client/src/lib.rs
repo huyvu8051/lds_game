@@ -343,14 +343,13 @@ const WALL_GUN_RAISE_SPEED: f32 = 10.0;
 /// metre, and `WALL_GUN_RAISE_SPEED` smooths the steps out: at a 100ms time
 /// constant an 83ms sample interval never shows.
 const WALL_PROBE_INTERVAL: f32 = 1.0 / 12.0;
-/// Close enough to count as being up against it, as a share of
-/// `WALL_GUN_RAISE_DISTANCE` -- 0.33 of 1.5m is anything inside a metre.
-///
-/// First set at 0.6, which is 60cm, and never fired: PLAYER_RADIUS is 0.35,
-/// so that wanted the player flat against the brickwork rather than merely
-/// near it. A metre is the distance at which there is visibly no room to
-/// bring the weapon up, which is the thing being detected.
-const WALL_READY_PROXIMITY: f32 = 0.33;
+/// How far the two side probes look. Shorter than the forward one, because
+/// this is about shoulder room rather than muzzle room.
+const WALL_SIDE_DISTANCE: f32 = 1.0;
+/// Close enough beside the player to count, as a share of the above -- 0.3 of
+/// a metre is anything inside 70cm. PLAYER_RADIUS is 0.35, so touching a wall
+/// reads 0.65 and the middle of any ordinary corridor reads nothing.
+const WALL_SIDE_PROXIMITY: f32 = 0.3;
 /// How long to stay there before the weapon comes to the ready on its own.
 /// A doorway crossed at pace is under this; standing in a corner is not.
 const WALL_READY_DELAY: f32 = 1.0;
