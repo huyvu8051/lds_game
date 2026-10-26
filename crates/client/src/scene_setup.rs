@@ -343,6 +343,16 @@ pub(crate) fn setup_gameplay(
         cull_mode: None,
         ..default()
     };
+    // Where the left hand is sent while the weapon is being reloaded. Off the
+    // camera, so the waypoints `drive_reload_hand` writes are already in the
+    // frame the solver wants.
+    commands.spawn((
+        Name::new("ReloadHandTarget"),
+        Transform::default(),
+        ReloadHandTarget,
+        ChildOf(camera),
+    ));
+
     // The holographic dot, on the main view rather than the scope's. A 1x
     // sight has nothing to magnify, so it earns neither a second camera nor a
     // render target -- it is one quad hung off the eye and aimed down the
