@@ -49,6 +49,11 @@ fn eased(from: Vec3, to: Vec3, t: f32) -> Vec3 {
 /// Authored as waypoints rather than a clip because the weapons carry no
 /// skeleton at all -- every mesh reports skins=0 -- and because the hands are
 /// already posed by IK, which a clip would fight over the same bones.
+/// Where the free hand rides while sprinting with a one-handed weapon: down
+/// and across, off the gun entirely. Relative to the eye, same frame as
+/// RELOAD_POUCH_FROM_EYE.
+const SPRINT_FREE_HAND_FROM_EYE: Vec3 = Vec3::new(-0.26, -0.40, -0.26);
+
 pub(crate) fn drive_reload_hand(
     active: Res<ActiveWeapon>,
     gun: Query<&Gun>,
@@ -82,6 +87,13 @@ pub(crate) fn drive_reload_hand(
     } else {
         eased(magwell, home.translation, span(RELOAD_HAND_BACK_AT_MAG, 1.0))
     };
+    // Running with a sidearm takes the free hand off the weapon altogether,
+    // and it has to be somewhere: blended off the reload path rather than
+    // replacing it, so a reload begun mid-sprint still wins.
+    if active.def().sprint_one_handed && gun.reload_remaining <= 0.0 {
+        let swing = SPRINT_FREE_HAND_FROM_EYE - Vec3::Z * view_pullback();
+        target.translation = target.translation.lerp(swing, gun.sprint_blend);
+    }
     // The grip's own turn throughout: the wrist has no business rolling just
     // because the hand went for a magazine.
     target.rotation = home.rotation;

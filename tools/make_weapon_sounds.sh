@@ -28,6 +28,12 @@ REM="$B16 - Remington 700 7.62x51mm/Remington_700_7.62x51mm_1m_right_MKH8040_1_c
 G36="$B16 - Various Gun Foley & Handling/Heckler_&_Koch_G36C_5.56mm_foley_close_up_MKH60_mag_in_&_out.flac"
 SAIGA="$B16 - Various Gun Foley & Handling/SAIGA-12_12g_solid_slug_foley_close_up_RSM191_R_cocking.flac"
 AR15="$BPP/EFX INT AR-15 M4 Charging Handle With Mag 01_A.flac"
+# No UMP in the bundle. The MP5 is the nearest thing to it that Pole Position
+# recorded -- same role, same house, so it normalises alongside the other
+# three instead of sitting in a different room.
+MP5="$B16 -  Heckler & Koch MP5 9mm/HK_MP5_9mm_2m_behind_clean_Double_shots_x_1.flac"
+P50="$BPP/EFX EXT .50 Cal Pistol Shots 02 A.flac"
+P38="Sonniss.com - GDC 2020 - Game Audio Bundle/Pole Position - Walther P38 semi automatic pistol/P38, Handling, Removing Magazine, 1m, Right, MKH8060.flac"
 
 fetch() {
   local dst="$work/src/$(basename "$1")"
@@ -80,12 +86,23 @@ reload() {
 
 ak=$(fetch "$AKM"); hk=$(fetch "$HK"); rem=$(fetch "$REM")
 g36=$(fetch "$G36"); saiga=$(fetch "$SAIGA"); ar15=$(fetch "$AR15")
+mp5=$(fetch "$MP5"); p50=$(fetch "$P50"); p38=$(fetch "$P38")
 
 # The last shot of each burst: it is the only one whose tail is not stepped on
 # by the next round.
 cut "$ak"  0.562 0.890 "$out/ak47_fire.wav"
 cut "$hk"  1.765 2.300 "$out/m4a1_fire.wav"
 cut "$rem" 4.070 4.650 "$out/m24_fire.wav"
+# Found with `silencedetect` rather than by ear. The MP5 double is two shots
+# at 0.094 and 0.299: take the second, the only one with a free tail.
+#
+# The .50 detects three transients -- 1.019, 2.786 and 3.067 -- but the last
+# two are 0.28s apart, which is a slapback off a wall rather than a second
+# trigger pull in an exterior recording. Cutting from 3.067 took the echo and
+# left the shot behind. 2.786 is the shot, and it keeps its own echo in the
+# tail, which is where that belongs.
+cut "$mp5" 0.290 0.620 "$out/ump45_fire.wav"
+cut "$p50" 2.778 3.700 "$out/deagle_fire.wav"
 
 event "$g36"   1.09 1.70 "$work/ak_out.wav"
 event "$g36"   6.33 6.81 "$work/ak_in.wav"
@@ -93,9 +110,18 @@ event "$ar15"  0.46 1.24 "$work/m4_out.wav"
 event "$ar15"  5.25 6.11 "$work/m4_in.wav"
 event "$saiga" 2.30 3.09 "$work/m24_out.wav"
 event "$saiga" 6.07 6.67 "$work/m24_in.wav"
+# The UMP borrows the G36's magazine, which is the same hand on the same
+# kind of polymer box. The pistol gets the P38's, the only handgun magazine
+# foley in the bundle.
+event "$g36"   1.09 1.70 "$work/ump_out.wav"
+event "$g36"   6.33 6.81 "$work/ump_in.wav"
+event "$p38"   1.05 1.35 "$work/deagle_out.wav"
+event "$p38"   3.33 3.60 "$work/deagle_in.wav"
 
 reload "$work/ak_out.wav"  "$work/ak_in.wav"  2.3 "$out/ak47_reload.wav"
 reload "$work/m4_out.wav"  "$work/m4_in.wav"  1.9 "$out/m4a1_reload.wav"
 reload "$work/m24_out.wav" "$work/m24_in.wav" 3.1 "$out/m24_reload.wav"
+reload "$work/ump_out.wav" "$work/ump_in.wav" 2.0 "$out/ump45_reload.wav"
+reload "$work/deagle_out.wav" "$work/deagle_in.wav" 2.2 "$out/deagle_reload.wav"
 
 ls -lh "$out"

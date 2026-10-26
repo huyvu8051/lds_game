@@ -62,6 +62,12 @@ pub(crate) struct WeaponDef {
     /// nothing is being covered while it runs.
     pub(crate) autopilot_sprint_pathing_distance: f32,
 
+    /// Whether a sprint leaves this one in the firing hand alone, muzzle up
+    /// beside the head, the way a sidearm or a short gun is actually run
+    /// with. A rifle stays in two hands and goes across the body instead --
+    /// there is too much of it to swing off one wrist.
+    pub(crate) sprint_one_handed: bool,
+
     pub(crate) scope: Scope,
     pub(crate) sound: WeaponSound,
     /// How long the weapon takes to reload. A fifty round magazine and a five
@@ -212,10 +218,25 @@ pub(crate) enum WeaponId {
     Ak47,
     M4a1,
     M24,
+    Ump45,
+    Deagle,
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub(crate) struct ActiveWeapon(pub(crate) WeaponId);
+
+impl Default for ActiveWeapon {
+    /// `WEAPON=` picks what the player starts holding, by the same number the
+    /// hotkeys use. Tuning a weapon's pose means looking at it, and reaching
+    /// it by pressing a key is one thing a screenshot cannot do.
+    fn default() -> Self {
+        let wanted = std::env::var("WEAPON")
+            .ok()
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .and_then(|n| WeaponId::ALL.get(n.checked_sub(1)?).copied());
+        Self(wanted.unwrap_or_default())
+    }
+}
 
 impl ActiveWeapon {
     pub(crate) fn def(&self) -> &'static WeaponDef {
@@ -224,13 +245,16 @@ impl ActiveWeapon {
 }
 
 impl WeaponId {
-    pub(crate) const ALL: [WeaponId; 3] = [WeaponId::Ak47, WeaponId::M4a1, WeaponId::M24];
+    pub(crate) const ALL: [WeaponId; 5] =
+        [WeaponId::Ak47, WeaponId::M4a1, WeaponId::M24, WeaponId::Ump45, WeaponId::Deagle];
 
     pub(crate) fn index(self) -> usize {
         match self {
             WeaponId::Ak47 => 0,
             WeaponId::M4a1 => 1,
             WeaponId::M24 => 2,
+            WeaponId::Ump45 => 3,
+            WeaponId::Deagle => 4,
         }
     }
 
@@ -239,6 +263,8 @@ impl WeaponId {
             WeaponId::Ak47 => &AK47,
             WeaponId::M4a1 => &M4A1,
             WeaponId::M24 => &M24,
+            WeaponId::Ump45 => &UMP45,
+            WeaponId::Deagle => &DEAGLE,
         }
     }
 
@@ -267,6 +293,7 @@ static AK47: WeaponDef = WeaponDef {
     // The floor is half the default, because that is where aim sensitivity,
     // which is default/zoom against a half speed base, comes back out at
     // exactly the hip fire rate.
+    sprint_one_handed: false,
     scope: Scope { min_zoom: 6.0, default_zoom: 12.0, max_zoom: 20.0, reticle_zoom: 4.0 },
     sound: WeaponSound { fire: "audio/weapons/ak47_fire.wav", reload: "audio/weapons/ak47_reload.wav" },
     reload_duration: 2.3,
@@ -339,6 +366,7 @@ static M4A1: WeaponDef = WeaponDef {
     autopilot_sprint_approach_distance: 14.0,
     autopilot_sprint_pathing_distance: 9.0,
     // Irons: the scope view never comes on, so these only have to be sane.
+    sprint_one_handed: false,
     scope: Scope { min_zoom: 1.0, default_zoom: 1.0, max_zoom: 1.0, reticle_zoom: 1.0 },
     sound: WeaponSound { fire: "audio/weapons/m4a1_fire.wav", reload: "audio/weapons/m4a1_reload.wav" },
     reload_duration: 1.9,
@@ -419,6 +447,7 @@ static M24: WeaponDef = WeaponDef {
     autopilot_sprint_pathing_distance: 38.0,
     // Twice the AK at every stop: the glass it carries is the one thing this
     // rifle is for.
+    sprint_one_handed: false,
     scope: Scope { min_zoom: 12.0, default_zoom: 24.0, max_zoom: 40.0, reticle_zoom: 10.0 },
     sound: WeaponSound { fire: "audio/weapons/m24_fire.wav", reload: "audio/weapons/m24_reload.wav" },
     reload_duration: 3.1,
@@ -464,6 +493,173 @@ static M24: WeaponDef = WeaponDef {
     },
 };
 
+/// Grip 70mm under the bore, which is the M24's problem rather than the AK's:
+/// matching the firing hand to the other two would put this bore 60mm lower
+/// than the AK's and it reads as carried at the belly. Anchored on the bore
+/// instead, like the M24, with x and z still on the hand -- those two agree
+/// across all three of the others to within half a millimetre.
+///
+/// No scope view: the mesh carries a small optic, but it magnifies about as
+/// much as the M4's carry handle, so it goes down the irons path and the
+/// scope sockets are left unmarked.
+static UMP45: WeaponDef = WeaponDef {
+    name: "UMP-45",
+    mesh_path: "models/ump45/mesh/ump45.glb",
+    // x is not shared with the rifles even though the firing hand is. The
+    // offset is absolute and the angle it subtends is not: the AK's muzzle is
+    // 0.71m out, so 0.160 puts it 13 degrees off the view axis, while this
+    // one is 0.34m out and the same number threw it 26 degrees, half off the
+    // right of the screen.
+    rest_offset: Vec3::new(0.090, -0.0450, -0.3375),
+    ready_offset: Vec3::new(0.025, -0.1450, -0.2475),
+    ads_eye_relief: 0.11,
+    // Lightest of the five and the shortest: it comes up faster than either
+    // carbine and far faster than the bolt gun.
+    ads_speed: AdsSpeed { from_ready: 18.0, from_rest: 10.0 },
+    hold_ads_fraction: 0.330,
+    // Up beside the head rather than across the body, and pitch_deg positive
+    // where every rifle's is negative -- the muzzle goes up, not down.
+    sprint_carry: SprintCarry { offset: Vec3::new(0.02, 0.13, 0.10), yaw_deg: 16.0, pitch_deg: 52.0, roll_deg: 10.0 },
+    // Little mass to stop, so it misses the sight line by less than the
+    // carbines; but almost no magnification, so it can afford to swim more.
+    ads_settle_miss_m: 0.010,
+    ads_settle_miss_deg: 1.4,
+    aim_fov_multiplier: 0.80,
+    // A submachine gun has no business reaching: it engages close, closes
+    // faster than anything else here, and gives up early.
+    autopilot_ads_min_distance: 5.0,
+    autopilot_engage_range: 22.0,
+    autopilot_sprint_approach_distance: 11.0,
+    autopilot_sprint_pathing_distance: 7.0,
+    sprint_one_handed: true,
+    scope: Scope { min_zoom: 1.0, default_zoom: 1.0, max_zoom: 1.0, reticle_zoom: 1.0 },
+    sound: WeaponSound { fire: "audio/weapons/ump45_fire.wav", reload: "audio/weapons/ump45_reload.wav" },
+    reload_duration: 2.0,
+    damage_scale: 0.80,
+    fire_rate: 0.10,
+    magazine: 25,
+    // .45 ACP is a heavy, slow round, but the UMP's bolt is built to swallow
+    // it: more kick per shot than the M4 and less climb over a burst, because
+    // what stacks is the rate and this fires no faster than the AK.
+    recoil: Recoil {
+        strike_speed: 65.0,
+        view: ViewKick {
+            climb_per_shot: 0.0075,
+            climb_max: 0.075,
+            wander_per_shot: 0.0050,
+            shove_per_shot: 0.012,
+            shove_max: 0.040,
+            recover_speed: 7.0,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.130,
+            lift: 0.012,
+            pitch_deg: 1.8,
+            roll_deg: 0.7,
+            yaw_deg: 0.7,
+            settle_speed: 20.0,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.08,
+            view_yaw_deg: 0.06,
+            view_roll_deg: 0.15,
+            gun_pitch_deg: 0.30,
+            gun_yaw_deg: 0.22,
+            gun_roll_deg: 0.42,
+            gun_shift_m: 0.0010,
+            freq_pitch: 13.0,
+            freq_yaw: 9.0,
+            freq_roll: 11.0,
+            decay: 20.0,
+        },
+    },
+};
+
+/// The only handgun, and the only weapon here held at arm's length rather than
+/// in the shoulder. Its grip is 36mm under the bore, shallower than anything
+/// else, so the bore anchor matters more here than it does on the M24.
+///
+/// Both hands still go on it. The support hand wraps the firing hand rather
+/// than reaching for a handguard, so Socket_FrontGrip sits 40mm below
+/// Socket_RearGrip instead of half a metre in front of it.
+static DEAGLE: WeaponDef = WeaponDef {
+    name: "Desert Eagle",
+    mesh_path: "models/deagle/mesh/deagle.glb",
+    // Nearest the centre of the five, and the furthest out. A rifle is braced
+    // on the right shoulder and lives off to that side; a pistol in two hands
+    // comes to the middle of the chest and goes out on the arms.
+
+    rest_offset: Vec3::new(0.070, -0.0450, -0.4200),
+    ready_offset: Vec3::new(0.020, -0.1450, -0.3300),
+    // Furthest eye relief of the five: a pistol's rear sight ends up further
+    // from the eye than a carbine's, because the arms set the distance rather
+    // than the stock.
+    ads_eye_relief: 0.14,
+    // Fastest up of anything here. There is nothing to shoulder.
+    ads_speed: AdsSpeed { from_ready: 20.0, from_rest: 12.0 },
+    // Highest of the five by a wide margin. Two hands and no stock is three
+    // points of contact short of a rifle, and the sights show every one of
+    // them missing.
+    hold_ads_fraction: 0.550,
+    sprint_carry: SprintCarry { offset: Vec3::new(0.03, 0.15, 0.12), yaw_deg: 12.0, pitch_deg: 60.0, roll_deg: 8.0 },
+    ads_settle_miss_m: 0.008,
+    ads_settle_miss_deg: 1.8,
+    aim_fov_multiplier: 0.90,
+    autopilot_ads_min_distance: 4.0,
+    autopilot_engage_range: 18.0,
+    autopilot_sprint_approach_distance: 10.0,
+    autopilot_sprint_pathing_distance: 6.0,
+    sprint_one_handed: true,
+    scope: Scope { min_zoom: 1.0, default_zoom: 1.0, max_zoom: 1.0, reticle_zoom: 1.0 },
+    sound: WeaponSound { fire: "audio/weapons/deagle_fire.wav", reload: "audio/weapons/deagle_reload.wav" },
+    reload_duration: 2.2,
+    // Seven rounds of .50 AE. It trades everything else for what each one is
+    // worth, which is a little over twice an AK round.
+    damage_scale: 2.10,
+    // Semi-automatic: the ceiling is the trigger finger, not the action.
+    fire_rate: 0.26,
+    magazine: 7,
+    // The hardest kick here, and the slowest recovery. strike_speed below the
+    // M24's because this is not braced against anything -- the blow pushes
+    // the hands rather than being stopped by a shoulder.
+    recoil: Recoil {
+        strike_speed: 40.0,
+        view: ViewKick {
+            climb_per_shot: 0.040,
+            climb_max: 0.150,
+            wander_per_shot: 0.010,
+            shove_per_shot: 0.250,
+            shove_max: 0.600,
+            recover_speed: 4.0,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.190,
+            lift: 0.016,
+            pitch_deg: 4.0,
+            roll_deg: 2.0,
+            yaw_deg: 1.8,
+            settle_speed: 9.0,
+        },
+        // Lowest frequencies and the longest ring-down of the five, matched to
+        // a strike_speed of 40 the way the M24's 9 is matched to 28. Nothing
+        // follows for a quarter of a second, so there is no burst to keep out
+        // of its way.
+        shock: ShockKick {
+            view_pitch_deg: 0.28,
+            view_yaw_deg: 0.20,
+            view_roll_deg: 0.48,
+            gun_pitch_deg: 1.10,
+            gun_yaw_deg: 0.80,
+            gun_roll_deg: 1.50,
+            gun_shift_m: 0.0035,
+            freq_pitch: 10.0,
+            freq_yaw: 7.0,
+            freq_roll: 8.0,
+            decay: 13.0,
+        },
+    },
+};
+
 /// A weapon asked for from somewhere other than the number keys -- the touch
 /// button. `switch_weapon` owns the whole rebuild, so a request goes through
 /// it rather than writing `ActiveWeapon` and leaving the mesh behind.
@@ -494,6 +690,10 @@ pub(crate) fn switch_weapon(
         WeaponId::M4a1
     } else if keys.just_pressed(KeyCode::Digit3) {
         WeaponId::M24
+    } else if keys.just_pressed(KeyCode::Digit4) {
+        WeaponId::Ump45
+    } else if keys.just_pressed(KeyCode::Digit5) {
+        WeaponId::Deagle
     } else {
         return;
     };
