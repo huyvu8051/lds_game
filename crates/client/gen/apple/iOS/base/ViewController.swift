@@ -75,6 +75,10 @@ class ViewController: UIViewController {
     // Any? since GameControllerInput itself is @available(iOS 14, *) and
     // this property must be declarable on iOS 13 too (deployment target).
     private var gameControllerInput: Any?
+    // The gyroscope, same shape as gameControllerInput above and Any? for
+    // the same reason: GyroInput is @available(iOS 14, *) and this property
+    // has to be declarable on the iOS 13 deployment target.
+    private var gyroInput: Any?
     // Last FPS cap value actually applied to displayLink.preferredFrameRateRange
     // — nil forces the very first enterFrame to apply whatever the Settings
     // menu default is, since there's no natural "not set yet" sentinel for a
@@ -136,6 +140,9 @@ class ViewController: UIViewController {
         if #available(iOS 14.0, *), gameControllerInput == nil {
             gameControllerInput = GameControllerInput(viewController: self)
         }
+        if #available(iOS 14.0, *), gyroInput == nil {
+            gyroInput = GyroInput()
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -185,6 +192,12 @@ class ViewController: UIViewController {
             let maxDrag: Float = 60.0
             strafe = (dx / maxDrag).clamped(to: -1...1)
             forward = (-dy / maxDrag).clamped(to: -1...1)
+        }
+        // Before update_camera, so the turn the phone made this frame is in
+        // the same message queue the touch look is about to join.
+        if #available(iOS 14.0, *), let gyro = gyroInput as? GyroInput {
+            let orientation = view.window?.windowScene?.interfaceOrientation ?? .landscapeRight
+            gyro.update(probe: probe, orientation: orientation, deltaTime: deltaTime)
         }
         native_metal_probe_update_camera(probe, forward, strafe, lookDx, lookDy, deltaTime)
         native_metal_probe_render_frame(probe)

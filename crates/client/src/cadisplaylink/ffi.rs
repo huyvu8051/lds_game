@@ -330,6 +330,27 @@ pub(super) fn mouse_moved(app: &mut App, delta_x: f32, delta_y: f32) {
     });
 }
 
+/// The phone's own turn, in radians since the last sample, fed in as pointer
+/// travel.
+///
+/// Dividing by MOUSE_SENSITIVITY is what makes the scale mean something: it
+/// undoes the conversion the look system is about to apply, so at a gyro
+/// scale of 1.0 turning the phone ten degrees turns the view ten. Going in as
+/// MouseMotion rather than straight to the camera is deliberate -- the gyro
+/// then inherits the aim multiplier and the look lag for free, so a phone
+/// turn behaves like a mouse turn rather than like a second, blunter control.
+pub(super) fn gyro_moved(app: &mut App, yaw: f32, pitch: f32) {
+    let world = app.world();
+    if !world.get_resource::<crate::GyroEnabled>().is_some_and(|on| on.0) {
+        return;
+    }
+    let scale = world.get_resource::<crate::GyroSensitivity>().map_or(1.0, |s| s.0);
+    let gain = scale / crate::MOUSE_SENSITIVITY;
+    app.world_mut().write_message(MouseMotion {
+        delta: Vec2::new(yaw * gain, pitch * gain),
+    });
+}
+
 pub(super) fn mouse_button_changed(app: &mut App, button: u8, pressed: bool) {
     let button = match button {
         0 => MouseButton::Left,
@@ -480,6 +501,26 @@ pub extern "C" fn native_metal_probe_mouse_moved(obj: *mut std::ffi::c_void, del
     if let Some(app) = probe.real_game_app_mut() {
         mouse_moved(app, delta_x, delta_y);
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn native_metal_probe_gyro_moved(obj: *mut std::ffi::c_void, yaw: f32, pitch: f32) {
+    let probe = unsafe { &mut *(obj as *mut GameHost) };
+    if let Some(app) = probe.real_game_app_mut() {
+        gyro_moved(app, yaw, pitch);
+    }
+}
+
+/// Polled by the view controller so CoreMotion only runs while it is wanted:
+/// the sensor and its delivery queue are not free, and a player with the
+/// setting off should not pay for them.
+#[unsafe(no_mangle)]
+pub extern "C" fn native_metal_probe_get_gyro_enabled(obj: *mut std::ffi::c_void) -> bool {
+    let probe = unsafe { &mut *(obj as *mut GameHost) };
+    probe
+        .real_game_app_mut()
+        .and_then(|app| app.world().get_resource::<crate::GyroEnabled>())
+        .is_some_and(|on| on.0)
 }
 
 #[unsafe(no_mangle)]

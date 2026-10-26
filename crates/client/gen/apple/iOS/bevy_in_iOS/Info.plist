@@ -51,6 +51,8 @@
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<key>NSMotionUsageDescription</key>
+	<string>Turn the phone to aim, when gyroscope aiming is switched on in Settings.</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.games</string>
 	<key>GCSupportsGameMode</key>

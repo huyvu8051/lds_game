@@ -509,6 +509,12 @@ const BULLET_SPREAD: f32 = 0.02;
 
 const MOUSE_SENSITIVITY: f32 = 0.002;
 
+/// The gyro's own scale, separate from the pointer's: the two are different
+/// instruments and a player who likes a fast mouse need not want a fast phone.
+const GYRO_SENSITIVITY_MIN: f32 = 0.25;
+const GYRO_SENSITIVITY_MAX: f32 = 4.0;
+const GYRO_SENSITIVITY_STEP: f32 = 0.25;
+
 const SENSITIVITY_SCALE_MIN: f32 = 0.25;
 const SENSITIVITY_SCALE_MAX: f32 = 3.0;
 const SENSITIVITY_SCALE_STEP: f32 = 0.5;
@@ -992,6 +998,8 @@ impl Plugin for GamePlugin {
         .init_resource::<TouchSprintHeld>()
         .init_resource::<TouchLeanHeld>()
         .init_resource::<SensitivityScale>()
+        .init_resource::<GyroEnabled>()
+        .init_resource::<GyroSensitivity>()
         .init_resource::<DamageMultiplierUi>()
         .init_resource::<KillCount>()
         .init_resource::<MapSelectionPending>()
@@ -1072,6 +1080,8 @@ impl Plugin for GamePlugin {
                     update_zombie_count_text,
                     sensitivity_buttons,
                     update_sensitivity_text,
+                    gyro_buttons,
+                    update_gyro_ui,
                     damage_multiplier_buttons,
                     update_damage_multiplier_text,
                     auto_maintain_button,

@@ -44,6 +44,10 @@ void native_metal_probe_touch_ended(struct native_metal_probe *probe, uint64_t t
 void native_metal_probe_touch_cancelled(struct native_metal_probe *probe, uint64_t touch_id, float x, float y);
 void native_metal_probe_key_changed(struct native_metal_probe *probe, uint16_t key_id, bool pressed);
 void native_metal_probe_mouse_connected(struct native_metal_probe *probe, bool connected);
+void native_metal_probe_gyro_moved(struct native_metal_probe *probe, float yaw, float pitch);
+
+bool native_metal_probe_get_gyro_enabled(struct native_metal_probe *probe);
+
 void native_metal_probe_mouse_moved(struct native_metal_probe *probe, float delta_x, float delta_y);
 void native_metal_probe_mouse_button_changed(struct native_metal_probe *probe, uint8_t button, bool pressed);
 

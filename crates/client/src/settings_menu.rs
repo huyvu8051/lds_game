@@ -540,6 +540,34 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     spawn_cheat_action_button(row, "+", SensitivityIncButton);
                 });
                 page.spawn((
+                    Text::new("Gyroscope"),
+                    TextFont {
+                        font_size: FontSize::Px(16.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+                page.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(8.0),
+                    align_items: AlignItems::Center,
+                    ..default()
+                })
+                .with_children(|row| {
+                    spawn_cheat_toggle_button(row, "On", CheatGyroButton);
+                    spawn_cheat_action_button(row, "-", GyroSensitivityDecButton);
+                    row.spawn((
+                        Text::new("1.00x"),
+                        TextFont {
+                            font_size: FontSize::Px(16.0),
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        GyroSensitivityText,
+                    ));
+                    spawn_cheat_action_button(row, "+", GyroSensitivityIncButton);
+                });
+                page.spawn((
                     Text::new("Damage"),
                     TextFont {
                         font_size: FontSize::Px(16.0),
@@ -1216,6 +1244,58 @@ pub(crate) fn sensitivity_buttons(
     for interaction in &inc_btn {
         if *interaction == Interaction::Pressed {
             scale.0 = (scale.0 + SENSITIVITY_SCALE_STEP).min(SENSITIVITY_SCALE_MAX);
+        }
+    }
+}
+
+#[derive(Component)]
+pub(crate) struct CheatGyroButton;
+#[derive(Component)]
+pub(crate) struct GyroSensitivityDecButton;
+#[derive(Component)]
+pub(crate) struct GyroSensitivityIncButton;
+#[derive(Component)]
+pub(crate) struct GyroSensitivityText;
+
+/// The switch and its scale together: there is nothing to turn down on a
+/// sensor that is not running, so the two always want reading as one row.
+pub(crate) fn gyro_buttons(
+    mut enabled: ResMut<GyroEnabled>,
+    mut scale: ResMut<GyroSensitivity>,
+    on_btn: Query<&Interaction, (With<CheatGyroButton>, Changed<Interaction>)>,
+    dec_btn: Query<&Interaction, (With<GyroSensitivityDecButton>, Changed<Interaction>)>,
+    inc_btn: Query<&Interaction, (With<GyroSensitivityIncButton>, Changed<Interaction>)>,
+) {
+    if tapped(&on_btn) {
+        enabled.0 = !enabled.0;
+    }
+    if tapped(&dec_btn) {
+        scale.0 = (scale.0 - GYRO_SENSITIVITY_STEP).max(GYRO_SENSITIVITY_MIN);
+    }
+    if tapped(&inc_btn) {
+        scale.0 = (scale.0 + GYRO_SENSITIVITY_STEP).min(GYRO_SENSITIVITY_MAX);
+    }
+}
+
+pub(crate) fn update_gyro_ui(
+    enabled: Res<GyroEnabled>,
+    scale: Res<GyroSensitivity>,
+    mut text: Query<&mut Text, With<GyroSensitivityText>>,
+    mut button: Query<&mut BackgroundColor, With<CheatGyroButton>>,
+) {
+    if scale.is_changed() {
+        for mut text in &mut text {
+            text.0 = format!("{:.2}x", scale.0);
+        }
+    }
+    if enabled.is_changed() {
+        let colour = if enabled.0 {
+            Color::srgba(0.3, 1.0, 0.4, 0.5)
+        } else {
+            Color::srgba(1.0, 1.0, 1.0, 0.2)
+        };
+        for mut bg in &mut button {
+            *bg = BackgroundColor(colour);
         }
     }
 }

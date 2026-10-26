@@ -12,6 +12,24 @@ impl Default for SensitivityScale {
     }
 }
 
+/// Whether the phone's own rotation turns the view.
+///
+/// Off by default: a player who has not asked for it would find the view
+/// drifting whenever they shifted in their chair.
+#[derive(Resource, Default)]
+pub(crate) struct GyroEnabled(pub(crate) bool);
+
+/// How much of the phone's turn reaches the view. At 1.0 the two match --
+/// turn the phone ten degrees and the view turns ten -- which is the only
+/// value with a meaning of its own; the rest is taste.
+#[derive(Resource)]
+pub(crate) struct GyroSensitivity(pub(crate) f32);
+impl Default for GyroSensitivity {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
 #[derive(Resource)]
 pub(crate) struct FpsCap(pub(crate) u32);
 impl Default for FpsCap {

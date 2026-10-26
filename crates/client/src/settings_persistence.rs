@@ -26,6 +26,8 @@ pub(crate) struct PersistedSettings {
     pub(crate) shell_casings_enabled: Option<bool>,
     pub(crate) barrel_smoke_enabled: Option<bool>,
     pub(crate) sensitivity_scale: Option<f32>,
+    pub(crate) gyro_enabled: Option<bool>,
+    pub(crate) gyro_sensitivity: Option<f32>,
     pub(crate) damage_multiplier: Option<f32>,
     pub(crate) noclip: Option<bool>,
     pub(crate) god_mode: Option<bool>,
@@ -153,6 +155,8 @@ fn apply_settings_to_world(world: &mut World, settings: &PersistedSettings) {
     apply!(shell_casings_enabled, ShellCasingsEnabled);
     apply!(barrel_smoke_enabled, BarrelSmokeEnabled);
     apply!(sensitivity_scale, SensitivityScale);
+    apply!(gyro_enabled, GyroEnabled);
+    apply!(gyro_sensitivity, GyroSensitivity);
     apply!(damage_multiplier, DamageMultiplierUi);
     apply!(noclip, Noclip);
     apply!(god_mode, GodMode);
@@ -218,6 +222,8 @@ pub(crate) fn persist_settings_on_change(world: &mut World) {
         || changed!(BloomEnabled)
         || changed!(ScreenEffectsEnabled)
         || changed!(FogEnabled)
+        || changed!(GyroEnabled)
+        || changed!(GyroSensitivity)
         || changed!(BulletHolesEnabled)
         || changed!(BloodEnabled)
         || changed!(MuzzleSmokeEnabled)
@@ -276,6 +282,8 @@ fn read_settings_from_world(world: &World) -> PersistedSettings {
         shell_casings_enabled: world.get_resource::<ShellCasingsEnabled>().map(|r| r.0),
         barrel_smoke_enabled: world.get_resource::<BarrelSmokeEnabled>().map(|r| r.0),
         sensitivity_scale: world.get_resource::<SensitivityScale>().map(|r| r.0),
+        gyro_enabled: world.get_resource::<GyroEnabled>().map(|r| r.0),
+        gyro_sensitivity: world.get_resource::<GyroSensitivity>().map(|r| r.0),
         damage_multiplier: world.get_resource::<DamageMultiplierUi>().map(|r| r.0),
         noclip: world.get_resource::<Noclip>().map(|r| r.0),
         god_mode: world.get_resource::<GodMode>().map(|r| r.0),
