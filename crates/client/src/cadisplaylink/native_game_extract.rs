@@ -358,7 +358,6 @@ pub fn extract_render_snapshot(
                 &meshes, &materials, &images, &mut texture_cache, &mut used_texture_ids,
                 &geometry_already_uploaded,
                 on_viewmodel_layer(layers),
-                false,
                 &decorate,
             );
         }
@@ -379,7 +378,6 @@ pub fn extract_render_snapshot(
                 &meshes, &materials, &images, &mut texture_cache, &mut used_texture_ids,
                 &geometry_already_uploaded,
                 on_viewmodel_layer(layers),
-                false,
                 &decorate,
             );
         }

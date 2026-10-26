@@ -659,6 +659,12 @@ const VIEWMODEL_LAYER: usize = 1;
 /// this is nearer the 4 MOA most holographic sights actually carry.
 const HOLO_DOT_RADIANS: f32 = 0.0013;
 
+/// How far the sights have to be up before a scoped weapon hands the screen
+/// over to its reticle and steps out of the way. Not 1.0: the swap wants to
+/// happen while the view is still closing, or the rifle is still filling the
+/// frame when the magnification arrives.
+const SCOPED_RETICLE_SIGHTED: f32 = 0.6;
+
 const STATIONARY_SPREAD_MULTIPLIER: f32 = 0.4;
 
 const SPRINT_SPREAD_MULTIPLIER: f32 = 2.2;
@@ -1175,7 +1181,7 @@ impl Plugin for GamePlugin {
             )
                 .chain(),
             (
-                place_holo_reticle,
+                (place_holo_reticle, hide_scoped_weapon),
                 (apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
                 update_ammo_ui.run_if(ui_tick()),
                 update_crosshair,

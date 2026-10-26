@@ -68,6 +68,15 @@ pub(crate) struct WeaponDef {
     /// there is too much of it to swing off one wrist.
     pub(crate) sprint_one_handed: bool,
 
+    /// Whether this weapon's optic is deep enough that the sight picture is
+    /// the screen rather than something seen through the glass.
+    ///
+    /// Past about four times, the weapon model is magnified along with
+    /// everything else and fills the view, so it is taken away while sighted
+    /// and the reticle drawn on its own. Which is what looking through a
+    /// scope looks like: the rifle is not in the picture.
+    pub(crate) scoped: bool,
+
     /// The opening a holographic sight leaves, in the weapon's own frame, or
     /// None for a weapon that has no glass to look through.
     ///
@@ -304,11 +313,8 @@ static AK47: WeaponDef = WeaponDef {
     // which is default/zoom against a half speed base, comes back out at
     // exactly the hip fire rate.
     sprint_one_handed: false,
-    // The tube's own aperture, cut clear through both lenses. Only reached
-    // with the optic camera switched off: at 12x this weapon is the picture
-    // in the lens, and the dot is what is left when that picture costs too
-    // much to draw.
-    holo: Some(HoloWindow { min: Vec2::new(-0.0090, 0.0783), max: Vec2::new(0.0090, 0.0943) }),
+    scoped: true,
+    holo: None,
     sound: WeaponSound { fire: "audio/weapons/ak47_fire.wav", reload: "audio/weapons/ak47_reload.wav" },
     reload_duration: 2.3,
     damage_scale: 1.0,
@@ -381,6 +387,7 @@ static M4A1: WeaponDef = WeaponDef {
     autopilot_sprint_pathing_distance: 9.0,
     // Irons: the scope view never comes on, so these only have to be sane.
     sprint_one_handed: false,
+    scoped: false,
     holo: None,
     sound: WeaponSound { fire: "audio/weapons/m4a1_fire.wav", reload: "audio/weapons/m4a1_reload.wav" },
     reload_duration: 1.9,
@@ -456,7 +463,7 @@ static M24: WeaponDef = WeaponDef {
     ads_settle_miss_deg: 0.3,
     // 12x, down from the optic camera's 24. Still the longest reach of the
     // five, and still what this weapon is for.
-    aim_fov_multiplier: 0.083,
+    aim_fov_multiplier: 0.425,
     autopilot_ads_min_distance: 32.0,
     autopilot_engage_range: 60.0,
     autopilot_sprint_approach_distance: 55.0,
@@ -464,6 +471,7 @@ static M24: WeaponDef = WeaponDef {
     // Twice the AK at every stop: the glass it carries is the one thing this
     // rifle is for.
     sprint_one_handed: false,
+    scoped: true,
     holo: None,
     sound: WeaponSound { fire: "audio/weapons/m24_fire.wav", reload: "audio/weapons/m24_reload.wav" },
     reload_duration: 3.1,
@@ -554,6 +562,7 @@ static UMP45: WeaponDef = WeaponDef {
     // survives. Not the box below it -- that one has a window too, and
     // cutting it reads as a sight until the eye goes to the glass and finds
     // the view blocked 9mm higher up.
+    scoped: false,
     holo: Some(HoloWindow { min: Vec2::new(-0.0100, 0.0655), max: Vec2::new(0.0110, 0.0805) }),
     sound: WeaponSound { fire: "audio/weapons/ump45_fire.wav", reload: "audio/weapons/ump45_reload.wav" },
     reload_duration: 2.0,
@@ -632,6 +641,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     autopilot_sprint_approach_distance: 10.0,
     autopilot_sprint_pathing_distance: 6.0,
     sprint_one_handed: true,
+    scoped: false,
     holo: None,
     sound: WeaponSound { fire: "audio/weapons/deagle_fire.wav", reload: "audio/weapons/deagle_reload.wav" },
     reload_duration: 2.2,

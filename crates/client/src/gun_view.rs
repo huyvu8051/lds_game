@@ -180,26 +180,35 @@ pub(crate) fn place_holo_reticle(
     camera: Query<&GlobalTransform, With<FpsCamera>>,
     aim: Query<&GlobalTransform, With<AimSocket>>,
     gun: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<HoloReticle>)>,
+    pose: Res<WeaponPose>,
     mut reticle: Query<(&mut Transform, &mut Visibility), With<HoloReticle>>,
 ) {
     let Ok((mut dot, mut visibility)) = reticle.single_mut() else { return };
-    let (Some(window), Ok(eye), Ok((gun_local, gun_global))) =
-        (active.def().holo.as_ref(), camera.single(), gun.single())
-    else {
+    let (Ok(eye), Ok((gun_local, gun_global))) = (camera.single(), gun.single()) else {
         *visibility = Visibility::Hidden;
         return;
     };
+    let def = active.def();
 
-    // Where the eye sits in the weapon's own frame. The bore runs down -Z
-    // there, so this is also where the sight line crosses every plane of the
-    // window, and the whole test is whether it lands inside the opening.
-    let in_weapon = gun_global.affine().inverse().transform_point3(eye.translation());
-    let inside = in_weapon.x >= window.min.x
-        && in_weapon.x <= window.max.x
-        && in_weapon.y >= window.min.y
-        && in_weapon.y <= window.max.y;
-    *visibility = if inside { Visibility::Visible } else { Visibility::Hidden };
-    if !inside {
+    // A scope's mark answers to the sights being up, not to a window. There
+    // is no window: past four times the glass is not what the player is
+    // looking through, the screen is.
+    let visible = match def.holo.as_ref() {
+        Some(window) => {
+            // Where the eye sits in the weapon's own frame. The bore runs down
+            // -Z there, so this is also where the sight line crosses every
+            // plane of the window, and the whole test is whether it lands
+            // inside the opening.
+            let in_weapon = gun_global.affine().inverse().transform_point3(eye.translation());
+            in_weapon.x >= window.min.x
+                && in_weapon.x <= window.max.x
+                && in_weapon.y >= window.min.y
+                && in_weapon.y <= window.max.y
+        }
+        None => def.scoped && pose.sighted > SCOPED_RETICLE_SIGHTED,
+    };
+    *visibility = if visible { Visibility::Visible } else { Visibility::Hidden };
+    if !visible {
         return;
     }
 
@@ -947,4 +956,24 @@ pub(crate) fn advance_walk_cycle(
         .single()
         .map(|gun| 1.0 - gun.ads_blend * (1.0 - AIM_BOB_MULTIPLIER))
         .unwrap_or(1.0);
+}
+
+/// Takes the weapon out of the picture while a scope is up.
+///
+/// At twelve times the rifle is magnified with everything else and fills the
+/// view, which is both useless and not what a scope looks like. Keyed off
+/// `scoped` rather than the sights alone, so irons and the holo keep the
+/// weapon they are aimed along.
+pub(crate) fn hide_scoped_weapon(
+    active: Res<ActiveWeapon>,
+    pose: Res<WeaponPose>,
+    mut parts: Query<&mut Visibility, With<GunMeshPart>>,
+) {
+    let hidden = active.def().scoped && pose.sighted > SCOPED_RETICLE_SIGHTED;
+    for mut visibility in &mut parts {
+        let wanted = if hidden { Visibility::Hidden } else { Visibility::Inherited };
+        if *visibility != wanted {
+            *visibility = wanted;
+        }
+    }
 }
