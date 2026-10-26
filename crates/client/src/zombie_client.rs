@@ -799,6 +799,9 @@ pub(crate) fn wire_gun_mesh(
                     .insert((GunMesh, RenderLayers::layer(VIEWMODEL_LAYER)));
                 if is_magazine {
                     commands.entity(mesh_entity).insert(ViewmodelMagazine);
+                    if crate::magazine_log_enabled() {
+                        debug!("[magazine] part wired: {:?}", names.get(mesh_entity).ok());
+                    }
                 }
                 break;
             }

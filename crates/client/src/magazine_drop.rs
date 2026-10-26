@@ -70,10 +70,15 @@ pub(crate) fn drive_reload_hand(
     let home = fore.reparented_to(eye);
     // The magazine is only hidden while it is away, never despawned, so its
     // place on the weapon stays readable throughout.
-    let magwell = magazine
-        .single()
-        .map(|m| m.reparented_to(eye).translation)
-        .unwrap_or(home.translation);
+    // Averaged, because a magazine can be more than one part -- the UMP's
+    // shell and the rounds inside it are separate meshes that leave together.
+    let mut well = Vec3::ZERO;
+    let mut parts = 0.0;
+    for m in &magazine {
+        well += m.reparented_to(eye).translation;
+        parts += 1.0;
+    }
+    let magwell = if parts > 0.0 { well / parts } else { home.translation };
     let pouch = RELOAD_POUCH_FROM_EYE - Vec3::Z * view_pullback();
 
     let progress = 1.0 - (gun.reload_remaining / active.def().reload_duration).clamp(0.0, 1.0);
@@ -137,25 +142,35 @@ pub(crate) fn drop_magazine_on_reload(
     }
     let Ok(eye) = camera.single() else { return };
 
+    // One body for the whole magazine, however many meshes it is drawn from.
+    // Two nested boxes given a collider each would spend their first frame
+    // shoving each other apart.
+    let mut taken: Vec<(Transform, Handle<Mesh>, Handle<StandardMaterial>)> = Vec::new();
+    let mut span: Option<(Vec3, Vec3)> = None;
     for (global, mesh, material, aabb, mut visibility) in &mut magazines {
         if *visibility == Visibility::Hidden {
             continue;
         }
         *visibility = Visibility::Hidden;
-
         let placed = global.compute_transform();
-        let offset = Vec3::from(aabb.center);
+        let centre = global.transform_point(Vec3::from(aabb.center));
         let half = Vec3::from(aabb.half_extents) * placed.scale.abs();
-
-        // The body sits on the magazine's middle so it tumbles about itself,
-        // while the mesh keeps the origin the glTF gave it. Hence the child.
+        span = Some(match span {
+            Some((lo, hi)) => ((lo).min(centre - half), (hi).max(centre + half)),
+            None => (centre - half, centre + half),
+        });
+        taken.push((placed, mesh.0.clone(), material.0.clone()));
+    }
+    let (Some((lo, hi)), false) = (span, taken.is_empty()) else { return };
+    {
+        let at = (lo + hi) * 0.5;
+        let half = (hi - lo) * 0.5;
         let seed = time.elapsed_secs();
         let away = (Vec3::NEG_Y + *eye.forward() * MAG_DROP_FORWARD).normalize_or_zero();
         let body = commands
             .spawn((
                 Name::new("DroppedMagazine"),
-                Transform::from_translation(global.transform_point(offset))
-                    .with_rotation(placed.rotation),
+                Transform::from_translation(at),
                 Visibility::default(),
                 RigidBody::Dynamic,
                 Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0),
@@ -169,21 +184,26 @@ pub(crate) fn drop_magazine_on_reload(
             ))
             .id();
 
-        commands.spawn((
-            Mesh3d(mesh.0.clone()),
-            MeshMaterial3d(material.0.clone()),
-            Transform::from_translation(-offset * placed.scale).with_scale(placed.scale),
-            ChildOf(body),
-        ));
+        // Each part keeps the place it held on the weapon, expressed about
+        // the body's own middle, so they fall as the one object they look like.
+        for (part, mesh, material) in &taken {
+            commands.spawn((
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(material.clone()),
+                Transform::from_translation(part.translation - at)
+                    .with_rotation(part.rotation)
+                    .with_scale(part.scale),
+                ChildOf(body),
+            ));
+        }
 
         if magazine_log_enabled() {
-            let at = global.transform_point(offset);
-            debug!("[magazine] dropped at {at:.3?} size {:.3?}m", half * 2.0);
+            debug!("[magazine] dropped at {at:.3?} size {:.3?}m from {} part(s)", half * 2.0, taken.len());
         }
     }
 }
 
-fn magazine_log_enabled() -> bool {
+pub(crate) fn magazine_log_enabled() -> bool {
     std::env::var("MAG_LOG").map(|value| value == "1").unwrap_or(false)
 }
 
