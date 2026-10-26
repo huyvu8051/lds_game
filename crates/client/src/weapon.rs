@@ -304,7 +304,7 @@ static AK47: WeaponDef = WeaponDef {
     ads_settle_miss_m: 0.028,
     ads_settle_miss_deg: 0.5,
     aim_fov_multiplier: 0.65,
-    autopilot_ads_min_distance: 7.0,
+    autopilot_ads_min_distance: 3.0,
     autopilot_engage_range: 30.0,
     autopilot_sprint_approach_distance: 22.0,
     autopilot_sprint_pathing_distance: 15.0,
@@ -312,7 +312,11 @@ static AK47: WeaponDef = WeaponDef {
     // which is default/zoom against a half speed base, comes back out at
     // exactly the hip fire rate.
     sprint_one_handed: false,
-    holo: None,
+    // The tube's own aperture, cut clear through both lenses. Only reached
+    // with the optic camera switched off: at 12x this weapon is the picture
+    // in the lens, and the dot is what is left when that picture costs too
+    // much to draw.
+    holo: Some(HoloWindow { min: Vec2::new(-0.0090, 0.0783), max: Vec2::new(0.0090, 0.0943) }),
     scope: Scope { min_zoom: 6.0, default_zoom: 12.0, max_zoom: 20.0, reticle_zoom: 4.0 },
     sound: WeaponSound { fire: "audio/weapons/ak47_fire.wav", reload: "audio/weapons/ak47_reload.wav" },
     reload_duration: 2.3,
@@ -380,7 +384,7 @@ static M4A1: WeaponDef = WeaponDef {
     ads_settle_miss_m: 0.014,
     ads_settle_miss_deg: 1.2,
     aim_fov_multiplier: 0.75,
-    autopilot_ads_min_distance: 7.0,
+    autopilot_ads_min_distance: 3.0,
     autopilot_engage_range: 30.0,
     autopilot_sprint_approach_distance: 14.0,
     autopilot_sprint_pathing_distance: 9.0,
@@ -548,7 +552,7 @@ static UMP45: WeaponDef = WeaponDef {
     aim_fov_multiplier: 0.80,
     // A submachine gun has no business reaching: it engages close, closes
     // faster than anything else here, and gives up early.
-    autopilot_ads_min_distance: 5.0,
+    autopilot_ads_min_distance: 3.0,
     autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 11.0,
     autopilot_sprint_pathing_distance: 7.0,

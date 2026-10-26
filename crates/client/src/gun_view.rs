@@ -5,8 +5,11 @@ use crate::*;
 #[derive(Resource)]
 pub(crate) struct ScopeCameraEnabled(pub(crate) bool);
 impl Default for ScopeCameraEnabled {
+    /// `SCOPE_CAMERA=0` starts with the optic camera off, which is the only
+    /// way to reach the fallback dot without a mouse: the setting is saved,
+    /// and a screenshot cannot press its button.
     fn default() -> Self {
-        Self(true)
+        Self(std::env::var("SCOPE_CAMERA").map(|v| v != "0").unwrap_or(true))
     }
 }
 
@@ -335,12 +338,23 @@ pub(crate) struct HoloReticle;
 /// dot away entirely.
 pub(crate) fn place_holo_reticle(
     active: Res<ActiveWeapon>,
+    scope_camera_enabled: Res<ScopeCameraEnabled>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
     aim: Query<&GlobalTransform, With<AimSocket>>,
     gun: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<HoloReticle>)>,
     mut reticle: Query<(&mut Transform, &mut Visibility), With<HoloReticle>>,
 ) {
     let Ok((mut dot, mut visibility)) = reticle.single_mut() else { return };
+    // A weapon with real glass draws its sight picture in the lens, and the
+    // dot would sit on top of it saying the same thing twice. The dot is what
+    // that weapon falls back to when the optic camera is switched off --
+    // which is the whole trade the switch exists for: a second camera, a
+    // render target and a command buffer, against losing the magnification.
+    let magnifies = active.def().scope.default_zoom > 1.0;
+    if magnifies && scope_camera_enabled.0 {
+        *visibility = Visibility::Hidden;
+        return;
+    }
     let (Some(window), Ok(eye), Ok((gun_local, gun_global))) =
         (active.def().holo.as_ref(), camera.single(), gun.single())
     else {
