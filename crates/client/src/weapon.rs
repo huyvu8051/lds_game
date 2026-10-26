@@ -553,9 +553,11 @@ static UMP45: WeaponDef = WeaponDef {
     autopilot_sprint_approach_distance: 11.0,
     autopilot_sprint_pathing_distance: 7.0,
     sprint_one_handed: true,
-    // The hole cut through the optic, inset off the two frame rails so the
-    // rails themselves survive.
-    holo: Some(HoloWindow { min: Vec2::new(-0.0090, 0.0460), max: Vec2::new(0.0100, 0.0590) }),
+    // The hole cut through the glass, inset off the pane's own rim so the rim
+    // survives. Not the box below it -- that one has a window too, and
+    // cutting it reads as a sight until the eye goes to the glass and finds
+    // the view blocked 9mm higher up.
+    holo: Some(HoloWindow { min: Vec2::new(-0.0100, 0.0655), max: Vec2::new(0.0110, 0.0805) }),
     scope: Scope { min_zoom: 1.0, default_zoom: 1.0, max_zoom: 1.0, reticle_zoom: 1.0 },
     sound: WeaponSound { fire: "audio/weapons/ump45_fire.wav", reload: "audio/weapons/ump45_reload.wav" },
     reload_duration: 2.0,
