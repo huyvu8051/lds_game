@@ -314,7 +314,10 @@ static AK47: WeaponDef = WeaponDef {
     // exactly the hip fire rate.
     sprint_one_handed: false,
     scoped: true,
-    holo: None,
+    // The bored aperture, as the rectangle that fits inside it. Magnified or
+    // not, the eye still has to be behind the hole: swing hard enough that it
+    // is not and the mark goes, the same as the UMP's.
+    holo: Some(HoloWindow { min: Vec2::new(-0.0090, 0.0783), max: Vec2::new(0.0090, 0.0943) }),
     sound: WeaponSound { fire: "audio/weapons/ak47_fire.wav", reload: "audio/weapons/ak47_reload.wav" },
     reload_duration: 2.3,
     damage_scale: 1.0,
@@ -335,7 +338,7 @@ static AK47: WeaponDef = WeaponDef {
         weapon: WeaponKick {
             slide_back: 0.14,
             lift: 0.000,
-            pitch_deg: 0.0,
+            pitch_deg: 1.0,
             roll_deg: 0.6,
             yaw_deg: 0.5,
             settle_speed: 10.0,
@@ -410,7 +413,7 @@ static M4A1: WeaponDef = WeaponDef {
         weapon: WeaponKick {
             slide_back: 0.12,
             lift: 0.0,
-            pitch_deg: 0.0,
+            pitch_deg: 1.0,
             roll_deg: 0.8,
             yaw_deg: 0.6,
             settle_speed: 15.0,
@@ -585,7 +588,7 @@ static UMP45: WeaponDef = WeaponDef {
         weapon: WeaponKick {
             slide_back: 0.130,
             lift: 0.0,
-            pitch_deg: 0.0,
+            pitch_deg: 1.0,
             roll_deg: 0.7,
             yaw_deg: 0.7,
             settle_speed: 20.0,
