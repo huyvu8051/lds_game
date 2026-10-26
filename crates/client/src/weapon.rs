@@ -376,7 +376,7 @@ static M4A1: WeaponDef = WeaponDef {
     name: "M4A1",
     mesh_path: "models/m4a1/mesh/m4a1_rigged.glb",
     rest_offset: Vec3::new(0.160, -0.1018, -0.626),
-    ready_offset: Vec3::new(0.071, -0.2018, -0.536),
+    ready_offset: Vec3::new(0.071, -0.1718, -0.536),
     ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
     hold_ads_fraction: 0.300,
@@ -536,7 +536,7 @@ static UMP45: WeaponDef = WeaponDef {
     // one is 0.34m out and the same number threw it 26 degrees, half off the
     // right of the screen.
     rest_offset: Vec3::new(0.090, -0.0700, -0.3375),
-    ready_offset: Vec3::new(0.025, -0.1700, -0.2475),
+    ready_offset: Vec3::new(0.025, -0.1400, -0.2475),
     ads_eye_relief: 0.11,
     // Lightest of the five and the shortest: it comes up faster than either
     // carbine and far faster than the bolt gun.
