@@ -53,10 +53,19 @@ pub(crate) struct KillFeedEntry {
 pub(crate) fn spawn_kill_ui(commands: &mut Commands) {
     commands
         .spawn((
+            // A stated width, not one measured from the text. `right` can
+            // only place a box it already knows the size of, and text is
+            // measured during layout -- which runs at UI_LAYOUT_HZ, not every
+            // frame -- so a tally that grew a digit walked off the screen and
+            // stayed there. The settings button anchors the same way and has
+            // always landed, because it says how wide it is.
+            //
+            // Below that button rather than beside it: both want this corner.
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(12.0),
-                right: Val::Px(16.0),
+                top: Val::Px(64.0),
+                right: Val::Px(KILL_FEED_RIGHT),
+                width: Val::Px(KILL_FEED_WIDTH),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::End,
                 row_gap: Val::Px(6.0),

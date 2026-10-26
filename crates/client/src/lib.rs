@@ -548,6 +548,14 @@ const TOUCH_FIRE_BUTTON_PX: f32 = 90.0;
 
 
 /// How long a kill stays in the feed, and how much of that is spent fading.
+/// How far in from the right edge the column sits. Wider than the 16px the
+/// settings button uses: text is right-aligned inside the column and grows
+/// leftward from this line, so the margin is the only thing standing between
+/// the longest line and the edge of the screen.
+const KILL_FEED_RIGHT: f32 = 64.0;
+/// Wide enough for the longest line the feed can build, since the column has
+/// to state a width to be anchored on the right at all.
+const KILL_FEED_WIDTH: f32 = 300.0;
 const KILL_FEED_LIFETIME: f32 = 4.5;
 const KILL_FEED_FADE: f32 = 1.0;
 /// Older entries are dropped rather than scrolled: a feed that fills the
