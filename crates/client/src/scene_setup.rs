@@ -499,6 +499,21 @@ pub(crate) fn setup_gameplay(
             ChildOf(scope_camera),
         ))
         .id();
+    // The holographic dot, on the main view rather than the scope's. A 1x
+    // sight has nothing to magnify, so it earns neither a second camera nor a
+    // render target -- it is one quad hung off the eye and aimed down the
+    // barrel, the same way the scope mark is, and `place_holo_reticle` turns
+    // it off when the eye leaves the window.
+    commands.spawn((
+        Mesh3d(meshes.add(Circle::new(HOLO_DOT_RADIANS).mesh())),
+        MeshMaterial3d(materials.add(mark_material(Color::linear_rgb(28.0, 0.6, 0.2)))),
+        Transform::default(),
+        Visibility::Hidden,
+        RenderLayers::layer(VIEWMODEL_LAYER),
+        HoloReticle,
+        ChildOf(camera),
+    ));
+
     commands.insert_resource(reticles);
 
     // A child of the mark, so it is carried down the barrel and scaled with it

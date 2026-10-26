@@ -310,6 +310,67 @@ pub(crate) fn sync_scope_camera(
 /// perfectly parallax-free sight: the mark shows where the barrel points,
 /// which is where the bullet goes, however the weapon sits against the eye.
 /// The socket says which way that is, so no weapon carries its own copy.
+/// The holographic dot. Marks the main view, not the scope's.
+#[derive(Component)]
+pub(crate) struct HoloReticle;
+
+/// Aims the dot down the bore and decides whether the eye can see it.
+///
+/// Both halves fall out of the one fact that makes a holographic sight a
+/// holographic sight: its dot sits at infinity, so it is a *direction*, not a
+/// place on the glass. Aiming it is the same unit throw down the barrel the
+/// scope mark already uses, and world-locked comes free -- the dot tracks
+/// where the barrel points while the weapon sways under it, which is the
+/// whole behaviour being asked for.
+///
+/// Seeing it is simpler still. The ray from the eye to a point at infinity
+/// down the bore runs parallel to the bore, which in the weapon's own frame
+/// is straight down -Z -- so it meets every plane of the window at the eye's
+/// own x and y. The dot is visible exactly while the eye is inside the tube,
+/// which is one rectangle test and no GPU work at all. No stencil mask, no
+/// second camera, no extra pass to pay for on a phone that is already warm.
+///
+/// It is also what the real thing does: a holographic sight has no parallax,
+/// so moving your head does not walk the dot off the target -- it takes the
+/// dot away entirely.
+pub(crate) fn place_holo_reticle(
+    active: Res<ActiveWeapon>,
+    camera: Query<&GlobalTransform, With<FpsCamera>>,
+    aim: Query<&GlobalTransform, With<AimSocket>>,
+    gun: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<HoloReticle>)>,
+    mut reticle: Query<(&mut Transform, &mut Visibility), With<HoloReticle>>,
+) {
+    let Ok((mut dot, mut visibility)) = reticle.single_mut() else { return };
+    let (Some(window), Ok(eye), Ok((gun_local, gun_global))) =
+        (active.def().holo.as_ref(), camera.single(), gun.single())
+    else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+
+    // Where the eye sits in the weapon's own frame. The bore runs down -Z
+    // there, so this is also where the sight line crosses every plane of the
+    // window, and the whole test is whether it lands inside the opening.
+    let in_weapon = gun_global.affine().inverse().transform_point3(eye.translation());
+    let inside = in_weapon.x >= window.min.x
+        && in_weapon.x <= window.max.x
+        && in_weapon.y >= window.min.y
+        && in_weapon.y <= window.max.y;
+    *visibility = if inside { Visibility::Visible } else { Visibility::Hidden };
+    if !inside {
+        return;
+    }
+
+    // The same throw the scope mark takes, and for the same reason: only the
+    // direction survives, since the quad hangs off the eye.
+    let down_the_barrel = match aim.single() {
+        Ok(aim) => gun_local.rotation * aim.reparented_to(gun_global).rotation * Vec3::NEG_Z,
+        Err(_) => gun_local.rotation * Vec3::NEG_Z,
+    };
+    dot.translation = down_the_barrel;
+    dot.rotation = Quat::IDENTITY;
+}
+
 pub(crate) fn place_scope_reticle(
     active: Res<ActiveWeapon>,
     aim: Query<&GlobalTransform, With<AimSocket>>,

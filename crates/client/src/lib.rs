@@ -692,6 +692,12 @@ const SCOPE_RETICLE_DOT_SIZE: f32 = 0.0011;
 // half wide, so it has to stay well inside that or it fills the hole the gap
 // exists to leave.
 const SCOPE_RETICLE_CENTRE_DOT_SIZE: f32 = 0.0013;
+
+/// The holographic dot's radius, in radians subtended -- the quad is hung one
+/// unit down the barrel, so a radius in metres there is an angle. A real 1 MOA
+/// dot is 0.00029rad, which is a pixel and a half and reads as a dead pixel;
+/// this is nearer the 4 MOA most holographic sights actually carry.
+const HOLO_DOT_RADIANS: f32 = 0.0013;
 const SCOPE_RETICLE_DOTS_PER_ARM: usize = 4;
 
 const STATIONARY_SPREAD_MULTIPLIER: f32 = 0.4;
@@ -1219,7 +1225,7 @@ impl Plugin for GamePlugin {
                 update_scope_zoom_slider_visual.run_if(ui_tick()),
                 update_scope_zoom_slider_visibility.run_if(ui_tick()),
                 sync_scope_camera,
-                (place_scope_reticle, swap_scope_reticle),
+                (place_scope_reticle, swap_scope_reticle, place_holo_reticle),
                 (update_scope_lens, apply_scope_lens_distortion, apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
                 update_ammo_ui.run_if(ui_tick()),
                 update_crosshair,
