@@ -286,7 +286,7 @@ static AK47: WeaponDef = WeaponDef {
             recover_speed: 6.6,
         },
         weapon: WeaponKick {
-            slide_back: 0.08,
+            slide_back: 0.14,
             lift: 0.000,
             pitch_deg: 0.5,
             roll_deg: 0.6,
@@ -359,7 +359,7 @@ static M4A1: WeaponDef = WeaponDef {
             recover_speed: 7.4,
         },
         weapon: WeaponKick {
-            slide_back: 0.07,
+            slide_back: 0.12,
             lift: 0.020,
             pitch_deg: 2.4,
             roll_deg: 0.8,

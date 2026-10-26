@@ -1047,10 +1047,23 @@ pub(crate) fn advance_walk_cycle(
     moving: Res<LocalPlayerMoving>,
     sprinting: Res<LocalPlayerSprinting>,
     gun: Query<&Gun>,
+    player: Query<&Player, Without<NetPlayer>>,
     mut cycle: ResMut<WalkCycle>,
 ) {
     let dt = time.delta_secs();
-    let blend_target = if moving.0 { 1.0 } else { 0.0 };
+    // How fast the player is actually going, not whether a key is down.
+    //
+    // Aiming halves the move speed, crouching halves it, prone quarters it,
+    // and a touch stick can be pushed any fraction of the way -- and every
+    // one of those used to swing the weapon as hard as a full-speed walk,
+    // because this was a boolean. Sighted and walking was the worst of them:
+    // half the ground covered for all of the sway.
+    //
+    // Clamped at one rather than left to run: a sprint is faster than
+    // MOVE_SPEED, but its extra amplitude belongs to `gait`, which raises it
+    // without touching the cadence.
+    let speed = player.single().map_or(0.0, |player| player.horizontal_velocity.length());
+    let blend_target = (speed / shared::MOVE_SPEED).clamp(0.0, 1.0);
     cycle.blend += (blend_target - cycle.blend) * (GUN_BOB_BLEND_SPEED * dt).min(1.0);
 
     // A sprint is a different gait, not a louder walk. Raising the amplitude
