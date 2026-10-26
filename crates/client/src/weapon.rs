@@ -535,8 +535,8 @@ static UMP45: WeaponDef = WeaponDef {
     // 0.71m out, so 0.160 puts it 13 degrees off the view axis, while this
     // one is 0.34m out and the same number threw it 26 degrees, half off the
     // right of the screen.
-    rest_offset: Vec3::new(0.090, -0.0450, -0.3375),
-    ready_offset: Vec3::new(0.025, -0.1450, -0.2475),
+    rest_offset: Vec3::new(0.090, -0.0700, -0.3375),
+    ready_offset: Vec3::new(0.025, -0.1700, -0.2475),
     ads_eye_relief: 0.11,
     // Lightest of the five and the shortest: it comes up faster than either
     // carbine and far faster than the bolt gun.
@@ -621,8 +621,8 @@ static DEAGLE: WeaponDef = WeaponDef {
     // on the right shoulder and lives off to that side; a pistol in two hands
     // comes to the middle of the chest and goes out on the arms.
 
-    rest_offset: Vec3::new(0.070, -0.0450, -0.4200),
-    ready_offset: Vec3::new(0.020, -0.1450, -0.3300),
+    rest_offset: Vec3::new(0.095, -0.0450, -0.4200),
+    ready_offset: Vec3::new(0.045, -0.1450, -0.3300),
     // Furthest eye relief of the five: a pistol's rear sight ends up further
     // from the eye than a carbine's, because the arms set the distance rather
     // than the stock.
