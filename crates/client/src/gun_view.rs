@@ -513,6 +513,7 @@ pub(crate) struct GripSockets<'w, 's> {
 pub(crate) struct LocalPlayerState<'w> {
     moving: Res<'w, LocalPlayerMoving>,
     sprinting: Res<'w, LocalPlayerSprinting>,
+    move_axis: Res<'w, LocalPlayerMoveAxis>,
 }
 
 pub(crate) fn gun_view_animation(
@@ -789,6 +790,13 @@ pub(crate) fn gun_view_animation(
         gun.look_sway = (x * f + v * dt + sway_target * hhoo) * det_inv;
         gun.look_sway_velocity = (v + (sway_target - x) * hoo) * det_inv;
 
+        // Hip fire only: in the sights the weapon has to stay level with the
+        // eye, and a canted rifle puts the reticle somewhere the barrel is
+        // not. Faded by ads_blend rather than switched, so bringing the
+        // sights up rolls the weapon level on the way.
+        let strafe_target = local.move_axis.0.x.clamp(-1.0, 1.0) * (1.0 - gun.ads_blend);
+        gun.strafe_roll += (strafe_target - gun.strafe_roll) * (GUN_STRAFE_ROLL_SPEED * dt).min(1.0);
+
         let kick = &active.def().recoil;
         let timings = gun_pose_timings(&gun, active.def(), &cycle);
 
@@ -940,6 +948,11 @@ pub(crate) fn gun_view_animation(
         let sway = Quat::from_rotation_y(gun.look_sway.x.to_radians())
             * Quat::from_rotation_x(gun.look_sway.y.to_radians());
         let inner = settle_tilt
+            // About Z, which is the bore: the weapon points down NEG_Z, so
+            // this is a roll along the barrel rather than a tilt across it.
+            // Negated so the cant goes with the step -- strafing right drops
+            // the weapon's right side, the way a shoulder does.
+            * Quat::from_rotation_z(-GUN_STRAFE_ROLL_DEG.to_radians() * gun.strafe_roll)
             * Quat::from_rotation_z(timings.bob_roll.to_radians())
             * Quat::from_rotation_x(timings.bob_pitch.to_radians())
             * Quat::from_rotation_y(kick.weapon.yaw_deg.to_radians() * gun.recoil_jitter.x * timings.recoil_t)

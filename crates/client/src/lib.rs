@@ -221,6 +221,17 @@ const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// the lag the weapon rolls in exact step with the hips and reads as welded.
 const GUN_BOB_LAG: f32 = 0.35;
 const GUN_BOB_ROLL_DEG: f32 = 1.1;
+/// Degrees the weapon cants towards the side the player is stepping, about
+/// the bore. Not a lean of the body -- the shoulders stay square and the
+/// rifle rolls in the hands, which is what a man does carrying one at the
+/// ready while crossing sideways.
+///
+/// Hip fire only. The sights have to stay level with the eye, and a canted
+/// weapon in ADS puts the reticle somewhere the barrel is not.
+const GUN_STRAFE_ROLL_DEG: f32 = 3.2;
+/// How fast that cant follows the stick. Slower than the step itself, so
+/// changing direction rolls the weapon through level rather than snapping it.
+const GUN_STRAFE_ROLL_SPEED: f32 = 7.0;
 const GUN_BOB_PITCH_DEG: f32 = 0.55;
 /// Cadence and amplitude together, so a sprint is a different gait rather
 /// than a walk with the volume turned up.

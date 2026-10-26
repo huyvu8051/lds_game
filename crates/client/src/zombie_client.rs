@@ -122,6 +122,11 @@ pub(crate) struct Gun {
     /// mark and come back instead of easing onto it.
     pub(crate) look_sway_velocity: Vec2,
 
+    /// How far the weapon is canted towards the side the player is stepping,
+    /// -1 to 1. Smoothed here rather than read straight off the stick, which
+    /// would snap the weapon level the instant the key came up.
+    pub(crate) strafe_roll: f32,
+
     /// Socket_Muzzle in the weapon's own frame, kept here so anything leaving
     /// the barrel can be placed from the current weapon transform without
     /// reaching for the socket entity or carrying a stale world transform.
