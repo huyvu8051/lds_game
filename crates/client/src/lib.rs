@@ -1108,6 +1108,7 @@ impl Plugin for GamePlugin {
                     gyro_buttons,
                     update_gyro_ui,
                     loadout_hud_buttons,
+                    give_weapon_buttons,
                     update_bars,
                     update_weapon_slots,
                     update_item_ui,

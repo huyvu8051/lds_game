@@ -390,6 +390,30 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                 .with_children(|row| {
                     spawn_cheat_toggle_button(row, "Gun", CheatGunButton);
                 });
+                page.spawn((
+                    Text::new("Weapons"),
+                    TextFont {
+                        font_size: FontSize::Px(16.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+                // Every weapon the game has, as a way of getting one into a
+                // slot without waiting for the drop table. Looting is the way
+                // the game hands them out; this is the way the person testing
+                // it does.
+                page.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(6.0),
+                    flex_wrap: FlexWrap::Wrap,
+                    row_gap: Val::Px(4.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    for weapon in WeaponId::ALL {
+                        spawn_cheat_action_button(row, weapon.def().name, GiveWeaponButton(weapon));
+                    }
+                });
 
                 // Shown in every build. These are the only way to reach half the
                 // renderer's settings, and a release build is exactly where
@@ -703,6 +727,25 @@ pub(crate) struct CheatGodModeButton;
 pub(crate) struct CheatFreezeButton;
 #[derive(Component)]
 pub(crate) struct CheatGunButton;
+
+/// Puts a weapon straight into the loadout, displacing whatever the slot
+/// rules say it should.
+#[derive(Component)]
+pub(crate) struct GiveWeaponButton(pub(crate) WeaponId);
+
+pub(crate) fn give_weapon_buttons(
+    mut loadout: ResMut<Loadout>,
+    mut request: ResMut<weapon::WeaponSwitchRequest>,
+    buttons: Query<(&Interaction, &GiveWeaponButton), Changed<Interaction>>,
+) {
+    for (interaction, button) in &buttons {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+        loadout.take(button.0);
+        request.0 = Some(button.0);
+    }
+}
 #[derive(Component)]
 pub(crate) struct CheatMsaaButton;
 

@@ -47,12 +47,23 @@ impl Default for Loadout {
     /// A rifle and a sidearm to start with. Starting empty would be the purer
     /// reading of a looting game and would also leave the player, and the
     /// autopilot, standing in a street with nothing to do.
+    ///
+    /// WEAPON= still names the weapon to begin holding, as it did when the
+    /// number keys chose one directly -- every measurement script passes it.
     fn default() -> Self {
-        Self {
+        let mut loadout = Self {
             primary: [Some(WeaponId::Ak47), None],
             sidearm: Some(WeaponId::Deagle),
             active: Slot::Primary(0),
+        };
+        if let Some(wanted) = std::env::var("WEAPON")
+            .ok()
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .and_then(|n| WeaponId::ALL.get(n.checked_sub(1)?).copied())
+        {
+            loadout.take(wanted);
         }
+        loadout
     }
 }
 
@@ -88,6 +99,10 @@ impl Loadout {
             Slot::Primary(i) => Slot::Primary(i),
             Slot::Sidearm => Slot::Primary(0),
         }
+    }
+
+    pub(crate) fn holds(&self, weapon: WeaponId) -> bool {
+        self.primary.iter().any(|s| *s == Some(weapon)) || self.sidearm == Some(weapon)
     }
 
     /// Takes a weapon in, and hands back whatever had to come out for it.
@@ -384,6 +399,7 @@ pub(crate) fn drop_loot_on_kill(
     mut commands: Commands,
     time: Res<Time>,
     assets: Option<Res<PickupAssets>>,
+    loadout: Option<Res<Loadout>>,
 ) {
     let ShotConfirmed { point, killed, .. } = *trigger.event();
     if !killed {
@@ -394,10 +410,18 @@ pub(crate) fn drop_loot_on_kill(
     let at = Vec3::new(point.x, point.y.max(0.0), point.z);
 
     if roll(seed, 1.0) < WEAPON_DROP_CHANCE {
-        let pool = WeaponId::ALL;
-        let weapon = pool[(roll(seed, 2.0) * pool.len() as f32) as usize % pool.len()];
-        spawn_pickup(&mut commands, &assets, PickupKind::Weapon(weapon), at);
-        return;
+        // Drawn from what the player is not already carrying, so looting
+        // broadens the loadout instead of handing back the rifle in their
+        // hands. If they somehow hold all of them, nothing drops.
+        let pool: Vec<WeaponId> = WeaponId::ALL
+            .into_iter()
+            .filter(|w| !loadout.as_ref().is_some_and(|l| l.holds(*w)))
+            .collect();
+        if !pool.is_empty() {
+            let weapon = pool[(roll(seed, 2.0) * pool.len() as f32) as usize % pool.len()];
+            spawn_pickup(&mut commands, &assets, PickupKind::Weapon(weapon), at);
+            return;
+        }
     }
     if roll(seed, 3.0) < CONSUMABLE_DROP_CHANCE {
         let kinds = ConsumableKind::ALL;
