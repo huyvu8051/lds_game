@@ -54,13 +54,13 @@ final class GyroInput {
         case .landscapeRight:
             // Home edge to the right, so the portrait-right edge points up.
             yaw = -rate.x
-            pitch = -rate.y
+            pitch = rate.y
         case .landscapeLeft:
             yaw = rate.x
-            pitch = rate.y
+            pitch = -rate.y
         default:
             yaw = -rate.y
-            pitch = rate.x
+            pitch = -rate.x
         }
         // Rate times the frame is the angle turned, which is what the Rust
         // side expects: radians since the last sample.

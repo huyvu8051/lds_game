@@ -22,6 +22,15 @@ pub(crate) struct GyroEnabled(pub(crate) bool);
 /// How much of the phone's turn reaches the view. At 1.0 the two match --
 /// turn the phone ten degrees and the view turns ten -- which is the only
 /// value with a meaning of its own; the rest is taste.
+/// Which way round each axis runs. Separate switches because the two are
+/// separate habits: plenty of players want an inverted pitch and an upright
+/// yaw, and nobody wants to be told they come as a pair.
+#[derive(Resource, Default)]
+pub(crate) struct GyroInvert {
+    pub(crate) yaw: bool,
+    pub(crate) pitch: bool,
+}
+
 #[derive(Resource)]
 pub(crate) struct GyroSensitivity(pub(crate) f32);
 impl Default for GyroSensitivity {

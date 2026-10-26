@@ -999,6 +999,7 @@ impl Plugin for GamePlugin {
         .init_resource::<TouchLeanHeld>()
         .init_resource::<SensitivityScale>()
         .init_resource::<GyroEnabled>()
+        .init_resource::<GyroInvert>()
         .init_resource::<GyroSensitivity>()
         .init_resource::<DamageMultiplierUi>()
         .init_resource::<KillCount>()

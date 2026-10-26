@@ -345,9 +345,13 @@ pub(super) fn gyro_moved(app: &mut App, yaw: f32, pitch: f32) {
         return;
     }
     let scale = world.get_resource::<crate::GyroSensitivity>().map_or(1.0, |s| s.0);
+    let flip = |on: bool| if on { -1.0 } else { 1.0 };
+    let (flip_yaw, flip_pitch) = world
+        .get_resource::<crate::GyroInvert>()
+        .map_or((1.0, 1.0), |inv| (flip(inv.yaw), flip(inv.pitch)));
     let gain = scale / crate::MOUSE_SENSITIVITY;
     app.world_mut().write_message(MouseMotion {
-        delta: Vec2::new(yaw * gain, pitch * gain),
+        delta: Vec2::new(yaw * gain * flip_yaw, pitch * gain * flip_pitch),
     });
 }
 

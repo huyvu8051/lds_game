@@ -28,6 +28,8 @@ pub(crate) struct PersistedSettings {
     pub(crate) sensitivity_scale: Option<f32>,
     pub(crate) gyro_enabled: Option<bool>,
     pub(crate) gyro_sensitivity: Option<f32>,
+    pub(crate) gyro_invert_yaw: Option<bool>,
+    pub(crate) gyro_invert_pitch: Option<bool>,
     pub(crate) damage_multiplier: Option<f32>,
     pub(crate) noclip: Option<bool>,
     pub(crate) god_mode: Option<bool>,
@@ -157,6 +159,18 @@ fn apply_settings_to_world(world: &mut World, settings: &PersistedSettings) {
     apply!(sensitivity_scale, SensitivityScale);
     apply!(gyro_enabled, GyroEnabled);
     apply!(gyro_sensitivity, GyroSensitivity);
+    // GyroInvert is two flags in one resource, so the newtype macro above
+    // does not fit it.
+    if settings.gyro_invert_yaw.is_some() || settings.gyro_invert_pitch.is_some() {
+        if let Some(mut invert) = world.get_resource_mut::<GyroInvert>() {
+            if let Some(on) = settings.gyro_invert_yaw {
+                invert.yaw = on;
+            }
+            if let Some(on) = settings.gyro_invert_pitch {
+                invert.pitch = on;
+            }
+        }
+    }
     apply!(damage_multiplier, DamageMultiplierUi);
     apply!(noclip, Noclip);
     apply!(god_mode, GodMode);
@@ -223,6 +237,7 @@ pub(crate) fn persist_settings_on_change(world: &mut World) {
         || changed!(ScreenEffectsEnabled)
         || changed!(FogEnabled)
         || changed!(GyroEnabled)
+        || changed!(GyroInvert)
         || changed!(GyroSensitivity)
         || changed!(BulletHolesEnabled)
         || changed!(BloodEnabled)
@@ -284,6 +299,8 @@ fn read_settings_from_world(world: &World) -> PersistedSettings {
         sensitivity_scale: world.get_resource::<SensitivityScale>().map(|r| r.0),
         gyro_enabled: world.get_resource::<GyroEnabled>().map(|r| r.0),
         gyro_sensitivity: world.get_resource::<GyroSensitivity>().map(|r| r.0),
+        gyro_invert_yaw: world.get_resource::<GyroInvert>().map(|r| r.yaw),
+        gyro_invert_pitch: world.get_resource::<GyroInvert>().map(|r| r.pitch),
         damage_multiplier: world.get_resource::<DamageMultiplierUi>().map(|r| r.0),
         noclip: world.get_resource::<Noclip>().map(|r| r.0),
         god_mode: world.get_resource::<GodMode>().map(|r| r.0),

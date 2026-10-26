@@ -677,7 +677,7 @@ pub(crate) fn touch_look(
     }
 
     let sensitivity = MOUSE_SENSITIVITY * TOUCH_LOOK_SENSITIVITY_MULTIPLIER * sensitivity_scale.0;
-    look_delta.0 = delta * sensitivity;
+    look_delta.0 += delta * sensitivity;
     for mut cam in &mut query {
         cam.yaw -= delta.x * sensitivity;
         cam.pitch = (cam.pitch - delta.y * sensitivity).clamp(-PITCH_CLAMP, PITCH_CLAMP);

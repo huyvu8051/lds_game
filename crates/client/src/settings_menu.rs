@@ -566,6 +566,8 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                         GyroSensitivityText,
                     ));
                     spawn_cheat_action_button(row, "+", GyroSensitivityIncButton);
+                    spawn_cheat_toggle_button(row, "Inv X", GyroInvertYawButton);
+                    spawn_cheat_toggle_button(row, "Inv Y", GyroInvertPitchButton);
                 });
                 page.spawn((
                     Text::new("Damage"),
@@ -1256,18 +1258,31 @@ pub(crate) struct GyroSensitivityDecButton;
 pub(crate) struct GyroSensitivityIncButton;
 #[derive(Component)]
 pub(crate) struct GyroSensitivityText;
+#[derive(Component)]
+pub(crate) struct GyroInvertYawButton;
+#[derive(Component)]
+pub(crate) struct GyroInvertPitchButton;
 
 /// The switch and its scale together: there is nothing to turn down on a
 /// sensor that is not running, so the two always want reading as one row.
 pub(crate) fn gyro_buttons(
     mut enabled: ResMut<GyroEnabled>,
     mut scale: ResMut<GyroSensitivity>,
+    mut invert: ResMut<GyroInvert>,
     on_btn: Query<&Interaction, (With<CheatGyroButton>, Changed<Interaction>)>,
     dec_btn: Query<&Interaction, (With<GyroSensitivityDecButton>, Changed<Interaction>)>,
     inc_btn: Query<&Interaction, (With<GyroSensitivityIncButton>, Changed<Interaction>)>,
+    yaw_btn: Query<&Interaction, (With<GyroInvertYawButton>, Changed<Interaction>)>,
+    pitch_btn: Query<&Interaction, (With<GyroInvertPitchButton>, Changed<Interaction>)>,
 ) {
     if tapped(&on_btn) {
         enabled.0 = !enabled.0;
+    }
+    if tapped(&yaw_btn) {
+        invert.yaw = !invert.yaw;
+    }
+    if tapped(&pitch_btn) {
+        invert.pitch = !invert.pitch;
     }
     if tapped(&dec_btn) {
         scale.0 = (scale.0 - GYRO_SENSITIVITY_STEP).max(GYRO_SENSITIVITY_MIN);
@@ -1280,23 +1295,37 @@ pub(crate) fn gyro_buttons(
 pub(crate) fn update_gyro_ui(
     enabled: Res<GyroEnabled>,
     scale: Res<GyroSensitivity>,
+    invert: Res<GyroInvert>,
     mut text: Query<&mut Text, With<GyroSensitivityText>>,
-    mut button: Query<&mut BackgroundColor, With<CheatGyroButton>>,
+    mut buttons: Query<
+        (&mut BackgroundColor, Option<&CheatGyroButton>, Option<&GyroInvertYawButton>),
+        Or<(With<CheatGyroButton>, With<GyroInvertYawButton>, With<GyroInvertPitchButton>)>,
+    >,
 ) {
     if scale.is_changed() {
         for mut text in &mut text {
             text.0 = format!("{:.2}x", scale.0);
         }
     }
-    if enabled.is_changed() {
-        let colour = if enabled.0 {
+    if !enabled.is_changed() && !invert.is_changed() {
+        return;
+    }
+    let colour = |on: bool| {
+        if on {
             Color::srgba(0.3, 1.0, 0.4, 0.5)
         } else {
             Color::srgba(1.0, 1.0, 1.0, 0.2)
-        };
-        for mut bg in &mut button {
-            *bg = BackgroundColor(colour);
         }
+    };
+    for (mut bg, is_on, is_yaw) in &mut buttons {
+        let on = if is_on.is_some() {
+            enabled.0
+        } else if is_yaw.is_some() {
+            invert.yaw
+        } else {
+            invert.pitch
+        };
+        *bg = BackgroundColor(colour(on));
     }
 }
 

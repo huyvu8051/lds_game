@@ -290,12 +290,6 @@ pub(crate) fn mouse_look(
     }
 
     let delta: Vec2 = motion.read().map(|e| e.delta).sum();
-    // Ahead of the write, not behind it. A still frame used to publish a zero
-    // over whatever touch_look had just put there, and since the two cannot
-    // run at once one of them always lost -- on iOS, where there is never any
-    // mouse motion, that was the touch delta every frame and the weapon never
-    // swayed. Clearing is gun_view_animation's job now; this only speaks when
-    // it has something to say.
     if delta == Vec2::ZERO {
         return;
     }
@@ -306,7 +300,12 @@ pub(crate) fn mouse_look(
     } * sensitivity_scale.0;
     // Radians the view turned, not pixels the mouse moved: sway is measured
     // against the turn, so it follows the aim multiplier and the zoom.
-    look_delta.0 = delta * sensitivity;
+    //
+    // Added, not assigned. There can be more than one thing turning the view
+    // in a frame -- a thumb on the screen and a phone being tilted are both
+    // real at once -- and whichever wrote second used to erase the other.
+    // gun_view_animation takes the sum and leaves zero behind.
+    look_delta.0 += delta * sensitivity;
 
     for mut cam in &mut query {
         cam.yaw -= delta.x * sensitivity;
