@@ -683,15 +683,20 @@ pub(crate) fn gun_view_animation(
         // to swap. Releasing the lean settles back to ready.
         // A wall *beside* the player, not the one in front. The one in front
         // has something to raise the muzzle over and keeps doing it; a wall
-        // at the shoulder has nowhere to hold the weapon out, so after a
-        // moment it comes in to the ready. Timed, so a doorway crossed at
-        // pace does not trip it.
-        if wall_side >= WALL_SIDE_PROXIMITY {
-            gun.wall_hold += dt;
+        // at the shoulder has nowhere to hold the weapon out, so it comes in
+        // to the ready.
+        //
+        // No timer: `ready_blend` below chases this at GUN_READY_SPEED, so
+        // the weapon still swings in over a few frames rather than snapping,
+        // and a held-down counter would only delay a move that is already
+        // eased. What it does need is somewhere to leave from that is not
+        // where it arrived, or standing on the boundary chatters.
+        gun.wall_near = if gun.wall_near {
+            wall_side >= WALL_SIDE_PROXIMITY - WALL_SIDE_HYSTERESIS
         } else {
-            gun.wall_hold = 0.0;
-        }
-        let wall_ready = gun.wall_hold >= WALL_READY_DELAY;
+            wall_side >= WALL_SIDE_PROXIMITY
+        };
+        let wall_ready = gun.wall_near;
 
         let ready_target =
             if (gun.ready_armed || wall_ready) && !aiming && !leaning { 1.0 } else { 0.0 };

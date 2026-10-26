@@ -79,11 +79,10 @@ pub(crate) struct Gun {
     pub(crate) ads_settle_error: f32,
 
     pub(crate) wall_raise: f32,
-    /// Seconds spent with a wall close on one side without a break. Drives
-    /// the weapon to the ready on its own: there is no room out there to hold
-    /// it, and unlike a wall in front there is nothing to raise the muzzle
-    /// over.
-    pub(crate) wall_hold: f32,
+    /// Whether a wall is close enough on one side to bring the weapon in.
+    /// Latched, so the distance it leaves at is further than the one it
+    /// entered at and a player on the boundary is not flipped back and forth.
+    pub(crate) wall_near: bool,
 
     pub(crate) shoulder_blend: f32,
 

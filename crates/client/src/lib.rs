@@ -344,15 +344,18 @@ const WALL_GUN_RAISE_SPEED: f32 = 10.0;
 /// constant an 83ms sample interval never shows.
 const WALL_PROBE_INTERVAL: f32 = 1.0 / 12.0;
 /// How far the two side probes look.
-const WALL_SIDE_DISTANCE: f32 = 2.4;
+const WALL_SIDE_DISTANCE: f32 = 1.2;
 /// Close enough beside the player to count, as a share of the above -- 0.3 of
-/// 2.4m is anything inside 1.7m. Started at 70cm, which wanted the player's
-/// shoulder on the brickwork; this is near enough that the weapon has nowhere
-/// to swing on that side, which is the thing being detected.
+/// 1.2m is anything inside 85cm. Near enough that the weapon has nowhere to
+/// swing on that side, which is the thing being detected.
 const WALL_SIDE_PROXIMITY: f32 = 0.3;
-/// How long to stay there before the weapon comes to the ready on its own.
-/// A doorway crossed at pace is under this; standing in a corner is not.
-const WALL_READY_DELAY: f32 = 1.0;
+/// How much further the wall has to fall away before the weapon goes back
+/// out, as the same share -- 0.08 of 1.2m is about 10cm of slack.
+///
+/// Without it a player standing on the boundary flips the pose every time the
+/// probe twitches, which is the same thing AUTOPILOT_ADS_DISTANCE_MARGIN is
+/// for: a bare comparison chatters on anything sitting exactly on it.
+const WALL_SIDE_HYSTERESIS: f32 = 0.08;
 
 
 /// The weapon rises to reload rather than dropping out of the way, so the
