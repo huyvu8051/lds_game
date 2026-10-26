@@ -497,7 +497,10 @@ pub(crate) fn gun_view_animation(
         } else {
             wall_side >= WALL_SIDE_PROXIMITY
         };
-        let wall_ready = gun.wall_near;
+        // Not while sprinting: the run already has the weapon carried across
+        // the body, and a wall it happens to pass would otherwise pull it back
+        // to the ready and fight that pose the length of the alley.
+        let wall_ready = gun.wall_near && !local.sprinting.0;
 
         let ready_target =
             if (gun.ready_armed || wall_ready) && !aiming && !leaning { 1.0 } else { 0.0 };
