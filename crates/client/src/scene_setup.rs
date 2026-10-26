@@ -2,7 +2,6 @@
 use bevy::animation::graph::AnimationGraph;
 use bevy::prelude::*;
 use bevy::render::view::Msaa;
-use bevy::mesh::{Indices, PrimitiveTopology};
 use crate::*;
 
 #[derive(Resource)]
@@ -13,8 +12,8 @@ pub(crate) fn setup_common(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    _graphs: ResMut<Assets<AnimationGraph>>,
     mut images: ResMut<Assets<Image>>,
+    _graphs: ResMut<Assets<AnimationGraph>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     player_model_tuning: Res<PlayerModelTuning>,
     render_resolution_scale: Res<RenderResolutionScale>,
@@ -179,7 +178,6 @@ pub(crate) fn setup_common(
     });
 
     commands.insert_resource(load_zombie_anim_gltfs(&asset_server, &player_model_tuning));
-    commands.insert_resource(ScopeZoom(WeaponId::default().def().scope.default_zoom));
     commands.insert_resource(GameOver(false));
     // Everything now goes through the loading gate; it remembers where it was
     // headed.
@@ -195,72 +193,14 @@ fn review_yaw_pitch() -> (f32, f32) {
     (0.0, 0.0)
 }
 
-fn push_bar(positions: &mut Vec<[f32; 3]>, indices: &mut Vec<u32>, cx: f32, cy: f32, hw: f32, hh: f32) {
-    let base = positions.len() as u32;
-    positions.extend_from_slice(&[
-        [cx - hw, cy - hh, 0.0],
-        [cx + hw, cy - hh, 0.0],
-        [cx + hw, cy + hh, 0.0],
-        [cx - hw, cy + hh, 0.0],
-    ]);
-    indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
-}
 
-/// A duplex crosshair: thick posts from the edge that taper to fine lines,
-/// mil-dots along the fine section, and a gap at dead centre.
-///
-/// Built in radians at unit distance, like everything else the scope draws, so
-/// the constants read as what the player sees through the glass. Flat quads
-/// rather than lines: line primitives are one pixel wide whatever the
-/// magnification, which makes the posts vanish as the scope zooms in.
-fn duplex_reticle_mesh() -> Mesh {
-    let mut positions: Vec<[f32; 3]> = Vec::new();
-    let mut indices: Vec<u32> = Vec::new();
-
-    let reach = SCOPE_RETICLE_REACH;
-    let taper = reach * SCOPE_RETICLE_TAPER;
-    let gap = reach * SCOPE_RETICLE_CENTRE_GAP;
-    let post = SCOPE_RETICLE_POST_WIDTH / 2.0;
-    let line = SCOPE_RETICLE_LINE_WIDTH / 2.0;
-    let dot = SCOPE_RETICLE_DOT_SIZE / 2.0;
-
-    for side in [-1.0f32, 1.0] {
-        let post_mid = side * (taper + reach) / 2.0;
-        let post_half = (reach - taper) / 2.0;
-        let line_mid = side * (gap + taper) / 2.0;
-        let line_half = (taper - gap) / 2.0;
-
-        push_bar(&mut positions, &mut indices, post_mid, 0.0, post_half, post);
-        push_bar(&mut positions, &mut indices, 0.0, post_mid, post, post_half);
-        push_bar(&mut positions, &mut indices, line_mid, 0.0, line_half, line);
-        push_bar(&mut positions, &mut indices, 0.0, line_mid, line, line_half);
-
-        // Spaced along the fine section only, as on the real glass: dots out
-        // on the thick posts would be swallowed by them.
-        let step = (taper - gap) / (SCOPE_RETICLE_DOTS_PER_ARM + 1) as f32;
-        for i in 1..=SCOPE_RETICLE_DOTS_PER_ARM {
-            let at = side * (gap + step * i as f32);
-            push_bar(&mut positions, &mut indices, at, 0.0, dot, dot);
-            push_bar(&mut positions, &mut indices, 0.0, at, dot, dot);
-        }
-    }
-
-    let count = positions.len();
-    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default())
-        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; count])
-        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0.0, 0.0]; count])
-        .with_inserted_indices(Indices::U32(indices))
-}
 
 pub(crate) fn setup_gameplay(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
     mut overlay_materials: ResMut<Assets<DamageOverlayMaterial>>,
-    mut scope_lens_materials: ResMut<Assets<ScopeLensMaterial>>,
     touch_enabled: Res<TouchControlsEnabled>,
     scene_target: Option<Res<SceneRenderTarget>>,
     mut pending: ResMut<MapSelectionPending>,
@@ -393,67 +333,9 @@ pub(crate) fn setup_gameplay(
         .id();
     spawn_gun_mesh_parts(&mut commands, &asset_server, &mut materials, gun_entity, active.def().mesh_path);
 
-    let scope_size = Extent3d {
-        width: SCOPE_TEXTURE_SIZE,
-        height: SCOPE_TEXTURE_SIZE,
-        ..default()
-    };
-    let mut scope_image = Image::new_fill(
-        scope_size,
-        TextureDimension::D2,
-        &[0, 0, 0, 255],
-        TextureFormat::Bgra8UnormSrgb,
-        RenderAssetUsages::default(),
-    );
-    scope_image.texture_descriptor.usage =
-        TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
-    let scope_image_handle = images.add(scope_image);
-
-    let scope_camera = commands
-        .spawn((
-            Name::new("ScopeCamera (renders the picture the eyepiece shows)"),
-            Camera3d::default(),
-            Camera {
-                order: -1,
-                is_active: false,
-                ..default()
-            },
-            RenderTarget::from(scope_image_handle.clone()),
-            Projection::Perspective(PerspectiveProjection {
-                fov: SCOPE_BASE_FOV / SCOPE_DEFAULT_ZOOM,
-                ..default()
-            }),
-            Transform::from_translation(player_spawn + Vec3::Y * EYE_HEIGHT_OFFSET),
-            AmbientLight {
-                color: Color::WHITE,
-                brightness: ambient_brightness(),
-                ..default()
-            },
-            Msaa::Off,
-            // Soft particles sample the depth prepass. Without it the scope
-            // view specialises muzzle_smoke.wgsl with no prepass_depth in
-            // scope and the shader fails to build for this camera.
-            bevy::core_pipeline::prepass::DepthPrepass,
-            RenderLayers::from_layers(&[WORLD_LAYER, SCOPE_RETICLE_LAYER]),
-            NoShadowPass,
-            // No Bloom here, unlike the main camera: a glow drawn into a 512px
-            // disc at twelve times magnification, where almost nothing bright
-            // enough to bloom is left in frame.
-            //
-            // The scope view costs 2.25ms, and 1.77ms of that is there even
-            // when it draws no world at all -- it is the price of a second
-            // view, not of what the view contains. Resolution barely touches
-            // it: 512px to 128px is worth 0.19ms, and a map with thirty times
-            // fewer primitives is worth nothing measurable. Only NoShadowPass
-            // moved it, by 1.47ms.
-            ScopeCamera,
-        ))
-        .id();
-
-    // A sight's mark is a virtual image laid over the view, not an object out
-    // in the field, so nothing in front of it hides it. cull_mode is off
-    // because the mark is turned to face down the barrel, and which way that
-    // leaves it facing depends on how the socket was authored in Blender.
+    // Unlit and biased forward, so the dot stays a mark on the world rather
+    // than a lit object standing in it, and nothing the weapon carries can
+    // land in front of it.
     let mark_material = |colour: Color| StandardMaterial {
         base_color: colour,
         unlit: true,
@@ -461,44 +343,6 @@ pub(crate) fn setup_gameplay(
         cull_mode: None,
         ..default()
     };
-    let reticles = ReticleAssets {
-        chevron: (
-            meshes.add(
-                Triangle2d::new(
-                    Vec2::ZERO,
-                    Vec2::new(-SCOPE_CHEVRON_WIDTH / 2.0, -SCOPE_CHEVRON_HEIGHT / 2.0),
-                    Vec2::new(SCOPE_CHEVRON_WIDTH / 2.0, -SCOPE_CHEVRON_HEIGHT / 2.0),
-                )
-                .mesh(),
-            ),
-            materials.add(mark_material(Color::linear_rgb(35.0, 0.0, 0.0))),
-        ),
-        duplex: (
-            meshes.add(duplex_reticle_mesh()),
-            materials.add(mark_material(Color::BLACK)),
-        ),
-    };
-
-    commands.spawn((
-        Name::new("ReloadHandTarget"),
-        Transform::default(),
-        ReloadHandTarget,
-        ChildOf(camera),
-    ));
-
-    let reticle = commands
-        .spawn((
-            Mesh3d(reticles.chevron.0.clone()),
-            MeshMaterial3d(reticles.chevron.1.clone()),
-            // Hung off the camera, but aimed down the barrel each frame. Parenting
-            // here guarantees it is in front of the lens and facing it; the
-            // direction is what carries the weapon.
-            Transform::default(),
-            RenderLayers::layer(SCOPE_RETICLE_LAYER),
-            ScopeReticle,
-            ChildOf(scope_camera),
-        ))
-        .id();
     // The holographic dot, on the main view rather than the scope's. A 1x
     // sight has nothing to magnify, so it earns neither a second camera nor a
     // render target -- it is one quad hung off the eye and aimed down the
@@ -511,31 +355,6 @@ pub(crate) fn setup_gameplay(
         Visibility::Hidden,
         RenderLayers::layer(VIEWMODEL_LAYER),
         HoloReticle,
-        ChildOf(camera),
-    ));
-
-    commands.insert_resource(reticles);
-
-    // A child of the mark, so it is carried down the barrel and scaled with it
-    // and only its own colour has to be said here. Render layers do not
-    // propagate, so it names its own. Hidden until a weapon that wants it.
-    commands.spawn((
-        Mesh3d(meshes.add(Circle::new(SCOPE_RETICLE_CENTRE_DOT_SIZE / 2.0).mesh())),
-        MeshMaterial3d(materials.add(mark_material(Color::linear_rgb(35.0, 0.0, 0.0)))),
-        Transform::default(),
-        Visibility::Hidden,
-        RenderLayers::layer(SCOPE_RETICLE_LAYER),
-        ScopeReticleCentreDot,
-        ChildOf(reticle),
-    ));
-
-    commands.spawn((
-        Mesh3d(meshes.add(Circle::new(1.0))),
-        MeshMaterial3d(scope_lens_materials.add(scope_lens_material(scope_image_handle))),
-        Transform::default(),
-        Visibility::Hidden,
-        RenderLayers::layer(VIEWMODEL_LAYER),
-        ScopeScreen,
         ChildOf(camera),
     ));
 

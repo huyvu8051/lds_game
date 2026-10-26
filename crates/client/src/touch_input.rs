@@ -11,10 +11,6 @@ pub(crate) struct TouchJoystickBase;
 #[derive(Component)]
 pub(crate) struct TouchJoystickKnob;
 #[derive(Component)]
-pub(crate) struct TouchScopeZoomSliderTrack;
-#[derive(Component)]
-pub(crate) struct TouchScopeZoomSliderHandle;
-#[derive(Component)]
 pub(crate) struct TouchFireButton;
 
 /// Cycles the weapon. The desktop has 1/2/3 for this and a phone has no
@@ -67,10 +63,6 @@ pub(crate) struct TouchLookState {
     last_pos: Vec2,
 }
 
-#[derive(Resource, Default)]
-pub(crate) struct TouchScopeZoomState {
-    touch_id: Option<u64>,
-}
 
 #[derive(Resource, Default)]
 pub(crate) struct TouchFiring(pub(crate) bool);
@@ -442,41 +434,6 @@ pub(crate) fn spawn_touch_controls(commands: &mut Commands) {
         Color::srgba(0.9, 0.9, 0.95, 0.4),
         TouchWeaponButton,
     );
-
-    commands
-        .spawn((
-            Node {
-                width: Val::Px(TOUCH_SCOPE_ZOOM_TRACK_WIDTH_PX),
-                height: Val::Px(TOUCH_SCOPE_ZOOM_TRACK_HEIGHT_PX),
-                position_type: PositionType::Absolute,
-                right: Val::Px(24.0),
-                bottom: Val::Px(48.0 + TOUCH_FIRE_BUTTON_PX + 48.0),
-                border: UiRect::all(Val::Px(2.0)),
-                border_radius: BorderRadius::all(Val::Px(TOUCH_SCOPE_ZOOM_TRACK_WIDTH_PX / 2.0)),
-                display: Display::None,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.3)),
-            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.6)),
-            GlobalZIndex(STATIC_UI_Z_INDEX),
-            TouchScopeZoomSliderTrack,
-            NativeUiRoot,
-        ))
-        .with_children(|track| {
-            track.spawn((
-                Node {
-                    width: Val::Px(TOUCH_SCOPE_ZOOM_HANDLE_PX),
-                    height: Val::Px(TOUCH_SCOPE_ZOOM_HANDLE_PX),
-                    position_type: PositionType::Absolute,
-                    left: Val::Px((TOUCH_SCOPE_ZOOM_TRACK_WIDTH_PX - TOUCH_SCOPE_ZOOM_HANDLE_PX) / 2.0),
-                    top: Val::Px(0.0),
-                    border_radius: BorderRadius::all(Val::Px(TOUCH_SCOPE_ZOOM_HANDLE_PX / 2.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.55)),
-                TouchScopeZoomSliderHandle,
-            ));
-        });
 }
 
 pub(crate) fn spawn_touch_round_button(commands: &mut Commands, label: &'static str, left_px: f32, bottom_px: f32, size_px: f32, color: Color, marker: impl Component) {
@@ -574,13 +531,6 @@ fn touch_over_node<F: bevy::ecs::query::QueryFilter>(pos_physical: Vec2, query: 
     query.single().is_ok_and(|(node, transform)| node.contains_point(*transform, pos_physical))
 }
 
-pub(crate) fn touch_over_scope_zoom_slider(
-    pos_physical: Vec2,
-    touch_aiming: bool,
-    track: &Query<(&ComputedNode, &UiGlobalTransform), With<TouchScopeZoomSliderTrack>>,
-) -> bool {
-    touch_aiming && touch_over_node(pos_physical, track)
-}
 
 pub(crate) fn touch_over_settings_menu(
     pos_physical: Vec2,
@@ -671,72 +621,11 @@ pub(crate) fn update_joystick_knob_visual(state: Res<TouchMoveState>, touches: R
     node.top = Val::Px(center + offset.y);
 }
 
-pub(crate) fn touch_scope_zoom_drag(
-    active: Res<ActiveWeapon>,
-    touches: Res<Touches>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    mouse_ui_locked: Res<MouseUiLocked>,
-    touch_aiming: Res<TouchAiming>,
-    autopilot: Res<Autopilot>,
-    track: Query<(&ComputedNode, &UiGlobalTransform), With<TouchScopeZoomSliderTrack>>,
-    mut state: ResMut<TouchScopeZoomState>,
-    mut zoom: ResMut<ScopeZoom>,
-) {
 
-    if !touch_aiming.0 || autopilot.0 || mouse_ui_locked.0 {
-        state.touch_id = None;
-        return;
-    }
-    let (Ok(window), Ok((node, transform))) = (windows.single(), track.single()) else {
-        return;
-    };
-    let scale_factor = window.scale_factor();
-
-    if let Some(id) = state.touch_id {
-        if touches.get_pressed(id).is_none() {
-            state.touch_id = None;
-        }
-    }
-    if state.touch_id.is_none() {
-        if let Some(touch) = touches
-            .iter_just_pressed()
-            .find(|touch| node.contains_point(*transform, touch.position() * scale_factor))
-        {
-            state.touch_id = Some(touch.id());
-        }
-    }
-    let Some(touch) = state.touch_id.and_then(|id| touches.get_pressed(id)) else {
-        return;
-    };
-
-    let logical_height = node.size().y * node.inverse_scale_factor();
-    let logical_top = transform.affine().translation.y * node.inverse_scale_factor() - logical_height / 2.0;
-    let t = ((touch.position().y - logical_top) / logical_height).clamp(0.0, 1.0);
-
-    let scope = &active.def().scope;
-    zoom.0 = scope.max_zoom + (scope.min_zoom - scope.max_zoom) * t;
-}
-
-pub(crate) fn update_scope_zoom_slider_visual(
-    active: Res<ActiveWeapon>,
-    zoom: Res<ScopeZoom>,
-    mut handle: Query<&mut Node, With<TouchScopeZoomSliderHandle>>,
-) {
-    let Ok(mut node) = handle.single_mut() else {
-        return;
-    };
-    let scope = &active.def().scope;
-    let t = ((zoom.0 - scope.min_zoom) / (scope.max_zoom - scope.min_zoom).max(f32::EPSILON)).clamp(0.0, 1.0);
-
-    let travel = TOUCH_SCOPE_ZOOM_TRACK_HEIGHT_PX - TOUCH_SCOPE_ZOOM_HANDLE_PX;
-    node.top = Val::Px(travel * (1.0 - t));
-}
 
 pub(crate) fn touch_look(
     touches: Res<Touches>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    touch_aiming: Res<TouchAiming>,
-    zoom_slider_track: Query<(&ComputedNode, &UiGlobalTransform), With<TouchScopeZoomSliderTrack>>,
     mouse_ui_locked: Res<MouseUiLocked>,
     settings_visible: Res<SettingsMenuVisible>,
     settings_menu: Query<(&ComputedNode, &UiGlobalTransform), With<SettingsMenuRoot>>,
@@ -771,7 +660,6 @@ pub(crate) fn touch_look(
         if let Some(touch) = touches.iter_just_pressed().find(|touch| {
             let pos_physical = touch.position() * scale_factor;
             touch.position().x >= half_width
-                && !touch_over_scope_zoom_slider(pos_physical, touch_aiming.0, &zoom_slider_track)
                 && !touch_over_settings_menu(pos_physical, &settings_visible, &settings_menu)
         }) {
             state.touch_id = Some(touch.id());

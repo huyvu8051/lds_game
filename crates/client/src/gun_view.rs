@@ -2,115 +2,17 @@ use bevy::prelude::*;
 
 use crate::*;
 
-#[derive(Resource)]
-pub(crate) struct ScopeCameraEnabled(pub(crate) bool);
-impl Default for ScopeCameraEnabled {
-    /// `SCOPE_CAMERA=0` starts with the optic camera off, which is the only
-    /// way to reach the fallback dot without a mouse: the setting is saved,
-    /// and a screenshot cannot press its button.
-    fn default() -> Self {
-        Self(std::env::var("SCOPE_CAMERA").map(|v| v != "0").unwrap_or(true))
-    }
-}
 
-#[derive(Component)]
-pub(crate) struct ScopeCamera;
 
-#[derive(Component)]
-pub(crate) struct ScopeScreen;
 
-#[derive(Component)]
-pub(crate) struct ScopeReticle;
 
-/// The red bead at the duplex centre. Its own entity because a mesh carries
-/// one material; a child of the reticle, so throw and scaling come for free.
-#[derive(Component)]
-pub(crate) struct ScopeReticleCentreDot;
 
 /// One mark per kind of glass, built once and swapped on the single reticle
 /// entity rather than respawned, so nothing has to be rewired on a weapon
 /// change.
-#[derive(Resource)]
-pub(crate) struct ReticleAssets {
-    pub(crate) chevron: (Handle<Mesh>, Handle<StandardMaterial>),
-    pub(crate) duplex: (Handle<Mesh>, Handle<StandardMaterial>),
-}
 
-/// Hands the sighted weapon its own mark.
-pub(crate) fn swap_scope_reticle(
-    active: Res<ActiveWeapon>,
-    // Built in setup_gameplay, whose insert_resource only lands at the next
-    // sync point, so this runs at least one frame before it exists.
-    assets: Option<Res<ReticleAssets>>,
-    // Without the exclusion this and centre_dot both take &mut Visibility and
-    // Bevy refuses the system outright -- B0001, at startup, before a frame.
-    mut reticle: Query<
-        (&mut Mesh3d, &mut MeshMaterial3d<StandardMaterial>, &mut Visibility),
-        (With<ScopeReticle>, Without<ScopeReticleCentreDot>),
-    >,
-    mut centre_dot: Query<
-        (&mut Visibility, &mut Transform),
-        (With<ScopeReticleCentreDot>, Without<ScopeReticle>),
-    >,
-    mut shown: Local<Option<WeaponId>>,
-) {
-    let Some(assets) = assets else { return };
-    if *shown == Some(active.0) {
-        return;
-    }
-    let Ok((mut mesh, mut material, mut reticle_visibility)) = reticle.single_mut() else {
-        return;
-    };
-    // The AK wears a red dot: the centre dot alone, with the duplex bars
-    // hidden. The M24 keeps the duplex, whose gap the dot fills. Anything
-    // sighted without glass gets the chevron, though update_scope_lens has
-    // already stopped it before this matters.
-    // The AK's dot carries the sight by itself, where the M24's only fills the
-    // gap the duplex bars already point at, so it is drawn larger.
-    let (bars, dot) = match active.0 {
-        WeaponId::M24 => (Some(&assets.duplex), Some(1.0)),
-        WeaponId::Ak47 => (None, Some(2.5)),
-        _ => (Some(&assets.chevron), None),
-    };
-    // Hiding the bars does not hide the dot: Visibility::Visible on a child
-    // wins over a hidden parent, which is what the dot is already set to.
-    *reticle_visibility = if bars.is_some() { Visibility::Visible } else { Visibility::Hidden };
-    if let Ok((mut visibility, mut transform)) = centre_dot.single_mut() {
-        *visibility = if dot.is_some() { Visibility::Visible } else { Visibility::Hidden };
-        transform.scale = Vec3::splat(dot.unwrap_or(1.0));
-    }
-    let Some((next_mesh, next_material)) = bars else {
-        *shown = Some(active.0);
-        return;
-    };
-    mesh.0 = next_mesh.clone();
-    material.0 = next_material.clone();
-    *shown = Some(active.0);
-}
 
-/// The two ends of the glass, named for the parts they are rather than for
-/// what the engine does with them -- the objective is the front lens where
-/// light enters, the eyepiece the rear one the eye looks into. The old names
-/// said ScopeCamera and ScopeView, and the first of those stopped being true
-/// the day the scope camera moved to the eye.
-///
-/// The picture is drawn at the eyepiece but set a little down the tube from
-/// the glass, so the glass draws over it and the view reads as recessed.
-///
-/// Carrying that depth in the asset rather than in a constant here is the point
-/// — it is a property of one scope's glass and tube, not of every weapon.
-///
-/// Both sockets' scale is the lens radius, so a unit circle under one is the
-/// right width. A camera must take the position and the turn but never that
-/// scale, or it would scale the whole world it renders.
-///
-/// Riding these means recoil, sway, bob and the shoulder swap come for free and
-/// cannot drift out of step with the mesh.
-#[derive(Component)]
-pub(crate) struct ObjectiveSocket;
 
-#[derive(Component)]
-pub(crate) struct EyepieceSocket;
 
 /// Pins the sights up so the scope can be looked at without waiting for the
 /// autopilot to pick a target far enough away to want them.
@@ -160,36 +62,6 @@ pub(crate) fn track_muzzle_socket(
     }
 }
 
-/// Reads the scope's optical axis off the two points the mesh marks along the
-/// tube, and caches the turn that brings it onto the camera's.
-///
-/// Sighting only ever slid the weapon until Socket_Aim sat on the camera axis
-/// and then assumed the glass was looking straight down the mesh. Nothing
-/// checked it, so a scope mounted with any cant would have aimed off and no
-/// weapon could have said so. Two marked points are enough to know instead of
-/// assume — 304mm apart on the M24, which is plenty of baseline.
-///
-/// Neither point moves inside the weapon, so this runs off the propagated
-/// transforms and the result is exact rather than a frame late.
-pub(crate) fn track_optical_axis(
-    glass: Query<&GlobalTransform, With<ObjectiveSocket>>,
-    post: Query<&GlobalTransform, With<FrontSightSocket>>,
-    aim: Query<&GlobalTransform, (With<AimSocket>, Without<ObjectiveSocket>, Without<FrontSightSocket>)>,
-    mut gun: Query<(&GlobalTransform, &mut Gun)>,
-) {
-    let Ok((gun_global, mut gun)) = gun.single_mut() else { return };
-    // Glass on a scope, the front post on irons: either way it is the far end
-    // of the sight line, and either way the near end is where the eye goes.
-    let front = glass.single().or(post.single());
-    let (Ok(front), Ok(aim)) = (front, aim.single()) else {
-        gun.optical_fix = Quat::IDENTITY;
-        return;
-    };
-    let down_the_tube = front.reparented_to(gun_global).translation
-        - aim.reparented_to(gun_global).translation;
-    let Ok(axis) = Dir3::new(down_the_tube) else { return };
-    gun.optical_fix = Quat::from_rotation_arc(*axis, Vec3::NEG_Z);
-}
 
 /// Hands the mesh's own named points to the systems that want them, so the
 /// weapon table carries none of this geometry twice.
@@ -221,8 +93,6 @@ pub(crate) fn wire_weapon_sockets(
         }
         let mut socket = commands.entity(entity);
         match name.as_str() {
-            "Socket_Objective" => socket.insert(ObjectiveSocket),
-            "Socket_Eyepiece" => socket.insert(EyepieceSocket),
             "Socket_Aim" => socket.insert(AimSocket),
             "Socket_SightFront" => socket.insert(FrontSightSocket),
             "Socket_Eject" => socket.insert(EjectSocket),
@@ -235,21 +105,7 @@ pub(crate) fn wire_weapon_sockets(
     }
 }
 
-#[derive(Resource)]
-pub(crate) struct ScopeZoom(pub(crate) f32);
 
-pub(crate) fn update_scope_zoom_slider_visibility(
-    aim_held: Res<AimHeld>,
-    touch_aiming: Res<TouchAiming>,
-    cursor: Query<&CursorOptions, With<PrimaryWindow>>,
-    mut track: Query<&mut Node, With<TouchScopeZoomSliderTrack>>,
-) {
-    let Ok(mut node) = track.single_mut() else {
-        return;
-    };
-    let aiming = cursor.single().is_ok_and(|c| is_aiming(c, &aim_held, touch_aiming.0));
-    node.display = if aiming { Display::Flex } else { Display::None };
-}
 
 pub(crate) struct GunPoseTimings {
     recoil_t: f32,
@@ -288,23 +144,6 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
     GunPoseTimings { recoil_t, dip, bob_x, bob_y, bob_roll, bob_pitch }
 }
 
-/// Takes the scope picture from the eye rather than from the weapon.
-///
-/// Riding the weapon's own socket is what kills the parallax effect: the mark
-/// hangs off the barrel, and a camera bolted to the same barrel moves with it,
-/// so the two never part and the mark sits dead centre whatever the weapon
-/// does. From the eye they move independently, which is the whole point —
-/// a weapon held off the eye's line shows its mark off-centre, still over
-/// what the barrel is pointing at.
-pub(crate) fn sync_scope_camera(
-    eye: Query<&Transform, (With<FpsCamera>, Without<ScopeCamera>)>,
-    mut scope_camera: Query<&mut Transform, With<ScopeCamera>>,
-) {
-    let (Ok(eye), Ok(mut scope_transform)) = (eye.single(), scope_camera.single_mut()) else {
-        return;
-    };
-    *scope_transform = Transform::from_translation(eye.translation).with_rotation(eye.rotation);
-}
 
 /// Turns the mark to point down the weapon's own sight axis.
 ///
@@ -338,23 +177,12 @@ pub(crate) struct HoloReticle;
 /// dot away entirely.
 pub(crate) fn place_holo_reticle(
     active: Res<ActiveWeapon>,
-    scope_camera_enabled: Res<ScopeCameraEnabled>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
     aim: Query<&GlobalTransform, With<AimSocket>>,
     gun: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<HoloReticle>)>,
     mut reticle: Query<(&mut Transform, &mut Visibility), With<HoloReticle>>,
 ) {
     let Ok((mut dot, mut visibility)) = reticle.single_mut() else { return };
-    // A weapon with real glass draws its sight picture in the lens, and the
-    // dot would sit on top of it saying the same thing twice. The dot is what
-    // that weapon falls back to when the optic camera is switched off --
-    // which is the whole trade the switch exists for: a second camera, a
-    // render target and a command buffer, against losing the magnification.
-    let magnifies = active.def().scope.default_zoom > 1.0;
-    if magnifies && scope_camera_enabled.0 {
-        *visibility = Visibility::Hidden;
-        return;
-    }
     let (Some(window), Ok(eye), Ok((gun_local, gun_global))) =
         (active.def().holo.as_ref(), camera.single(), gun.single())
     else {
@@ -385,142 +213,8 @@ pub(crate) fn place_holo_reticle(
     dot.rotation = Quat::IDENTITY;
 }
 
-pub(crate) fn place_scope_reticle(
-    active: Res<ActiveWeapon>,
-    aim: Query<&GlobalTransform, With<AimSocket>>,
-    gun: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<ScopeReticle>)>,
-    zoom: Res<ScopeZoom>,
-    mut reticle: Query<&mut Transform, With<ScopeReticle>>,
-) {
-    let (Ok(aim), Ok((gun_local, gun_global)), Ok(mut reticle)) =
-        (aim.single(), gun.single(), reticle.single_mut())
-    else {
-        return;
-    };
-    // Both the camera and the weapon are placed from the eye this frame, so
-    // working in the eye's frame cancels the eye out and leaves no stale term.
-    // Only the socket's place *inside* the weapon comes from the propagated
-    // transforms, and that never animates, so last frame's copy is exact.
-    // Mixing a turn written this frame with one propagated last frame is what
-    // shakes the mark in step with how fast the view is moving.
-    let in_gun = aim.reparented_to(gun_global);
-    // A unit throw, because only the direction survives: the mark hangs off
-    // the camera, so pushing it further out moves it along the same ray and
-    // changes nothing the player can see. There is no throw to tune.
-    let down_the_barrel = gun_local.rotation * in_gun.rotation * Vec3::NEG_Z;
-    reticle.translation = down_the_barrel;
-    reticle.rotation = Quat::IDENTITY;
-    // The mesh is built in radians at unit distance, so this is purely the
-    // magnification: holding apparent thickness steady as the target grows is
-    // what a second focal plane scope does.
-    // Against reticle_zoom, not default_zoom: tying the mark to the weapon's
-    // power would fatten it every time the optic is wound up.
-    reticle.scale = Vec3::splat(active.def().scope.reticle_zoom / zoom.0);
-}
 
-pub(crate) fn adjust_scope_zoom(
-    active: Res<ActiveWeapon>,
-    mut wheel: MessageReader<MouseWheel>,
-    aim_held: Res<AimHeld>,
-    touch_aiming: Res<TouchAiming>,
-    cursor: Query<&CursorOptions, With<PrimaryWindow>>,
-    mut zoom: ResMut<ScopeZoom>,
-    camera: Query<&GlobalTransform, With<FpsCamera>>,
-    autopilot: Res<Autopilot>,
-    autopilot_state: Res<AutopilotState>,
-    zombies: Query<&Transform, With<Zombie>>,
-) {
-    let Ok(cursor) = cursor.single() else {
-        return;
-    };
-    if !is_aiming(cursor, &aim_held, touch_aiming.0) {
-        wheel.clear();
-        return;
-    }
 
-    if autopilot.0 {
-        if let Some(target_entity) = autopilot_state.target {
-            if let (Ok(camera_global), Ok(zombie_transform)) =
-                (camera.single(), zombies.get(target_entity))
-            {
-                let distance = camera_global.translation().distance(zombie_transform.translation);
-                let t = ((distance - AUTO_ZOOM_NEAR_DISTANCE)
-                    / (AUTO_ZOOM_FAR_DISTANCE - AUTO_ZOOM_NEAR_DISTANCE))
-                    .clamp(0.0, 1.0);
-                let scope = &active.def().scope;
-                zoom.0 = scope.min_zoom + (scope.max_zoom - scope.min_zoom) * t;
-                wheel.clear();
-                return;
-            }
-        }
-    }
-    for event in wheel.read() {
-        zoom.0 = (zoom.0 * SCOPE_ZOOM_STEP_FACTOR.powf(event.y.signum()))
-            .clamp(active.def().scope.min_zoom, active.def().scope.max_zoom);
-    }
-}
-
-pub(crate) fn update_scope_lens(
-    gun: Query<&Gun>,
-    zoom: Res<ScopeZoom>,
-    scope_camera_enabled: Res<ScopeCameraEnabled>,
-    mut scope_camera: Query<(&mut Camera, &mut Projection), With<ScopeCamera>>,
-    mut lens: Query<(&mut Transform, &mut Visibility), (With<ScopeScreen>, Without<ScopeReticle>)>,
-    view_socket: Query<&GlobalTransform, With<EyepieceSocket>>,
-    gun_placed: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<ScopeScreen>, Without<ScopeReticle>)>,
-) {
-    let Ok(gun) = gun.single() else {
-        return;
-    };
-    // No rear glass means no scope picture at all. The M4 aims down irons: the
-    // gun comes up and that is the whole of it.
-    let visible = !view_socket.is_empty()
-        && scope_camera_enabled.0
-        && gun.ads_blend > SCOPE_ACTIVE_ADS_THRESHOLD
-        && gun.wall_raise.abs() < SCOPE_HIDDEN_WALL_RAISE_THRESHOLD;
-
-    if let Ok((mut camera, mut projection)) = scope_camera.single_mut() {
-        camera.is_active = visible;
-        if let Projection::Perspective(perspective) = projection.as_mut() {
-            perspective.fov = SCOPE_BASE_FOV / zoom.0;
-        }
-    }
-
-    if let Ok((mut transform, mut visibility)) = lens.single_mut() {
-        *visibility = if visible { Visibility::Visible } else { Visibility::Hidden };
-
-        // What the player looks into is the rear glass, so sit on it. The disc
-        // is a unit circle and the socket's scale is the lens radius, which
-        // makes the picture exactly as wide as the real eyepiece.
-        //
-        // Set back down the tube rather than on the socket. Sat on it the disc
-        // lands inside the 1.8mm the mesh's own glass occupies and the two
-        // fight for the depth buffer; behind it the glass draws over the
-        // picture, which is what looking through a scope does.
-        //
-        // The disc and the gun are both children of the eye, so the disc's
-        // offset is the gun's own transform with the socket's place inside it
-        // on the end. Only that inner part comes from the propagated
-        // transforms, and it never animates; the gun's transform is this
-        // frame's, so the disc cannot trail the mesh when the eye turns.
-        if let (Ok(socket), Ok((gun_local, gun_global))) =
-            (view_socket.single(), gun_placed.single())
-        {
-            // Position, turn and width all straight off the socket. Its scale
-            // is the tube's bore where the picture is set, so the picture
-            // fills the tube rather than reaching for the eyepiece's aperture.
-            //
-            // There was a factor here that opened the disc out to cover that
-            // aperture instead. It cannot hold once the picture is set deep:
-            // the cone the eye looks down is wider than the tube that far in,
-            // so filling the aperture means leaving the tube. Set deep is what
-            // this scope wants, so filling the tube is the rule it gets, and
-            // the narrowing to the glass is the recess made visible.
-            let in_gun = socket.reparented_to(gun_global);
-            *transform = gun_local.mul_transform(in_gun);
-        }
-    }
-}
 
 /// Where the look sway turns the weapon about, ahead of the weapon's own
 /// origin and down the bore.

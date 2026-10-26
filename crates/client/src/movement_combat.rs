@@ -267,11 +267,9 @@ pub(crate) fn grab_cursor(
 }
 
 pub(crate) fn mouse_look(
-    active: Res<ActiveWeapon>,
     cursor: Query<&CursorOptions, With<PrimaryWindow>>,
     aim_held: Res<AimHeld>,
     touch_aiming: Res<TouchAiming>,
-    zoom: Res<ScopeZoom>,
     mut motion: MessageReader<MouseMotion>,
     mut look_delta: ResMut<MouseLookDelta>,
     sensitivity_scale: Res<SensitivityScale>,
@@ -302,7 +300,7 @@ pub(crate) fn mouse_look(
         return;
     }
     let sensitivity = if is_aiming(cursor, &aim_held, touch_aiming.0) {
-        MOUSE_SENSITIVITY * AIM_MOUSE_SENSITIVITY_MULTIPLIER * (active.def().scope.default_zoom / zoom.0)
+        MOUSE_SENSITIVITY * AIM_MOUSE_SENSITIVITY_MULTIPLIER
     } else {
         MOUSE_SENSITIVITY
     } * sensitivity_scale.0;

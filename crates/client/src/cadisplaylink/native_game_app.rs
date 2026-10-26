@@ -135,7 +135,6 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
     // asset collections still have to exist or the systems asking for them
     // panic, which across FFI aborts.
     app.init_asset::<crate::DamageOverlayMaterial>();
-    app.init_asset::<crate::ScopeLensMaterial>();
     app.init_asset::<crate::MuzzleSmokeMaterial>();
     app.init_asset::<crate::MuzzleFlashMaterial>();
 

@@ -377,7 +377,7 @@ impl Default for BloomEnabled {
 pub(crate) fn apply_bloom(
     mut commands: Commands,
     enabled: Res<BloomEnabled>,
-    camera: Query<(Entity, Has<Bloom>), (With<FpsCamera>, Without<ScopeCamera>)>,
+    camera: Query<(Entity, Has<Bloom>), With<FpsCamera>>,
 ) {
     if !enabled.is_changed() {
         return;

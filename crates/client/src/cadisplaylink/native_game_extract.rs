@@ -32,11 +32,6 @@ pub struct ExtractQueries {
     camera: SystemState<(
         Q<'static, 'static, (&'static GlobalTransform, &'static crate::FpsCamera)>,
         Q<'static, 'static, &'static crate::Gun>,
-        Res<'static, crate::ScopeZoom>,
-    )>,
-    scope: SystemState<(
-        Q<'static, 'static, (&'static GlobalTransform, &'static bevy::camera::Camera, &'static bevy::camera::Projection), With<crate::ScopeCamera>>,
-        Q<'static, 'static, (&'static GlobalTransform, &'static Transform), With<crate::ScopeScreen>>,
     )>,
     zombies: SystemState<(
         Q<'static, 'static, (bevy::ecs::entity::Entity, &'static GlobalTransform, Option<&'static ZombieKind>), With<shared::ZombieBody>>,
@@ -88,7 +83,6 @@ impl ExtractQueries {
             ui_camera: SystemState::new(world),
             window: SystemState::new(world),
             camera: SystemState::new(world),
-            scope: SystemState::new(world),
             zombies: SystemState::new(world),
             remote_players: SystemState::new(world),
             viewmodel_body: SystemState::new(world),
@@ -183,12 +177,6 @@ fn on_viewmodel_layer(layers: Option<&bevy::camera::visibility::RenderLayers>) -
     on_layer(layers, crate::VIEWMODEL_LAYER)
 }
 
-/// The reticle is the scope's own mark: the scope camera carries
-/// SCOPE_RETICLE_LAYER and the main camera does not. Without this it draws in
-/// both, leaving a red mark in the middle of the screen while hip firing.
-fn on_reticle_layer(layers: Option<&bevy::camera::visibility::RenderLayers>) -> bool {
-    on_layer(layers, crate::SCOPE_RETICLE_LAYER)
-}
 
 fn on_layer(layers: Option<&bevy::camera::visibility::RenderLayers>, layer: usize) -> bool {
     layers.is_some_and(|l| l.intersects(&bevy::camera::visibility::RenderLayers::layer(layer)))
@@ -214,7 +202,7 @@ pub fn extract_render_snapshot(
             })
             .unwrap_or(std::f32::consts::FRAC_PI_4)
     };
-    let (camera_query, gun_query, scope_zoom) = queries.camera.get(world).expect("system param validation failed");
+    let (camera_query, gun_query) = queries.camera.get(world).expect("system param validation failed");
     if let Some((transform, cam)) = camera_query.iter().next() {
         snapshot.camera = Some(CameraSnapshot {
             eye: transform.translation().to_array(),
@@ -226,29 +214,7 @@ pub fn extract_render_snapshot(
             // this camera's 45.
             fov: fps_fov,
             ads_blend: gun_query.iter().next().map(|g| g.ads_blend).unwrap_or(0.0),
-            scope_zoom: scope_zoom.0,
             wall_raise: gun_query.iter().next().map(|g| g.wall_raise).unwrap_or(0.0),
-        });
-    }
-
-    let (scope_camera_query, scope_lens_query) = queries.scope.get(world).expect("system param validation failed");
-    if let Some((transform, camera, projection)) = scope_camera_query.iter().next() {
-        let fov = match projection {
-            bevy::camera::Projection::Perspective(p) => p.fov,
-            _ => 0.0,
-        };
-        let (lens_world_pos, lens_local_rotation) = scope_lens_query
-            .iter()
-            .next()
-            .map(|(global, local)| (global.translation().to_array(), local.rotation.to_array()))
-            .unwrap_or((transform.translation().to_array(), [0.0, 0.0, 0.0, 1.0]));
-        snapshot.scope_camera = Some(ScopeCameraSnapshot {
-            eye: transform.translation().to_array(),
-            rotation: transform.rotation().to_array(),
-            active: camera.is_active,
-            fov,
-            lens_world_pos,
-            lens_local_rotation,
         });
     }
 
@@ -392,7 +358,7 @@ pub fn extract_render_snapshot(
                 &meshes, &materials, &images, &mut texture_cache, &mut used_texture_ids,
                 &geometry_already_uploaded,
                 on_viewmodel_layer(layers),
-                on_reticle_layer(layers),
+                false,
                 &decorate,
             );
         }
@@ -413,7 +379,7 @@ pub fn extract_render_snapshot(
                 &meshes, &materials, &images, &mut texture_cache, &mut used_texture_ids,
                 &geometry_already_uploaded,
                 on_viewmodel_layer(layers),
-                on_reticle_layer(layers),
+                false,
                 &decorate,
             );
         }

@@ -80,13 +80,11 @@ mod muzzle_fx;
 mod explosion;
 mod ragdoll;
 mod viewmodel_body;
-mod scope_lens;
 use grip_ik::*;
 use muzzle_fx::*;
 use explosion::*;
 use ragdoll::*;
 use viewmodel_body::*;
-use scope_lens::*;
 
 mod dissolve;
 use dissolve::*;
@@ -542,9 +540,6 @@ const TOUCH_SPRINT_FORWARD_DOT: f32 = 0.72;
 const TOUCH_SPRINT_RELEASE_PX: f32 = TOUCH_JOYSTICK_RADIUS_PX * 1.70;
 const TOUCH_FIRE_BUTTON_PX: f32 = 90.0;
 
-const TOUCH_SCOPE_ZOOM_TRACK_WIDTH_PX: f32 = 44.0;
-const TOUCH_SCOPE_ZOOM_TRACK_HEIGHT_PX: f32 = 200.0;
-const TOUCH_SCOPE_ZOOM_HANDLE_PX: f32 = 40.0;
 
 const STATIC_UI_Z_INDEX: i32 = 100;
 
@@ -638,67 +633,31 @@ const RESOLUTION_SCALE_PRESETS: [f32; 7] = [0.2, 0.3, 0.4, 0.5, 0.65, 0.8, 1.0];
 
 const FPS_CAP_PRESETS: [u32; 4] = [120, 80, 60, 30];
 
-const SCOPE_TEXTURE_SIZE: u32 = 512;
-/// Only the first frame, before update_scope_lens writes the weapon.s own
-/// magnification over it.
-const SCOPE_DEFAULT_ZOOM: f32 = 8.0;
-
-const SCOPE_ZOOM_STEP_FACTOR: f32 = 1.15;
-const SCOPE_BASE_FOV: f32 = BASE_FOV;
-
-const AUTO_ZOOM_NEAR_DISTANCE: f32 = 10.0;
-const AUTO_ZOOM_FAR_DISTANCE: f32 = 100.0;
 
 
 
 
 
 
-const SCOPE_ACTIVE_ADS_THRESHOLD: f32 = 0.02;
 
-const SCOPE_HIDDEN_WALL_RAISE_THRESHOLD: f32 = 0.2;
+
+
 
 const WORLD_LAYER: usize = 0;
 const VIEWMODEL_LAYER: usize = 1;
 
-const SCOPE_RETICLE_LAYER: usize = 2;
 
 /// The ring that blacks out everything outside the sight picture while the
 /// main camera is doing the magnifying itself. Its own layer because the
 /// viewmodel layer is exactly what gets switched off in that mode.
 /// How much of the screen half height the sight picture fills in that mode.
 
-/// A duplex reticle, in radians subtended. The mark hangs off the scope camera
-/// turned to point down the barrel, so only its angular size is ever visible —
-/// pushing it further out slides it along the same ray and changes nothing.
-/// There is no throw to set, and no parallax: the mark shows the barrel's
-/// direction, which is where the bullet goes, wherever the eye happens to be.
-///
-/// REACH overshoots the 0.098 rad the scope sees at default zoom, so the thick
-/// posts run off the edge of the picture rather than stopping inside it.
-const SCOPE_RETICLE_REACH: f32 = 0.070;
-/// The AK's short scope keeps a lit chevron instead: close work, and a duplex
-/// would cover more of the picture than it is worth at that magnification.
-const SCOPE_CHEVRON_WIDTH: f32 = 0.00333;
-const SCOPE_CHEVRON_HEIGHT: f32 = 0.00667;
-/// Where the thick outer posts give way to the fine inner lines.
-const SCOPE_RETICLE_TAPER: f32 = 0.42;
-const SCOPE_RETICLE_POST_WIDTH: f32 = 0.0013;
-const SCOPE_RETICLE_LINE_WIDTH: f32 = 0.00035;
-/// Gap at dead centre, so the mark never hides what it is pointing at.
-const SCOPE_RETICLE_CENTRE_GAP: f32 = 0.035;
-const SCOPE_RETICLE_DOT_SIZE: f32 = 0.0011;
-// Sits in the duplex's centre gap, which is SCOPE_RETICLE_CENTRE_GAP * REACH
-// half wide, so it has to stay well inside that or it fills the hole the gap
-// exists to leave.
-const SCOPE_RETICLE_CENTRE_DOT_SIZE: f32 = 0.0013;
 
 /// The holographic dot's radius, in radians subtended -- the quad is hung one
 /// unit down the barrel, so a radius in metres there is an angle. A real 1 MOA
 /// dot is 0.00029rad, which is a pixel and a half and reads as a dead pixel;
 /// this is nearer the 4 MOA most holographic sights actually carry.
 const HOLO_DOT_RADIANS: f32 = 0.0013;
-const SCOPE_RETICLE_DOTS_PER_ARM: usize = 4;
 
 const STATIONARY_SPREAD_MULTIPLIER: f32 = 0.4;
 
@@ -837,7 +796,6 @@ pub fn main() {
                 }),
             MeshPickingPlugin,
             bevy::ui_render::prelude::UiMaterialPlugin::<DamageOverlayMaterial>::default(),
-            MaterialPlugin::<ScopeLensMaterial>::default(),
             MaterialPlugin::<MuzzleSmokeMaterial>::default(),
             MaterialPlugin::<MuzzleFlashMaterial>::default(),
             bevy::core_pipeline::fullscreen_material::FullscreenMaterialPlugin::<ScreenEffects>::default(),
@@ -983,8 +941,6 @@ impl Plugin for GamePlugin {
         .init_resource::<DynamicShadows>()
         .init_resource::<LightQuality>()
         .init_resource::<PointLightQuality>()
-        .init_resource::<ScopeCameraEnabled>()
-        .init_resource::<ScopeLensDistortion>()
         .init_resource::<ShadowCascades>()
         .init_resource::<BloomEnabled>()
         .init_resource::<ScreenEffectsEnabled>()
@@ -1004,7 +960,6 @@ impl Plugin for GamePlugin {
         .init_resource::<TouchControlsEnabled>()
         .init_resource::<TouchMoveState>()
         .init_resource::<TouchMoveAxis>()
-        .init_resource::<TouchScopeZoomState>()
         .init_resource::<TouchLookState>()
         .init_resource::<TouchFiring>()
         .init_resource::<TouchAiming>()
@@ -1051,7 +1006,6 @@ impl Plugin for GamePlugin {
                 touch_fire_button,
                 touch_weapon_button,
                 touch_aim_button,
-                touch_scope_zoom_drag,
                 touch_jump_button,
                 update_noclip_fly_input,
                 touch_crouch_button,
@@ -1176,7 +1130,7 @@ impl Plugin for GamePlugin {
                 wire_gun_mesh,
                 wire_weapon_sockets,
                 log_frame_pacing,
-                (track_muzzle_socket, track_optical_axis),
+                track_muzzle_socket,
                 update_zombie_animation.run_if(resource_exists::<ZombieAnim>).run_if(clip_tick()),
                 freeze_zombie_animations.run_if(clip_tick()),
                 park_distant_animations.run_if(clip_tick()),
@@ -1221,12 +1175,8 @@ impl Plugin for GamePlugin {
             )
                 .chain(),
             (
-                adjust_scope_zoom,
-                update_scope_zoom_slider_visual.run_if(ui_tick()),
-                update_scope_zoom_slider_visibility.run_if(ui_tick()),
-                sync_scope_camera,
-                (place_scope_reticle, swap_scope_reticle, place_holo_reticle),
-                (update_scope_lens, apply_scope_lens_distortion, apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
+                place_holo_reticle,
+                (apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
                 update_ammo_ui.run_if(ui_tick()),
                 update_crosshair,
                 set_hitbox_gizmo_depth_bias.run_if(ui_tick()),
@@ -1348,7 +1298,6 @@ pub fn register_game_assets(app: &mut App) {
     app.init_asset::<bevy::pbr::StandardMaterial>();
     app.init_asset::<bevy::audio::AudioSource>();
     app.init_asset::<DamageOverlayMaterial>();
-    app.init_asset::<ScopeLensMaterial>();
     app.init_asset::<MuzzleSmokeMaterial>();
     app.init_asset::<MuzzleFlashMaterial>();
 }

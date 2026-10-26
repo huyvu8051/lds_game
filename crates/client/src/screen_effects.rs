@@ -51,7 +51,7 @@ pub(crate) struct ScreenEffectsEnabled(pub(crate) bool);
 pub(crate) fn apply_screen_effects_toggle(
     mut commands: Commands,
     enabled: Res<ScreenEffectsEnabled>,
-    camera: Query<(Entity, Has<ScreenEffects>), (With<FpsCamera>, Without<ScopeCamera>)>,
+    camera: Query<(Entity, Has<ScreenEffects>), With<FpsCamera>>,
 ) {
     if !enabled.is_changed() {
         return;

@@ -78,7 +78,6 @@ pub(crate) struct WeaponDef {
     /// dot is there exactly while the eye is inside the tube.
     pub(crate) holo: Option<HoloWindow>,
 
-    pub(crate) scope: Scope,
     pub(crate) sound: WeaponSound,
     /// How long the weapon takes to reload. A fifty round magazine and a five
     /// round bolt gun are not the same job.
@@ -126,16 +125,6 @@ pub(crate) struct WeaponSound {
     pub(crate) reload: &'static str,
 }
 
-/// What the glass magnifies by. `default` is where ADS starts; the bounds are
-/// the wheel's range. A weapon with no glass never shows a scope view.
-pub(crate) struct Scope {
-    pub(crate) min_zoom: f32,
-    pub(crate) default_zoom: f32,
-    pub(crate) max_zoom: f32,
-    /// The magnification the reticle mesh was drawn against. Its size on screen
-    /// is proportional to this alone, so power and mark size stay independent.
-    pub(crate) reticle_zoom: f32,
-}
 
 /// What a shot does, split by what it moves. The weapon is a child of the
 /// camera, so `view` never shifts the gun on screen and `weapon` never moves
@@ -303,7 +292,10 @@ static AK47: WeaponDef = WeaponDef {
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.03, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.028,
     ads_settle_miss_deg: 0.5,
-    aim_fov_multiplier: 0.65,
+    // 8x, where the optic camera used to carry 12. The whole screen is the
+    // sight picture now, and a narrower field than this leaves nothing round
+    // the target to read.
+    aim_fov_multiplier: 0.525,
     autopilot_ads_min_distance: 3.0,
     autopilot_engage_range: 30.0,
     autopilot_sprint_approach_distance: 22.0,
@@ -317,7 +309,6 @@ static AK47: WeaponDef = WeaponDef {
     // in the lens, and the dot is what is left when that picture costs too
     // much to draw.
     holo: Some(HoloWindow { min: Vec2::new(-0.0090, 0.0783), max: Vec2::new(0.0090, 0.0943) }),
-    scope: Scope { min_zoom: 6.0, default_zoom: 12.0, max_zoom: 20.0, reticle_zoom: 4.0 },
     sound: WeaponSound { fire: "audio/weapons/ak47_fire.wav", reload: "audio/weapons/ak47_reload.wav" },
     reload_duration: 2.3,
     damage_scale: 1.0,
@@ -391,7 +382,6 @@ static M4A1: WeaponDef = WeaponDef {
     // Irons: the scope view never comes on, so these only have to be sane.
     sprint_one_handed: false,
     holo: None,
-    scope: Scope { min_zoom: 1.0, default_zoom: 1.0, max_zoom: 1.0, reticle_zoom: 1.0 },
     sound: WeaponSound { fire: "audio/weapons/m4a1_fire.wav", reload: "audio/weapons/m4a1_reload.wav" },
     reload_duration: 1.9,
     damage_scale: 0.85,
@@ -464,7 +454,9 @@ static M24: WeaponDef = WeaponDef {
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.02, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.040,
     ads_settle_miss_deg: 0.3,
-    aim_fov_multiplier: 0.50,
+    // 12x, down from the optic camera's 24. Still the longest reach of the
+    // five, and still what this weapon is for.
+    aim_fov_multiplier: 0.083,
     autopilot_ads_min_distance: 32.0,
     autopilot_engage_range: 60.0,
     autopilot_sprint_approach_distance: 55.0,
@@ -473,7 +465,6 @@ static M24: WeaponDef = WeaponDef {
     // rifle is for.
     sprint_one_handed: false,
     holo: None,
-    scope: Scope { min_zoom: 12.0, default_zoom: 24.0, max_zoom: 40.0, reticle_zoom: 10.0 },
     sound: WeaponSound { fire: "audio/weapons/m24_fire.wav", reload: "audio/weapons/m24_reload.wav" },
     reload_duration: 3.1,
     damage_scale: 3.2,
@@ -564,7 +555,6 @@ static UMP45: WeaponDef = WeaponDef {
     // cutting it reads as a sight until the eye goes to the glass and finds
     // the view blocked 9mm higher up.
     holo: Some(HoloWindow { min: Vec2::new(-0.0100, 0.0655), max: Vec2::new(0.0110, 0.0805) }),
-    scope: Scope { min_zoom: 1.0, default_zoom: 1.0, max_zoom: 1.0, reticle_zoom: 1.0 },
     sound: WeaponSound { fire: "audio/weapons/ump45_fire.wav", reload: "audio/weapons/ump45_reload.wav" },
     reload_duration: 2.0,
     damage_scale: 0.80,
@@ -643,7 +633,6 @@ static DEAGLE: WeaponDef = WeaponDef {
     autopilot_sprint_pathing_distance: 6.0,
     sprint_one_handed: true,
     holo: None,
-    scope: Scope { min_zoom: 1.0, default_zoom: 1.0, max_zoom: 1.0, reticle_zoom: 1.0 },
     sound: WeaponSound { fire: "audio/weapons/deagle_fire.wav", reload: "audio/weapons/deagle_reload.wav" },
     reload_duration: 2.2,
     // Seven rounds of .50 AE. It trades everything else for what each one is
@@ -710,7 +699,6 @@ pub(crate) fn switch_weapon(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut active: ResMut<ActiveWeapon>,
     mut request: ResMut<WeaponSwitchRequest>,
-    mut zoom: ResMut<ScopeZoom>,
     mut gun: Query<(Entity, &mut Gun)>,
     mesh_parts: Query<Entity, With<GunMeshPart>>,
     sockets: Query<Entity, Or<(With<TriggerGripSocket>, With<ForeGripSocket>)>>,
@@ -740,7 +728,6 @@ pub(crate) fn switch_weapon(
     active.0 = wanted;
     let def = wanted.def();
 
-    zoom.0 = def.scope.default_zoom;
     gun.base_offset = def.rest_offset;
     gun.ammo = def.magazine;
     gun.reload_remaining = 0.0;

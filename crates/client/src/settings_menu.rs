@@ -420,7 +420,6 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     })
                     .with_children(|row| {
                         spawn_cheat_toggle_button(row, "MSAA", CheatMsaaButton);
-                        spawn_cheat_toggle_button(row, "Scope", CheatScopeCameraButton);
                         spawn_cheat_toggle_button(row, "AimTgl", AimToggleButton);
                         spawn_cheat_toggle_button(row, "Puff", CheatMuzzleSmokeButton);
                         spawn_cheat_toggle_button(row, "Port", CheatPortSmokeButton);
@@ -464,7 +463,6 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                         spawn_cheat_toggle_button(row, "Holes", CheatHolesButton);
                         spawn_cheat_toggle_button(row, "Blood", CheatBloodButton);
                         spawn_cheat_toggle_button(row, "Pools", CheatPoolsButton);
-                        spawn_cheat_toggle_button(row, "LensWarp", CheatLensWarpButton);
                         spawn_cheat_toggle_button(row, "Flash", CheatMuzzleFlashButton);
                         spawn_cheat_toggle_button(row, "Sparks", CheatImpactSparksButton);
                         spawn_cheat_toggle_button(row, "Brass", CheatShellCasingsButton);
@@ -677,8 +675,6 @@ pub(crate) struct CheatFreezeButton;
 pub(crate) struct CheatGunButton;
 #[derive(Component)]
 pub(crate) struct CheatMsaaButton;
-#[derive(Component)]
-pub(crate) struct CheatScopeCameraButton;
 
 /// Hold the right button for the sights, or click them up and click them down.
 #[derive(Component)]
@@ -920,14 +916,12 @@ pub(crate) fn cheat_toggle_buttons_3(
     mut show_aim: ResMut<ShowAutopilotTarget>,
     mut show_markers: ResMut<ShowHitMarkers>,
     mut show_floating_damage: ResMut<ShowFloatingDamage>,
-    mut scope_camera: ResMut<ScopeCameraEnabled>,
     mut show_tracers: ResMut<ShowBulletTracers>,
     dof_alt_btn: Query<&Interaction, (With<CheatDofAltButton>, Changed<Interaction>)>,
     look_at_btn: Query<&Interaction, (With<CheatLookAtTargetButton>, Changed<Interaction>)>,
     show_aim_btn: Query<&Interaction, (With<CheatShowAutopilotTargetButton>, Changed<Interaction>)>,
     show_markers_btn: Query<&Interaction, (With<CheatShowHitMarkersButton>, Changed<Interaction>)>,
     show_floating_damage_btn: Query<&Interaction, (With<CheatShowFloatingDamageButton>, Changed<Interaction>)>,
-    scope_camera_btn: Query<&Interaction, (With<CheatScopeCameraButton>, Changed<Interaction>)>,
     show_tracers_btn: Query<&Interaction, (With<CheatShowTracersButton>, Changed<Interaction>)>,
     aim_toggle_btn: Query<&Interaction, (With<AimToggleButton>, Changed<Interaction>)>,
     mut aim_toggle: ResMut<AimToggleMode>,
@@ -952,9 +946,6 @@ pub(crate) fn cheat_toggle_buttons_3(
     }
     if tapped(&show_tracers_btn) {
         show_tracers.0 = !show_tracers.0;
-    }
-    if tapped(&scope_camera_btn) {
-        scope_camera.0 = !scope_camera.0;
     }
 }
 
@@ -1061,7 +1052,6 @@ pub(crate) fn update_extra_toggle_colors(
     show_aim: Res<ShowAutopilotTarget>,
     show_markers: Res<ShowHitMarkers>,
     show_floating_damage: Res<ShowFloatingDamage>,
-    scope_camera: Res<ScopeCameraEnabled>,
     show_tracers: Res<ShowBulletTracers>,
     mut buttons: Query<
         (
@@ -1072,7 +1062,6 @@ pub(crate) fn update_extra_toggle_colors(
             Option<&CheatShowAutopilotTargetButton>,
             Option<&CheatShowHitMarkersButton>,
             Option<&CheatShowFloatingDamageButton>,
-            Option<&CheatScopeCameraButton>,
             Option<&CheatShowTracersButton>,
             Option<&AimToggleButton>,
         ),
@@ -1083,7 +1072,6 @@ pub(crate) fn update_extra_toggle_colors(
             With<CheatShowAutopilotTargetButton>,
             With<CheatShowHitMarkersButton>,
             With<CheatShowFloatingDamageButton>,
-            With<CheatScopeCameraButton>,
             With<CheatShowTracersButton>,
             With<AimToggleButton>,
         )>,
@@ -1091,7 +1079,7 @@ pub(crate) fn update_extra_toggle_colors(
     aim_toggle: Res<AimToggleMode>,
 ) {
     let color_for = |on: bool| if on { Color::srgba(0.3, 1.0, 0.4, 0.5) } else { Color::srgba(1.0, 1.0, 1.0, 0.2) };
-    for (mut bg, auto_m, dof_m, look_m, show_aim_m, show_markers_m, show_floating_damage_m, scope_camera_m, show_tracers_m, aim_toggle_m) in &mut buttons {
+    for (mut bg, auto_m, dof_m, look_m, show_aim_m, show_markers_m, show_floating_damage_m, show_tracers_m, aim_toggle_m) in &mut buttons {
         let on = if auto_m.is_some() {
             autopilot.0
         } else if dof_m.is_some() {
@@ -1104,8 +1092,6 @@ pub(crate) fn update_extra_toggle_colors(
             show_markers.0
         } else if show_floating_damage_m.is_some() {
             show_floating_damage.0
-        } else if scope_camera_m.is_some() {
-            scope_camera.0
         } else if aim_toggle_m.is_some() {
             aim_toggle.0
         } else {
@@ -1622,14 +1608,12 @@ pub(crate) fn render_toggle_buttons(
     mut fog: ResMut<FogEnabled>,
     mut holes: ResMut<BulletHolesEnabled>,
     mut blood: ResMut<BloodEnabled>,
-    mut lens_warp: ResMut<ScopeLensDistortion>,
     bloom_btn: Query<&Interaction, (With<CheatBloomButton>, Changed<Interaction>)>,
     grain_btn: Query<&Interaction, (With<CheatGrainButton>, Changed<Interaction>)>,
     fog_btn: Query<&Interaction, (With<CheatFogButton>, Changed<Interaction>)>,
     holes_btn: Query<&Interaction, (With<CheatHolesButton>, Changed<Interaction>)>,
     blood_btn: Query<&Interaction, (With<CheatBloodButton>, Changed<Interaction>)>,
     pools_btn: Query<&Interaction, (With<CheatPoolsButton>, Changed<Interaction>)>,
-    lens_warp_btn: Query<&Interaction, (With<CheatLensWarpButton>, Changed<Interaction>)>,
 ) {
     if tapped(&bloom_btn) {
         bloom.0 = !bloom.0;
@@ -1648,9 +1632,6 @@ pub(crate) fn render_toggle_buttons(
     }
     if tapped(&pools_btn) {
         blood.stains = !blood.stains;
-    }
-    if tapped(&lens_warp_btn) {
-        lens_warp.0 = !lens_warp.0;
     }
 }
 
@@ -1711,7 +1692,6 @@ pub(crate) fn update_render_toggle_colors(
     fog: Res<FogEnabled>,
     holes: Res<BulletHolesEnabled>,
     blood: Res<BloodEnabled>,
-    lens_warp: Res<ScopeLensDistortion>,
     mut buttons: Query<
         (
             &mut BackgroundColor,
@@ -1720,7 +1700,6 @@ pub(crate) fn update_render_toggle_colors(
             Option<&CheatHolesButton>,
             Option<&CheatBloodButton>,
             Option<&CheatPoolsButton>,
-            Option<&CheatLensWarpButton>,
         ),
         Or<(
             With<CheatBloomButton>,
@@ -1729,12 +1708,11 @@ pub(crate) fn update_render_toggle_colors(
             With<CheatHolesButton>,
             With<CheatBloodButton>,
             With<CheatPoolsButton>,
-            With<CheatLensWarpButton>,
         )>,
     >,
 ) {
     let color_for = |on: bool| if on { Color::srgba(0.3, 1.0, 0.4, 0.5) } else { Color::srgba(1.0, 1.0, 1.0, 0.2) };
-    for (mut bg, is_bloom, is_fog, is_holes, is_blood, is_pools, is_lens_warp) in &mut buttons {
+    for (mut bg, is_bloom, is_fog, is_holes, is_blood, is_pools) in &mut buttons {
         let on = if is_bloom.is_some() {
             bloom.0
         } else if is_fog.is_some() {
@@ -1745,8 +1723,6 @@ pub(crate) fn update_render_toggle_colors(
             blood.spray
         } else if is_pools.is_some() {
             blood.stains
-        } else if is_lens_warp.is_some() {
-            lens_warp.0
         } else {
             grain.0
         };
@@ -1764,8 +1740,6 @@ pub(crate) struct CheatHolesButton;
 pub(crate) struct CheatBloodButton;
 #[derive(Component)]
 pub(crate) struct CheatPoolsButton;
-#[derive(Component)]
-pub(crate) struct CheatLensWarpButton;
 #[derive(Component)]
 pub(crate) struct CheatMuzzleFlashButton;
 #[derive(Component)]
