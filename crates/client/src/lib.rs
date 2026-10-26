@@ -343,7 +343,19 @@ const WALL_GUN_RAISE_SPEED: f32 = 10.0;
 /// metre, and `WALL_GUN_RAISE_SPEED` smooths the steps out: at a 100ms time
 /// constant an 83ms sample interval never shows.
 const WALL_PROBE_INTERVAL: f32 = 1.0 / 12.0;
-/// How far the two side probes look.
+/// Where the side probes point, in degrees off straight abeam, mirrored onto
+/// both sides -- so six rays covering everything from 45 degrees ahead round
+/// to 45 behind on each flank.
+///
+/// Two rays straight out to the sides missed a corner sitting ahead and to
+/// the left, which is exactly where a player tucks in and exactly where the
+/// weapon has nowhere to go.
+///
+/// Measured off abeam rather than off forward because the camera's right
+/// stays horizontal when the player looks straight up, and its forward does
+/// not -- a fan built on a vertical forward collapses.
+const WALL_SIDE_ANGLES_DEG: [f32; 3] = [-45.0, 0.0, 45.0];
+/// How far the side probes look.
 const WALL_SIDE_DISTANCE: f32 = 1.2;
 /// Close enough beside the player to count, as a share of the above -- 0.3 of
 /// 1.2m is anything inside 85cm. Near enough that the weapon has nowhere to

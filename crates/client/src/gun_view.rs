@@ -591,10 +591,15 @@ pub(crate) fn gun_view_animation(
             // with it stops measuring the wall and starts measuring the floor.
             let right = camera_transform.right().as_vec3();
             let flat_right = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
+            let side = WALL_SIDE_ANGLES_DEG
+                .iter()
+                .flat_map(|deg| [flat_right, -flat_right].map(|basis| (*deg, basis)))
+                .map(|(deg, basis)| Quat::from_rotation_y(deg.to_radians()) * basis)
+                .map(|dir| reading(eye, dir, WALL_SIDE_DISTANCE))
+                .fold(0.0f32, f32::max);
             (
                 reading(eye, camera_transform.forward().as_vec3(), WALL_GUN_RAISE_DISTANCE),
-                reading(eye, flat_right, WALL_SIDE_DISTANCE)
-                    .max(reading(eye, -flat_right, WALL_SIDE_DISTANCE)),
+                side,
             )
         });
         wall_probe.target = target;
