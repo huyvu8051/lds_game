@@ -363,6 +363,7 @@ pub(crate) fn setup_gameplay(
                 ads_velocity: 0.0,
                 ads_settle_error: 0.0,
                 wall_raise: 0.0,
+                wall_hold: 0.0,
                 shoulder_blend: 0.0,
                 ready_blend: 0.0,
                 ready_armed: false,

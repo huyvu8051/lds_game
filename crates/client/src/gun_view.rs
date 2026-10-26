@@ -516,6 +516,14 @@ pub(crate) struct LocalPlayerState<'w> {
     move_axis: Res<'w, LocalPlayerMoveAxis>,
 }
 
+/// The last wall reading and how long it has left to live. Kept between
+/// frames so the ray can run at its own rate rather than the display's.
+#[derive(Default)]
+pub(crate) struct WallProbe {
+    target: f32,
+    until_next: f32,
+}
+
 pub(crate) fn gun_view_animation(
     grips: GripSockets,
     time: Res<Time>,
@@ -531,10 +539,11 @@ pub(crate) fn gun_view_animation(
     mut query: Query<(&mut Transform, &GlobalTransform, &mut Gun), Without<FpsCamera>>,
     aim: Query<&GlobalTransform, (With<AimSocket>, Without<Gun>, Without<FpsCamera>)>,
     local: LocalPlayerState,
-    (active, cycle, shock): (
+    (active, cycle, shock, mut wall_probe): (
         Res<ActiveWeapon>,
         Res<WalkCycle>,
         Res<crate::movement_combat::FireShock>,
+        Local<WallProbe>,
     ),
 ) {
     // Taken, not read: the single consumer clearing it is what lets each
@@ -557,20 +566,30 @@ pub(crate) fn gun_view_animation(
     // press. Reading the input instead starts both at the same instant.
     let shoulder_target = camera_single.map_or(0.0, |(_, lean)| (-lean.target).clamp(0.0, 1.0));
 
-    let wall_target = camera_single.map_or(0.0, |(camera_transform, _)| {
-        let filter = SpatialQueryFilter::default();
-        spatial_query
-            .cast_ray(
-                camera_transform.translation,
-                camera_transform.forward(),
-                WALL_GUN_RAISE_DISTANCE,
-                true,
-                &filter,
-            )
-            .map_or(0.0, |hit| {
-                1.0 - (hit.distance / WALL_GUN_RAISE_DISTANCE).clamp(0.0, 1.0)
-            })
-    });
+    // Sampled rather than cast every frame. This is one ray into Avian's
+    // whole collision tree, and it was running at the refresh rate to answer
+    // a question about walking pace -- nobody closes the last metre in 8ms.
+    // The smoothing below hides the steps: at WALL_GUN_RAISE_SPEED the chase
+    // has a 100ms time constant against an 83ms sample.
+    wall_probe.until_next -= time.delta_secs();
+    if wall_probe.until_next <= 0.0 {
+        wall_probe.until_next = WALL_PROBE_INTERVAL;
+        wall_probe.target = camera_single.map_or(0.0, |(camera_transform, _)| {
+            let filter = SpatialQueryFilter::default();
+            spatial_query
+                .cast_ray(
+                    camera_transform.translation,
+                    camera_transform.forward(),
+                    WALL_GUN_RAISE_DISTANCE,
+                    true,
+                    &filter,
+                )
+                .map_or(0.0, |hit| {
+                    1.0 - (hit.distance / WALL_GUN_RAISE_DISTANCE).clamp(0.0, 1.0)
+                })
+        });
+    }
+    let wall_target = wall_probe.target;
     for (mut transform, gun_global, mut gun) in &mut query {
         // The mark eases home while the kick runs after it. Two rates, so the
         // blow lands fast and the weapon comes back slowly, which is the
@@ -650,8 +669,20 @@ pub(crate) fn gun_view_animation(
         // Leaning takes the gun back to its shoulder: the swap is a deliberate
         // move to the other side of cover, and a centred ready pose has nothing
         // to swap. Releasing the lean settles back to ready.
+        // Backed into cover with the muzzle in the brickwork is not a pose
+        // anyone holds, so being up against a wall brings the weapon to the
+        // ready by itself -- armed or not, since this one does not need the
+        // player to have aimed first. Timed so a doorway crossed at pace
+        // does not trip it.
+        if wall_target >= WALL_READY_PROXIMITY {
+            gun.wall_hold += dt;
+        } else {
+            gun.wall_hold = 0.0;
+        }
+        let wall_ready = gun.wall_hold >= WALL_READY_DELAY;
+
         let ready_target =
-            if gun.ready_armed && !aiming && !leaning { 1.0 } else { 0.0 };
+            if (gun.ready_armed || wall_ready) && !aiming && !leaning { 1.0 } else { 0.0 };
         let ready_step = (GUN_READY_SPEED * time.delta_secs()).min(1.0);
         gun.ready_blend += (ready_target - gun.ready_blend) * ready_step;
 

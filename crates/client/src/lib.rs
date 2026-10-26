@@ -337,6 +337,18 @@ const WALL_GUN_RAISE_DISTANCE: f32 = 1.5;
 const WALL_GUN_RAISE_HEIGHT: f32 = 0.18;
 const WALL_GUN_RAISE_ROT_DEG: f32 = 90.0;
 const WALL_GUN_RAISE_SPEED: f32 = 10.0;
+/// How often the wall in front is measured, in seconds. One ray into Avian's
+/// whole collision tree was running every frame to answer a question about
+/// walking pace. Twelve times a second is faster than anyone closes the last
+/// metre, and `WALL_GUN_RAISE_SPEED` smooths the steps out: at a 100ms time
+/// constant an 83ms sample interval never shows.
+const WALL_PROBE_INTERVAL: f32 = 1.0 / 12.0;
+/// Close enough to count as being up against it, as a share of
+/// `WALL_GUN_RAISE_DISTANCE` -- 0.6 of 1.5m is anything inside 60cm.
+const WALL_READY_PROXIMITY: f32 = 0.6;
+/// How long to stay there before the weapon comes to the ready on its own.
+/// A doorway crossed at pace is under this; standing in a corner is not.
+const WALL_READY_DELAY: f32 = 1.0;
 
 
 /// The weapon rises to reload rather than dropping out of the way, so the
