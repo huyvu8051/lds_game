@@ -171,6 +171,9 @@ final class GameControllerInput {
         case .downArrow: return 50
         case .leftArrow: return 51
         case .rightArrow: return 52
+        // The key that frees the mouse. Without it a hardware keyboard can
+        // play the game but never reach the settings button.
+        case .graveAccentAndTilde: return 53
         default: return nil
         }
     }
