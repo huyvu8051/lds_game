@@ -12,6 +12,22 @@ impl Default for SensitivityScale {
     }
 }
 
+/// Which weapons the drop table is allowed to hand out, one flag per weapon
+/// in WeaponId::ALL order.
+///
+/// Separate from whether the weapon exists: a weapon turned off here is
+/// still in the game and still reachable from the Weapons row, it just
+/// stops falling off zombies. That is the difference between tuning a drop
+/// table and removing a gun.
+#[derive(Resource)]
+pub(crate) struct WeaponSpawnEnabled(pub(crate) [bool; 5]);
+
+impl Default for WeaponSpawnEnabled {
+    fn default() -> Self {
+        Self([true; 5])
+    }
+}
+
 /// The five stages a body goes through between being shot and being gone,
 /// each on its own switch.
 ///

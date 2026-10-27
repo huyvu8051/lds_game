@@ -318,7 +318,7 @@ static AK47: WeaponDef = WeaponDef {
     // sight picture now, and a narrower field than this leaves nothing round
     // the target to read.
     aim_fov_multiplier: 0.525,
-    autopilot_ads_min_distance: 3.0,
+    autopilot_ads_min_distance: 1.0,
     autopilot_engage_range: 30.0,
     autopilot_sprint_approach_distance: 22.0,
     autopilot_sprint_pathing_distance: 15.0,
@@ -398,7 +398,7 @@ static M4A1: WeaponDef = WeaponDef {
     ads_settle_miss_m: 0.014,
     ads_settle_miss_deg: 1.2,
     aim_fov_multiplier: 0.75,
-    autopilot_ads_min_distance: 3.0,
+    autopilot_ads_min_distance: 1.0,
     autopilot_engage_range: 30.0,
     autopilot_sprint_approach_distance: 14.0,
     autopilot_sprint_pathing_distance: 9.0,
@@ -482,7 +482,7 @@ static M24: WeaponDef = WeaponDef {
     // 12x, down from the optic camera's 24. Still the longest reach of the
     // five, and still what this weapon is for.
     aim_fov_multiplier: 0.425,
-    autopilot_ads_min_distance: 32.0,
+    autopilot_ads_min_distance: 3.0,
     autopilot_engage_range: 60.0,
     autopilot_sprint_approach_distance: 55.0,
     autopilot_sprint_pathing_distance: 38.0,
@@ -572,7 +572,7 @@ static UMP45: WeaponDef = WeaponDef {
     aim_fov_multiplier: 0.80,
     // A submachine gun has no business reaching: it engages close, closes
     // faster than anything else here, and gives up early.
-    autopilot_ads_min_distance: 3.0,
+    autopilot_ads_min_distance: 1.0,
     autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 11.0,
     autopilot_sprint_pathing_distance: 7.0,
@@ -588,7 +588,7 @@ static UMP45: WeaponDef = WeaponDef {
     reload_duration: 2.0,
     damage_scale: 0.80,
     fire_rate: 0.10,
-    magazine: 25,
+    magazine: 35,
     // .45 ACP is a heavy, slow round, but the UMP's bolt is built to swallow
     // it: more kick per shot than the M4 and less climb over a burst, because
     // what stacks is the rate and this fires no faster than the AK.
@@ -656,7 +656,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     ads_settle_miss_m: 0.008,
     ads_settle_miss_deg: 1.8,
     aim_fov_multiplier: 0.90,
-    autopilot_ads_min_distance: 4.0,
+    autopilot_ads_min_distance: 2.0,
     autopilot_engage_range: 18.0,
     autopilot_sprint_approach_distance: 10.0,
     autopilot_sprint_pathing_distance: 6.0,

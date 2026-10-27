@@ -400,6 +400,7 @@ pub(crate) fn drop_loot_on_kill(
     time: Res<Time>,
     assets: Option<Res<PickupAssets>>,
     loadout: Option<Res<Loadout>>,
+    allowed: Option<Res<WeaponSpawnEnabled>>,
 ) {
     let ShotConfirmed { point, killed, .. } = *trigger.event();
     if !killed {
@@ -415,6 +416,9 @@ pub(crate) fn drop_loot_on_kill(
         // hands. If they somehow hold all of them, nothing drops.
         let pool: Vec<WeaponId> = WeaponId::ALL
             .into_iter()
+            .enumerate()
+            .filter(|(i, _)| allowed.as_ref().is_none_or(|a| a.0[*i]))
+            .map(|(_, w)| w)
             .filter(|w| !loadout.as_ref().is_some_and(|l| l.holds(*w)))
             .collect();
         if !pool.is_empty() {

@@ -438,6 +438,29 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                         spawn_cheat_action_button(row, weapon.def().name, GiveWeaponButton(weapon));
                     }
                 });
+                page.spawn((
+                    Text::new("Weapon drops"),
+                    TextFont {
+                        font_size: FontSize::Px(16.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+                // Which of them the drop table is allowed to hand out. A
+                // weapon turned off here is still in the game and still on
+                // the row above; it just stops falling off zombies.
+                page.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(6.0),
+                    flex_wrap: FlexWrap::Wrap,
+                    row_gap: Val::Px(4.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    for (i, weapon) in WeaponId::ALL.into_iter().enumerate() {
+                        spawn_cheat_toggle_button(row, weapon.def().name, WeaponSpawnButton(i));
+                    }
+                });
 
                 // Shown in every build. These are the only way to reach half the
                 // renderer's settings, and a release build is exactly where
@@ -751,6 +774,36 @@ pub(crate) struct CheatGodModeButton;
 pub(crate) struct CheatFreezeButton;
 #[derive(Component)]
 pub(crate) struct CheatGunButton;
+
+#[derive(Component)]
+pub(crate) struct WeaponSpawnButton(pub(crate) usize);
+
+pub(crate) fn weapon_spawn_buttons(
+    mut allowed: ResMut<WeaponSpawnEnabled>,
+    buttons: Query<(&Interaction, &WeaponSpawnButton), Changed<Interaction>>,
+) {
+    for (interaction, button) in &buttons {
+        if *interaction == Interaction::Pressed {
+            allowed.0[button.0] = !allowed.0[button.0];
+        }
+    }
+}
+
+pub(crate) fn update_weapon_spawn_buttons(
+    allowed: Res<WeaponSpawnEnabled>,
+    mut buttons: Query<(&WeaponSpawnButton, &mut BackgroundColor)>,
+) {
+    if !allowed.is_changed() {
+        return;
+    }
+    for (button, mut background) in &mut buttons {
+        *background = BackgroundColor(if allowed.0[button.0] {
+            Color::srgba(0.3, 1.0, 0.4, 0.5)
+        } else {
+            Color::srgba(1.0, 1.0, 1.0, 0.2)
+        });
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CorpseStage {

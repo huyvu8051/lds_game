@@ -1030,6 +1030,7 @@ impl Plugin for GamePlugin {
         .init_resource::<Inventory>()
         .init_resource::<Boost>()
         .init_resource::<CorpseStages>()
+        .init_resource::<WeaponSpawnEnabled>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, (spawn_pole_targets, init_pickup_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
@@ -1111,7 +1112,13 @@ impl Plugin for GamePlugin {
                     loadout_hud_buttons,
                     // Grouped only to stay inside the twenty this tuple
                     // takes; nothing here is ordered against anything.
-                    (give_weapon_buttons, corpse_stage_buttons, update_corpse_stage_buttons),
+                    (
+                        give_weapon_buttons,
+                        corpse_stage_buttons,
+                        update_corpse_stage_buttons,
+                        weapon_spawn_buttons,
+                        update_weapon_spawn_buttons,
+                    ),
                     update_bars,
                     update_weapon_slots,
                     update_item_ui,

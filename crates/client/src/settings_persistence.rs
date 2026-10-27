@@ -35,6 +35,7 @@ pub(crate) struct PersistedSettings {
     pub(crate) corpse_linger: Option<bool>,
     pub(crate) corpse_dissolve: Option<bool>,
     pub(crate) corpse_remove: Option<bool>,
+    pub(crate) weapon_spawn: Option<Vec<bool>>,
     pub(crate) damage_multiplier: Option<f32>,
     pub(crate) noclip: Option<bool>,
     pub(crate) god_mode: Option<bool>,
@@ -164,6 +165,15 @@ fn apply_settings_to_world(world: &mut World, settings: &PersistedSettings) {
     apply!(sensitivity_scale, SensitivityScale);
     apply!(gyro_enabled, GyroEnabled);
     apply!(gyro_sensitivity, GyroSensitivity);
+    // Length-checked rather than trusted: a saved file from a build with a
+    // different number of weapons would otherwise index off the end.
+    if let (Some(saved), Some(mut allowed)) =
+        (&settings.weapon_spawn, world.get_resource_mut::<WeaponSpawnEnabled>())
+    {
+        for (slot, on) in allowed.0.iter_mut().zip(saved) {
+            *slot = *on;
+        }
+    }
     // Five flags in one resource, so the newtype macro does not fit them.
     if let Some(mut stages) = world.get_resource_mut::<CorpseStages>() {
         for (saved, field) in [
@@ -264,6 +274,7 @@ pub(crate) fn persist_settings_on_change(world: &mut World) {
         || changed!(GyroEnabled)
         || changed!(GyroInvert)
         || changed!(CorpseStages)
+        || changed!(WeaponSpawnEnabled)
         || changed!(GyroSensitivity)
         || changed!(BulletHolesEnabled)
         || changed!(BloodEnabled)
@@ -332,6 +343,7 @@ fn read_settings_from_world(world: &World) -> PersistedSettings {
         corpse_linger: world.get_resource::<CorpseStages>().map(|r| r.linger),
         corpse_dissolve: world.get_resource::<CorpseStages>().map(|r| r.dissolve),
         corpse_remove: world.get_resource::<CorpseStages>().map(|r| r.remove),
+        weapon_spawn: world.get_resource::<WeaponSpawnEnabled>().map(|r| r.0.to_vec()),
         damage_multiplier: world.get_resource::<DamageMultiplierUi>().map(|r| r.0),
         noclip: world.get_resource::<Noclip>().map(|r| r.0),
         god_mode: world.get_resource::<GodMode>().map(|r| r.0),
