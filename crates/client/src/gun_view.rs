@@ -888,21 +888,7 @@ pub(crate) fn gun_view_animation(
             // a rifle in the shoulder judders along its own travel, not only
             // about a point. Reusing the angles keeps the two in phase.
             + Vec3::new(shock_yaw, shock_pitch, shock_roll)
-                * shock.gun_shift()
-            // A turn moves the weapon across the view as well as turning it.
-            // Call of Duty drives both from the same clamped view delta --
-            // yaw into a horizontal offset, pitch into a vertical one -- and
-            // without the offset the weapon pivots on a point fixed to the
-            // camera, which is the thing that reads as bolted to it.
-            //
-            // Taken off the angle that is already damped rather than given a
-            // spring of its own: two springs on one input is two things to
-            // keep in step for no gain.
-            + Vec3::new(
-                gun.look_sway.x * LOOK_SWAY_SHIFT_PER_DEG,
-                -gun.look_sway.y * LOOK_SWAY_SHIFT_PER_DEG,
-                0.0,
-            );
+                * shock.gun_shift();
 
         // Outermost, so the whole weapon rattles in view rather than each
         // part twisting about its own pivot. Several times what the eye gets:

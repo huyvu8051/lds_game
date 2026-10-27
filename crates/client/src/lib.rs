@@ -98,7 +98,6 @@ use damage_overlay::*;
 
 mod combat;
 
-
 mod hud;
 use hud::*;
 
@@ -135,13 +134,11 @@ use settings_persistence::*;
 mod splash_screen;
 use splash_screen::*;
 
-
 /// How far the eye sits behind the player's own eye point. The gun and the
 /// body subtract it again, so pulling back moves only the camera.
 pub(crate) fn view_pullback() -> f32 {
     std::env::var("VIEW_PULLBACK").ok().and_then(|v| v.parse().ok()).unwrap_or(0.13)
 }
-
 
 /// Low ready: held near the middle and a little forward of the hip rest, so
 /// coming back onto the sights is a short move instead of a full swing across
@@ -259,13 +256,6 @@ const STEP_SHOCK_DAMPING: f32 = 0.62;
 /// under it stops.
 const STEP_SHOCK_PITCH_DEG: f32 = 55.0;
 
-/// Metres the weapon slides across the view per degree it is swung off line.
-///
-/// CoD keeps swayHorizScale and swayVertScale apart from swayYawScale and
-/// swayPitchScale, but all four track the same clamped view delta, so one
-/// ratio off the angle says the same thing with one spring instead of two.
-const LOOK_SWAY_SHIFT_PER_DEG: f32 = 0.0045;
-
 /// How far the weapon trails the body through a step, in radians of the
 /// gait. Arms are compliant; a weapon that cants in exact step with the hips
 /// reads as welded to them.
@@ -362,13 +352,11 @@ const HOLD_TREMOR_PITCH_DEG: f32 = 0.022;
 /// not the world wandering.
 const CAMERA_HOLD_FRACTION: f32 = 0.35;
 
-
 /// How much of the shock a cheek weld takes out of the view. A braced
 /// shooter with the stock in the shoulder and the eye on the glass sees far
 /// less of it than one firing from the hip, and ADS is also when the player
 /// most needs to read the sight picture.
 const ADS_SHOCK_DAMP: f32 = 0.6;
-
 
 /// What the weapon pose is telling the rest of the game, published once.
 ///
@@ -389,7 +377,6 @@ pub(crate) struct WeaponPose {
 
 const LOOK_SWAY_FREQUENCY: f32 = 12.0;
 const LOOK_SWAY_DAMPING: f32 = 0.65;
-
 
 const WALL_GUN_RAISE_DISTANCE: f32 = 1.5;
 const WALL_GUN_RAISE_HEIGHT: f32 = 0.18;
@@ -449,7 +436,6 @@ const WALL_AHEAD_OWNS: f32 = 0.5;
 /// for: a bare comparison chatters on anything sitting exactly on it.
 const WALL_SIDE_HYSTERESIS: f32 = 0.08;
 
-
 /// The weapon rises to reload rather than dropping out of the way, so the
 /// magazine coming out of the well is in frame while it falls.
 const RELOAD_LIFT: f32 = 0.10;
@@ -458,7 +444,6 @@ const RELOAD_TILT_DEG: f32 = 22.0;
 /// Roll about the bore during a reload. Negative brings the magazine well
 /// round towards the weak hand, which is the hand that pulls the magazine.
 const RELOAD_ROLL_DEG: f32 = -20.0;
-
 
 const MUZZLE_FLASH_LIFETIME: f32 = 0.05;
 const FLASH_QUAD_SIZE: f32 = 0.32;
@@ -562,7 +547,6 @@ const SPARK_PARTICLE_GRAVITY: f32 = -9.0;
 const SPARK_PARTICLE_LIFETIME: f32 = 0.25;
 const SPARK_PARTICLE_SIZE: f32 = 0.02;
 
-
 // Recoil is per weapon now: see WeaponDef::recoil in weapon.rs.
 
 const BULLET_SPREAD: f32 = 0.02;
@@ -605,7 +589,6 @@ const TOUCH_SPRINT_FORWARD_DOT: f32 = 0.72;
 /// the run flickers off every time the thumb drifts across the line.
 const TOUCH_SPRINT_RELEASE_PX: f32 = TOUCH_JOYSTICK_RADIUS_PX * 1.70;
 const TOUCH_FIRE_BUTTON_PX: f32 = 90.0;
-
 
 /// How long a kill stays in the feed, and how much of that is spent fading.
 /// How far in from the right edge the column sits. Wider than the 16px the
@@ -702,7 +685,6 @@ const ADS_SPRING_DAMPING: f32 = 0.72;
 /// overshoot back along the path, which reads as a straight line with a
 /// wobble.
 
-
 const AIM_ZOOM_SPEED: f32 = 12.0;
 const AIM_SPREAD_MULTIPLIER: f32 = 0.35;
 
@@ -720,19 +702,13 @@ const FPS_CAP_PRESETS: [u32; 4] = [120, 80, 60, 30];
 
 
 
-
-
-
-
 const WORLD_LAYER: usize = 0;
 const VIEWMODEL_LAYER: usize = 1;
-
 
 /// The ring that blacks out everything outside the sight picture while the
 /// main camera is doing the magnifying itself. Its own layer because the
 /// viewmodel layer is exactly what gets switched off in that mode.
 /// How much of the screen half height the sight picture fills in that mode.
-
 
 /// The holographic dot's radius, in radians subtended -- the quad is hung one
 /// unit down the barrel, so a radius in metres there is an angle. A real 1 MOA
