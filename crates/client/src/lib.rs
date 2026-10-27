@@ -243,8 +243,16 @@ const GUN_CARRY_RATE: f32 = 9.0;
 const LOOK_SWAY_SHIFT_PER_DEG: f32 = 0.0045;
 
 /// How far the roll trails the sway, on top of what the tracker already
-/// delays it by. CoD's own figure, 0.4712 rad.
-const GUN_BOB_ROLL_PHASE: f32 = 0.4712;
+/// delays it by.
+///
+/// What matters is the total, not this number. CoD writes 0.4712 rad by hand
+/// on top of a tracker that appears to give it about 27 degrees, landing the
+/// roll near 54 degrees behind the step. Our tracker gives 42 at
+/// GUN_CARRY_RATE 9, so the hand-written part shrinks to match rather than
+/// stacking on top of it -- 0.21 puts the total back at 53.7.
+///
+/// Worth re-deriving if GUN_CARRY_RATE moves again: the two share the job.
+const GUN_BOB_ROLL_PHASE: f32 = 0.21;
 /// A one-sided roll spends half its cycle at zero, so it is given half again
 /// to keep the same presence. Also CoD's: `speed * 1.5`.
 const GUN_BOB_ROLL_ASYMMETRY: f32 = 1.5;
