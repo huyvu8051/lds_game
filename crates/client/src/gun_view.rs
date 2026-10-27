@@ -665,6 +665,11 @@ pub(crate) fn gun_view_animation(
 
         let kick = &active.def().recoil;
         let timings = gun_pose_timings(&gun, active.def(), &cycle);
+        if std::env::var("BOB_LOG").is_ok() {
+            info!("[bob] amount={:.3} blend={:.3} gait={:.3} aim_damp={:.3} x={:.5} y={:.5} roll={:.3} sway={:.3?}",
+                cycle.amount(), cycle.blend, cycle.gait, cycle.aim_damp,
+                timings.bob_x, timings.bob_y, timings.bob_roll, gun.look_sway);
+        }
 
         // Faded out by ads_blend, the way the positional jitter already is
         // through resting: a weapon canted on its own bore would take the
@@ -951,6 +956,7 @@ pub(crate) fn advance_walk_cycle(
     gun: Query<&Gun>,
     player: Query<&Player, Without<NetPlayer>>,
     mut cycle: ResMut<WalkCycle>,
+    mut bob_scale: Local<Option<f32>>,
 ) {
     let dt = time.delta_secs();
     // How fast the player is actually going, not whether a key is down.
@@ -1006,15 +1012,22 @@ pub(crate) fn advance_walk_cycle(
     //
     // Derived rather than written down, so lowering the rate to make the
     // weapon heavier cannot quietly shrink the motion as well.
+    // A multiplier on the whole walk, read once and cached. Feel is argued
+    // about by sweeping it, and a sweep that needs a rebuild between each
+    // value is a sweep nobody finishes.
+    let scale = *bob_scale.get_or_insert_with(|| {
+        std::env::var("BOB_SCALE").ok().and_then(|v| v.parse::<f32>().ok()).unwrap_or(1.0)
+    });
+
     let nominal = GUN_BOB_SPEED;
     let gain = ops::sqrt(GUN_CARRY_RATE * GUN_CARRY_RATE + nominal * nominal) / GUN_CARRY_RATE;
 
     let keep = ops::exp(-GUN_CARRY_RATE * dt);
     let chase = |current: f32, target: f32| target + (current - target) * keep;
-    cycle.carried.x = chase(cycle.carried.x, x * GUN_BOB_AMOUNT_X * gain);
-    cycle.carried.y = chase(cycle.carried.y, y * GUN_BOB_AMOUNT_Y * gain);
-    cycle.carried_roll = chase(cycle.carried_roll, roll * GUN_BOB_ROLL_DEG * gain);
-    cycle.carried_pitch = chase(cycle.carried_pitch, y * GUN_BOB_PITCH_DEG * gain);
+    cycle.carried.x = chase(cycle.carried.x, x * GUN_BOB_AMOUNT_X * gain * scale);
+    cycle.carried.y = chase(cycle.carried.y, y * GUN_BOB_AMOUNT_Y * gain * scale);
+    cycle.carried_roll = chase(cycle.carried_roll, roll * GUN_BOB_ROLL_DEG * gain * scale);
+    cycle.carried_pitch = chase(cycle.carried_pitch, y * GUN_BOB_PITCH_DEG * gain * scale);
 
     cycle.aim_damp = gun
         .single()

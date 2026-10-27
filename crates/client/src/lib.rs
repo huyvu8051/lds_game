@@ -216,8 +216,8 @@ const SPRINT_CARRY_DELAY: f32 = 1.0;
 const SPRINT_CARRY_SPEED: f32 = 6.0;
 
 const GUN_BOB_SPEED: f32 = 8.0;
-const GUN_BOB_AMOUNT_X: f32 = 0.015;
-const GUN_BOB_AMOUNT_Y: f32 = 0.012;
+const GUN_BOB_AMOUNT_X: f32 = 0.050;
+const GUN_BOB_AMOUNT_Y: f32 = 0.035;
 const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// Radians the weapon's cant trails the body's. Arms are compliant; without
 /// the lag the weapon rolls in exact step with the hips and reads as welded.
@@ -240,7 +240,7 @@ const GUN_CARRY_RATE: f32 = 9.0;
 /// CoD keeps swayHorizScale and swayVertScale apart from swayYawScale and
 /// swayPitchScale, but all four track the same clamped view delta, so one
 /// ratio off the angle says the same thing with one spring instead of two.
-const LOOK_SWAY_SHIFT_PER_DEG: f32 = 0.0045;
+const LOOK_SWAY_SHIFT_PER_DEG: f32 = 0.0150;
 
 /// How far the roll trails the sway, on top of what the tracker already
 /// delays it by.
@@ -261,7 +261,7 @@ const GUN_BOB_ROLL_ASYMMETRY: f32 = 1.5;
 /// one. 1.1 symmetric was 2.2 degrees of travel; this is 2.9 one way, which
 /// is the only part of the walk with any character in it -- the lateral bob
 /// is a sine either way and a sine is a sine.
-const GUN_BOB_ROLL_DEG: f32 = 1.9;
+const GUN_BOB_ROLL_DEG: f32 = 6.0;
 /// Degrees the weapon cants towards the side the player is stepping, about
 /// the bore. Not a lean of the body -- the shoulders stay square and the
 /// rifle rolls in the hands, which is what a man does carrying one at the
@@ -289,7 +289,7 @@ const GUN_STEP_LEAN_SPEED: f32 = 7.0;
 /// the barrel, so in the sights it moves the point of aim rather than just
 /// the picture.
 const AIM_STEP_LEAN_MULTIPLIER: f32 = 0.30;
-const GUN_BOB_PITCH_DEG: f32 = 0.55;
+const GUN_BOB_PITCH_DEG: f32 = 1.80;
 /// Cadence and amplitude together, so a sprint is a different gait rather
 /// than a walk with the volume turned up.
 const SPRINT_BOB_GAIT: f32 = 1.35;
