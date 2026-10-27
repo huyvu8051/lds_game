@@ -388,11 +388,18 @@ pub(crate) fn gun_view_animation(
         wall_probe.target = target;
         wall_probe.side = side;
     }
-    let wall_target = wall_probe.target;
+    // Neither wall rule speaks while the legs are going. A sprint already
+    // has the weapon carried across the body on its own path, and a corridor
+    // -- which is most of where anyone sprints -- has a wall in front or
+    // beside the player for the whole of it, so the raise fought the carry
+    // the entire way and the run read as a stutter rather than a run.
+    let walls_heard = !local.sprinting.0;
+    let wall_target = if walls_heard { wall_probe.target } else { 0.0 };
     // A wall close ahead takes the weapon over completely. Letting both rules
     // speak would have the muzzle asked up and in at the same time, and the
     // one the player is about to walk into is the one worth answering.
-    let wall_side = if wall_target >= WALL_AHEAD_OWNS { 0.0 } else { wall_probe.side };
+    let wall_side =
+        if !walls_heard || wall_target >= WALL_AHEAD_OWNS { 0.0 } else { wall_probe.side };
 
     // Which way there is room to move the weapon. Up by default, because that
     // is where the room usually is. Looking down there is floor in front of
@@ -502,10 +509,7 @@ pub(crate) fn gun_view_animation(
         } else {
             wall_side >= WALL_SIDE_PROXIMITY
         };
-        // Not while sprinting: the run already has the weapon carried across
-        // the body, and a wall it happens to pass would otherwise pull it back
-        // to the ready and fight that pose the length of the alley.
-        let wall_ready = gun.wall_near && !local.sprinting.0;
+        let wall_ready = gun.wall_near;
 
         let ready_target =
             if (gun.ready_armed || wall_ready) && !aiming && !leaning { 1.0 } else { 0.0 };

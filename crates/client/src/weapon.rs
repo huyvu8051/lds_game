@@ -319,7 +319,7 @@ static AK47: WeaponDef = WeaponDef {
     // the target to read.
     aim_fov_multiplier: 0.525,
     autopilot_ads_min_distance: 1.0,
-    autopilot_engage_range: 30.0,
+    autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 22.0,
     autopilot_sprint_pathing_distance: 15.0,
     // The floor is half the default, because that is where aim sensitivity,
@@ -399,7 +399,7 @@ static M4A1: WeaponDef = WeaponDef {
     ads_settle_miss_deg: 1.2,
     aim_fov_multiplier: 0.75,
     autopilot_ads_min_distance: 1.0,
-    autopilot_engage_range: 30.0,
+    autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 14.0,
     autopilot_sprint_pathing_distance: 9.0,
     // Irons: the scope view never comes on, so these only have to be sane.
@@ -483,7 +483,7 @@ static M24: WeaponDef = WeaponDef {
     // five, and still what this weapon is for.
     aim_fov_multiplier: 0.425,
     autopilot_ads_min_distance: 3.0,
-    autopilot_engage_range: 60.0,
+    autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 55.0,
     autopilot_sprint_pathing_distance: 38.0,
     // Twice the AK at every stop: the glass it carries is the one thing this
