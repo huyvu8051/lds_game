@@ -130,11 +130,8 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
     let bob_x = ops::sin(cycle.phase) * GUN_BOB_AMOUNT_X * amount;
     // abs() already doubles the rate: |sin| repeats every pi, not every tau.
     // One dip per footfall, against a full sway every two.
-    //
-    // The jolt is not scaled by `amount` again: it was sized by it when the
-    // foot landed, and scaling the ring-down as well would fade a jolt still
-    // ringing the moment the player stops walking.
-    let bob_y = ops::sin(cycle.phase).abs() * GUN_BOB_AMOUNT_Y * amount + cycle.step_shock;
+
+    let bob_y = ops::sin(cycle.phase).abs() * GUN_BOB_AMOUNT_Y * amount;
 
     // The weapon trails the body. Arms are compliant, and a weapon that cants
     // in exact step with the hips reads as welded to them -- the lag is most
@@ -152,8 +149,7 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
     // Pitch turns about the mesh origin, which sits on the bore at the muzzle,
     // so this pins the nose and swings the stock -- the muzzle stays the
     // steadiest thing on screen, which is what a carried weapon does.
-    let bob_pitch = ops::sin(lagged).abs() * GUN_BOB_PITCH_DEG * amount
-        + cycle.step_shock * STEP_SHOCK_PITCH_DEG;
+    let bob_pitch = ops::sin(lagged).abs() * GUN_BOB_PITCH_DEG * amount;
     GunPoseTimings { recoil_t, dip, bob_x, bob_y, bob_roll, bob_pitch }
 }
 
@@ -936,10 +932,6 @@ pub(crate) struct WalkCycle {
     pub(crate) aim_damp: f32,
     /// 1.0 at a walk, higher at a sprint.
     pub(crate) gait: f32,
-    /// The jolt of a foot landing, ringing down. Driven by an impulse rather
-    /// than chased toward a target: a footfall is an event, not a place.
-    pub(crate) step_shock: f32,
-    step_velocity: f32,
 }
 
 impl WalkCycle {
@@ -977,8 +969,6 @@ pub(crate) fn advance_walk_cycle(
     gun: Query<&Gun>,
     player: Query<&Player, Without<NetPlayer>>,
     mut cycle: ResMut<WalkCycle>,
-    mut last_phase: Local<f32>,
-    mut step_scale: Local<Option<f32>>,
 ) {
     let dt = time.delta_secs();
     // How fast the player is actually going, not whether a key is down.
@@ -1008,40 +998,6 @@ pub(crate) fn advance_walk_cycle(
         cycle.phase = (cycle.phase + GUN_BOB_SPEED * cycle.gait * dt)
             .rem_euclid(std::f32::consts::TAU);
     }
-
-    // Its own knob, read once: the jolt gets argued about on its own, apart
-    // from the sway it interrupts.
-    let step_scale = *step_scale.get_or_insert_with(|| env_scale("STEP_SHOCK"));
-
-    // A foot lands where the vertical bob is deepest, which |sin| reaches at
-    // a quarter and three quarters of the way round. Detected by the phase
-    // crossing those rather than by a timer, so it cannot drift out of step
-    // with the motion it belongs to.
-    let was = *last_phase;
-    *last_phase = cycle.phase;
-    let crossed = |mark: f32| {
-        if cycle.phase >= was { was < mark && cycle.phase >= mark } else { was < mark || cycle.phase >= mark }
-    };
-    if moving.0 && (crossed(std::f32::consts::FRAC_PI_2) || crossed(3.0 * std::f32::consts::FRAC_PI_2))
-    {
-        // Scaled by how hard the step was: a crouched shuffle and a sprint
-        // do not land the same way, and `amount` already knows the
-        // difference.
-        cycle.step_velocity -= STEP_SHOCK_IMPULSE * step_scale * cycle.amount();
-    }
-
-    // The same damped spring the sights and the look sway ride. An impulse
-    // into a spring rings; an impulse into an exponential ease just decays,
-    // and a weapon that only ever settles one way never reads as struck.
-    let omega = STEP_SHOCK_FREQUENCY;
-    let f = 1.0 + 2.0 * dt * STEP_SHOCK_DAMPING * omega;
-    let hoo = dt * omega * omega;
-    let hhoo = dt * hoo;
-    let det_inv = 1.0 / (f + hhoo);
-    let (sx, sv) = (cycle.step_shock, cycle.step_velocity);
-    cycle.step_shock = (sx * f + sv * dt) * det_inv;
-    cycle.step_velocity = (sv - sx * hoo) * det_inv;
-
 
     cycle.aim_damp = gun
         .single()

@@ -226,36 +226,6 @@ const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// applied to the walk: the step writes a target, the weapon chases it.
 ///
 
-/// The kick a foot landing puts into the weapon, in metres per second of
-/// vertical speed. On the weapon only -- a camera that jolts every step is
-/// the thing players turn off first.
-///
-/// Measured through the same integrator the game runs, against a walk whose
-/// vertical bob is 1.05cm and whose feet land every 0.39s:
-///
-/// ```text
-///   impulse      drop    muzzle dip    rung down by
-///      0.30    0.37cm         0.21°           0.12s
-///      0.50    0.62cm         0.34°           0.17s
-///      0.75    0.93cm         0.51°           0.21s
-///      1.10    1.37cm         0.75°           0.23s
-/// ```
-///
-/// 0.28 ships: felt rather than watched, about a third of the bob it sits
-/// on. Past 1.1 the jolt is larger than the walk it interrupts and the
-/// player reads as limping. Everything here rings down well inside the gap between
-/// steps, which is the part that must hold -- a jolt still ringing when the
-/// next foot lands accumulates into a wobble.
-const STEP_SHOCK_IMPULSE: f32 = 0.28;
-/// How fast it rings, and how hard it is held. Short and nearly dead: a
-/// footfall is a thud, not a wobble.
-const STEP_SHOCK_FREQUENCY: f32 = 34.0;
-const STEP_SHOCK_DAMPING: f32 = 0.62;
-/// Degrees the muzzle dips per metre the weapon drops. Pitch rather than
-/// drop alone, because a carried thing rotates about the hands when the body
-/// under it stops.
-const STEP_SHOCK_PITCH_DEG: f32 = 55.0;
-
 /// How far the weapon trails the body through a step, in radians of the
 /// gait. Arms are compliant; a weapon that cants in exact step with the hips
 /// reads as welded to them.
@@ -697,8 +667,6 @@ const AIM_DOF_APERTURE_F_STOPS: f32 = 11.0;
 const RESOLUTION_SCALE_PRESETS: [f32; 7] = [0.2, 0.3, 0.4, 0.5, 0.65, 0.8, 1.0];
 
 const FPS_CAP_PRESETS: [u32; 4] = [120, 80, 60, 30];
-
-
 
 
 
