@@ -213,8 +213,8 @@ const SPRINT_CARRY_DELAY: f32 = 1.0;
 const SPRINT_CARRY_SPEED: f32 = 6.0;
 
 const GUN_BOB_SPEED: f32 = 8.0;
-const GUN_BOB_AMOUNT_X: f32 = 0.0150;
-const GUN_BOB_AMOUNT_Y: f32 = 0.0105;
+const GUN_BOB_AMOUNT_X: f32 = 0.015;
+const GUN_BOB_AMOUNT_Y: f32 = 0.012;
 const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// Radians the weapon's cant trails the body's. Arms are compliant; without
 /// the lag the weapon rolls in exact step with the hips and reads as welded.
@@ -296,7 +296,7 @@ const GUN_STEP_LEAN_SPEED: f32 = 7.0;
 /// the barrel, so in the sights it moves the point of aim rather than just
 /// the picture.
 const AIM_STEP_LEAN_MULTIPLIER: f32 = 0.30;
-const GUN_BOB_PITCH_DEG: f32 = 0.54;
+const GUN_BOB_PITCH_DEG: f32 = 0.55;
 /// Cadence and amplitude together, so a sprint is a different gait rather
 /// than a walk with the volume turned up.
 const SPRINT_BOB_GAIT: f32 = 1.35;
