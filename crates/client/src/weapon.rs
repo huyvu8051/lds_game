@@ -394,7 +394,12 @@ static M4A1: WeaponDef = WeaponDef {
     ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
     hold_ads_fraction: 0.300,
-    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.07, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    // 0.031 rather than 0.07. The carry offset rides on rest_offset, which
+    // differs per weapon, so the number to compare is the sum: the M4 sat at
+    // -0.032 against the AK's -0.121 and the M24's -0.071, nine centimetres
+    // above one rifle and four above the other while wearing the same carry
+    // pose as both. This puts it level with the M24.
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.031, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.014,
     ads_settle_miss_deg: 1.2,
     aim_fov_multiplier: 0.75,
