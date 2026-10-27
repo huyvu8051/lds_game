@@ -99,7 +99,7 @@ pub(crate) fn apply_fps_cap_desktop(cap: Res<FpsCap>, winit_settings: Option<Res
     winit_settings.focused_mode = UpdateMode::reactive(std::time::Duration::from_secs_f32(1.0 / cap.0 as f32));
 }
 
-const RESOLUTION_SCALE_DEFAULT: f32 = 0.3;
+const RESOLUTION_SCALE_DEFAULT: f32 = 1.0;
 pub(crate) const RESOLUTION_SCALE_MIN_TEXTURE_PX: u32 = 64;
 
 fn resolution_scale_default() -> f32 {

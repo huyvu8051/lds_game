@@ -221,7 +221,31 @@ const GUN_BOB_AMOUNT_Y: f32 = 0.012;
 const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// Radians the weapon's cant trails the body's. Arms are compliant; without
 /// the lag the weapon rolls in exact step with the hips and reads as welded.
-const GUN_BOB_LAG: f32 = 0.35;
+/// How fast the weapon catches up with the gait.
+///
+/// Call of Duty runs its viewmodel through a damped tracker against the view
+/// rather than writing a curve onto it -- `swayOffset` and `swayAngles` are
+/// DiffTrack-ed toward the per-frame view delta. This is the same idea
+/// applied to the walk: the step writes a target, the weapon chases it.
+///
+/// At the walk's 8 rad/s this returns about 0.89 of the amplitude and a 27
+/// degree lag, which is almost exactly the 0.4712 rad CoD writes into its
+/// roll by hand. That is the number this replaces.
+const GUN_CARRY_RATE: f32 = 16.0;
+
+/// Metres the weapon slides across the view per degree it is swung off line.
+///
+/// CoD keeps swayHorizScale and swayVertScale apart from swayYawScale and
+/// swayPitchScale, but all four track the same clamped view delta, so one
+/// ratio off the angle says the same thing with one spring instead of two.
+const LOOK_SWAY_SHIFT_PER_DEG: f32 = 0.0045;
+
+/// How far the roll trails the sway, on top of what the tracker already
+/// delays it by. CoD's own figure, 0.4712 rad.
+const GUN_BOB_ROLL_PHASE: f32 = 0.4712;
+/// A one-sided roll spends half its cycle at zero, so it is given half again
+/// to keep the same presence. Also CoD's: `speed * 1.5`.
+const GUN_BOB_ROLL_ASYMMETRY: f32 = 1.5;
 const GUN_BOB_ROLL_DEG: f32 = 1.1;
 /// Degrees the weapon cants towards the side the player is stepping, about
 /// the bore. Not a lean of the body -- the shoulders stay square and the

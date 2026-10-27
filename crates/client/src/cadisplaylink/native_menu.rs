@@ -27,8 +27,18 @@ pub fn sensitivity(app: &mut App) -> f32 {
     app.world().get_resource::<crate::SensitivityScale>().map(|v| v.0).unwrap_or(1.0)
 }
 
+/// Frames a second the display link is asked for, which is not the same as the
+/// cap the player chose: a full-screen menu covers the scene the high rate is
+/// for, and holding 120 behind it heats the phone for nothing. Swift polls this
+/// every frame and CAFrameRateRange follows, so nothing else has to change.
+const MENU_FPS_CAP: f32 = 30.0;
+
 pub fn fps_cap(app: &mut App) -> f32 {
-    app.world().get_resource::<crate::FpsCap>().map(|c| c.0 as f32).unwrap_or(120.0)
+    let chosen = app.world().get_resource::<crate::FpsCap>().map(|c| c.0 as f32).unwrap_or(120.0);
+    if menu_visible(app) {
+        return chosen.min(MENU_FPS_CAP);
+    }
+    chosen
 }
 
 const SENSITIVITY_SCALE_MIN: f32 = 0.25;

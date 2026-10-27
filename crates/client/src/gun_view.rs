@@ -126,21 +126,18 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
     // back out of it. This one is flat at both ends: it eases in and eases
     // out, which is the curve the sights and the kick already use.
     let dip = ops::sin(std::f32::consts::PI * reload_t).powi(2);
+    // Scaled here rather than inside the tracker, so that aiming or slowing
+    // down turns the motion down without also dragging the chased values
+    // toward a smaller target -- the weapon gets quieter, it does not get
+    // pulled somewhere.
     let amount = cycle.amount();
-    let bob_x = ops::sin(cycle.phase) * GUN_BOB_AMOUNT_X * amount;
-    // abs() already doubles the rate: |sin| repeats every pi, not every tau.
-    // One dip per footfall, against a full sway every two.
-    let bob_y = ops::sin(cycle.phase).abs() * GUN_BOB_AMOUNT_Y * amount;
-
-    // The weapon trails the body. Arms are compliant, and a weapon that cants
-    // in exact step with the hips reads as welded to them -- the lag is most
-    // of what makes it look carried rather than attached.
-    let lagged = cycle.phase - GUN_BOB_LAG;
-    let bob_roll = ops::sin(lagged) * GUN_BOB_ROLL_DEG * amount;
+    let bob_x = cycle.carried.x * amount;
+    let bob_y = cycle.carried.y * amount;
+    let bob_roll = cycle.carried_roll * amount;
     // Pitch turns about the mesh origin, which sits on the bore at the muzzle,
     // so this pins the nose and swings the stock -- the muzzle stays the
     // steadiest thing on screen, which is what a carried weapon does.
-    let bob_pitch = ops::sin(lagged).abs() * GUN_BOB_PITCH_DEG * amount;
+    let bob_pitch = cycle.carried_pitch * amount;
     GunPoseTimings { recoil_t, dip, bob_x, bob_y, bob_roll, bob_pitch }
 }
 
@@ -874,7 +871,21 @@ pub(crate) fn gun_view_animation(
             // a rifle in the shoulder judders along its own travel, not only
             // about a point. Reusing the angles keeps the two in phase.
             + Vec3::new(shock_yaw, shock_pitch, shock_roll)
-                * shock.gun_shift();
+                * shock.gun_shift()
+            // A turn moves the weapon across the view as well as turning it.
+            // Call of Duty drives both from the same clamped view delta --
+            // yaw into a horizontal offset, pitch into a vertical one -- and
+            // without the offset the weapon pivots on a point fixed to the
+            // camera, which is the thing that reads as bolted to it.
+            //
+            // Taken off the angle that is already damped rather than given a
+            // spring of its own: two springs on one input is two things to
+            // keep in step for no gain.
+            + Vec3::new(
+                gun.look_sway.x * LOOK_SWAY_SHIFT_PER_DEG,
+                -gun.look_sway.y * LOOK_SWAY_SHIFT_PER_DEG,
+                0.0,
+            );
 
         // Outermost, so the whole weapon rattles in view rather than each
         // part twisting about its own pivot. Several times what the eye gets:
@@ -918,6 +929,12 @@ pub(crate) struct WalkCycle {
     pub(crate) aim_damp: f32,
     /// 1.0 at a walk, higher at a sprint.
     pub(crate) gait: f32,
+    /// What the weapon has actually got to, as against where the gait says it
+    /// should be. The step writes a target and these chase it; nothing reads
+    /// the raw curve.
+    pub(crate) carried: Vec2,
+    pub(crate) carried_roll: f32,
+    pub(crate) carried_pitch: f32,
 }
 
 impl WalkCycle {
@@ -963,6 +980,31 @@ pub(crate) fn advance_walk_cycle(
         cycle.phase = (cycle.phase + GUN_BOB_SPEED * cycle.gait * dt)
             .rem_euclid(std::f32::consts::TAU);
     }
+
+    // The gait says where the weapon should be; these say where it has got
+    // to. Writing the curve straight onto the weapon is what reads as drawn
+    // rather than carried -- there is no mass in it, so it never arrives
+    // late, never overshoots, and starts and stops dead with the first step.
+    //
+    // At a walk the tracker costs about a tenth of the amplitude and hands
+    // back a 27 degree lag, which is the lag GUN_BOB_LAG used to be written
+    // in by hand. That constant is gone: the delay is a consequence now
+    // rather than a number.
+    let x = ops::sin(cycle.phase);
+    // abs() already doubles the rate: |sin| repeats every pi, not every tau.
+    // One dip per footfall, against a full sway every two.
+    let y = x.abs();
+    // One way only, and half again as far. A roll that is symmetric about
+    // zero is a pendulum, and nobody walks like a pendulum -- the weight
+    // goes onto one side and comes back, it does not swing through.
+    let roll = (ops::sin(cycle.phase - GUN_BOB_ROLL_PHASE) * GUN_BOB_ROLL_ASYMMETRY).min(0.0);
+
+    let keep = ops::exp(-GUN_CARRY_RATE * dt);
+    let chase = |current: f32, target: f32| target + (current - target) * keep;
+    cycle.carried.x = chase(cycle.carried.x, x * GUN_BOB_AMOUNT_X);
+    cycle.carried.y = chase(cycle.carried.y, y * GUN_BOB_AMOUNT_Y);
+    cycle.carried_roll = chase(cycle.carried_roll, roll * GUN_BOB_ROLL_DEG);
+    cycle.carried_pitch = chase(cycle.carried_pitch, y * GUN_BOB_PITCH_DEG);
 
     cycle.aim_damp = gun
         .single()
