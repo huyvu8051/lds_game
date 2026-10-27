@@ -30,6 +30,11 @@ pub(crate) struct PersistedSettings {
     pub(crate) gyro_sensitivity: Option<f32>,
     pub(crate) gyro_invert_yaw: Option<bool>,
     pub(crate) gyro_invert_pitch: Option<bool>,
+    pub(crate) corpse_clip: Option<bool>,
+    pub(crate) corpse_ragdoll: Option<bool>,
+    pub(crate) corpse_linger: Option<bool>,
+    pub(crate) corpse_dissolve: Option<bool>,
+    pub(crate) corpse_remove: Option<bool>,
     pub(crate) damage_multiplier: Option<f32>,
     pub(crate) noclip: Option<bool>,
     pub(crate) god_mode: Option<bool>,
@@ -159,6 +164,26 @@ fn apply_settings_to_world(world: &mut World, settings: &PersistedSettings) {
     apply!(sensitivity_scale, SensitivityScale);
     apply!(gyro_enabled, GyroEnabled);
     apply!(gyro_sensitivity, GyroSensitivity);
+    // Five flags in one resource, so the newtype macro does not fit them.
+    if let Some(mut stages) = world.get_resource_mut::<CorpseStages>() {
+        for (saved, field) in [
+            (settings.corpse_clip, 0),
+            (settings.corpse_ragdoll, 1),
+            (settings.corpse_linger, 2),
+            (settings.corpse_dissolve, 3),
+            (settings.corpse_remove, 4),
+        ] {
+            let Some(on) = saved else { continue };
+            match field {
+                0 => stages.clip = on,
+                1 => stages.ragdoll = on,
+                2 => stages.linger = on,
+                3 => stages.dissolve = on,
+                _ => stages.remove = on,
+            }
+        }
+    }
+
     // GyroInvert is two flags in one resource, so the newtype macro above
     // does not fit it.
     if settings.gyro_invert_yaw.is_some() || settings.gyro_invert_pitch.is_some() {
@@ -238,6 +263,7 @@ pub(crate) fn persist_settings_on_change(world: &mut World) {
         || changed!(FogEnabled)
         || changed!(GyroEnabled)
         || changed!(GyroInvert)
+        || changed!(CorpseStages)
         || changed!(GyroSensitivity)
         || changed!(BulletHolesEnabled)
         || changed!(BloodEnabled)
@@ -301,6 +327,11 @@ fn read_settings_from_world(world: &World) -> PersistedSettings {
         gyro_sensitivity: world.get_resource::<GyroSensitivity>().map(|r| r.0),
         gyro_invert_yaw: world.get_resource::<GyroInvert>().map(|r| r.yaw),
         gyro_invert_pitch: world.get_resource::<GyroInvert>().map(|r| r.pitch),
+        corpse_clip: world.get_resource::<CorpseStages>().map(|r| r.clip),
+        corpse_ragdoll: world.get_resource::<CorpseStages>().map(|r| r.ragdoll),
+        corpse_linger: world.get_resource::<CorpseStages>().map(|r| r.linger),
+        corpse_dissolve: world.get_resource::<CorpseStages>().map(|r| r.dissolve),
+        corpse_remove: world.get_resource::<CorpseStages>().map(|r| r.remove),
         damage_multiplier: world.get_resource::<DamageMultiplierUi>().map(|r| r.0),
         noclip: world.get_resource::<Noclip>().map(|r| r.0),
         god_mode: world.get_resource::<GodMode>().map(|r| r.0),

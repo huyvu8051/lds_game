@@ -310,7 +310,6 @@ pub fn extract_render_snapshot(
     snapshot.render_resolution_scale = world.resource::<crate::RenderResolutionScale>().0;
 
     let mut cache = world.remove_resource::<StaticMeshCache>().unwrap_or_default();
-    let mut used_texture_ids: std::collections::HashSet<AssetId<Image>> = std::collections::HashSet::new();
 
     for entity in queries
         .meshes_removed
@@ -355,7 +354,7 @@ pub fn extract_render_snapshot(
         for (entity, mesh3d, material3d, transform, visibility, layers) in mesh_query.iter() {
             store_extracted_mesh(
                 &mut cache, entity, mesh3d, material3d, transform, visibility,
-                &meshes, &materials, &images, &mut texture_cache, &mut used_texture_ids,
+                &meshes, &materials, &images, &mut texture_cache,
                 &geometry_already_uploaded,
                 on_viewmodel_layer(layers),
                 &decorate,
@@ -375,7 +374,7 @@ pub fn extract_render_snapshot(
             };
             store_extracted_mesh(
                 &mut cache, entity, mesh3d, material3d, transform, visibility,
-                &meshes, &materials, &images, &mut texture_cache, &mut used_texture_ids,
+                &meshes, &materials, &images, &mut texture_cache,
                 &geometry_already_uploaded,
                 on_viewmodel_layer(layers),
                 &decorate,
@@ -407,7 +406,7 @@ pub fn extract_render_snapshot(
     world.insert_resource(cache);
 
     snapshot.debug_lines = extract_hitbox_lines(world, &mut queries);
-    snapshot.generic_ui_nodes = extract_generic_ui_nodes(world, &mut queries, &mut used_texture_ids);
+    snapshot.generic_ui_nodes = extract_generic_ui_nodes(world, &mut queries);
 
     world.insert_resource(queries);
     snapshot
@@ -552,7 +551,6 @@ fn walk_generic_ui_node(
     query: &GenericUiQuery,
     images: &Assets<Image>,
     texture_cache: &mut DecodedTextureCache,
-    used_texture_ids: &mut std::collections::HashSet<AssetId<Image>>,
     out: &mut Vec<GenericUiNode>,
 ) {
     let Ok((node, computed, stack_index, transform, children, background, border_color, text, visibility, image)) =
@@ -592,7 +590,7 @@ fn walk_generic_ui_node(
 
     let image_snapshot = image
         .filter(|_| visible)
-        .and_then(|image| decode_texture(&image.image, images, texture_cache, used_texture_ids));
+        .and_then(|image| decode_texture(&image.image, images, texture_cache));
 
     if visible
         && (background_color.is_some()
@@ -626,14 +624,13 @@ fn walk_generic_ui_node(
 
     let Some(children) = children else { return };
     for &child in children.iter() {
-        walk_generic_ui_node(child, child_clip, visible, query, images, texture_cache, used_texture_ids, out);
+        walk_generic_ui_node(child, child_clip, visible, query, images, texture_cache, out);
     }
 }
 
 fn extract_generic_ui_nodes(
     world: &mut bevy::ecs::world::World,
     queries: &mut ExtractQueries,
-    used_texture_ids: &mut std::collections::HashSet<AssetId<Image>>,
 ) -> Vec<GenericUiNode> {
     let roots: Vec<_> = queries
         .ui_roots
@@ -647,7 +644,7 @@ fn extract_generic_ui_nodes(
 
     let mut out = Vec::new();
     for root in roots {
-        walk_generic_ui_node(root, None, true, &node_query, &images, &mut texture_cache, used_texture_ids, &mut out);
+        walk_generic_ui_node(root, None, true, &node_query, &images, &mut texture_cache, &mut out);
     }
     out.sort_by_key(|node| node.stack_index);
     out

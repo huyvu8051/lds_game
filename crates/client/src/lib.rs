@@ -1029,6 +1029,7 @@ impl Plugin for GamePlugin {
         .init_resource::<Loadout>()
         .init_resource::<Inventory>()
         .init_resource::<Boost>()
+        .init_resource::<CorpseStages>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, (spawn_pole_targets, init_pickup_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
@@ -1108,7 +1109,9 @@ impl Plugin for GamePlugin {
                     gyro_buttons,
                     update_gyro_ui,
                     loadout_hud_buttons,
-                    give_weapon_buttons,
+                    // Grouped only to stay inside the twenty this tuple
+                    // takes; nothing here is ordered against anything.
+                    (give_weapon_buttons, corpse_stage_buttons, update_corpse_stage_buttons),
                     update_bars,
                     update_weapon_slots,
                     update_item_ui,

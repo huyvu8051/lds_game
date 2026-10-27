@@ -391,6 +391,30 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     spawn_cheat_toggle_button(row, "Gun", CheatGunButton);
                 });
                 page.spawn((
+                    Text::new("Corpse"),
+                    TextFont {
+                        font_size: FontSize::Px(16.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+                // The five stages in the order a body goes through them, so
+                // the row reads as the sequence it switches.
+                page.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(6.0),
+                    flex_wrap: FlexWrap::Wrap,
+                    row_gap: Val::Px(4.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    spawn_cheat_toggle_button(row, "Clip", CorpseStageButton(CorpseStage::Clip));
+                    spawn_cheat_toggle_button(row, "Ragdoll", CorpseStageButton(CorpseStage::Ragdoll));
+                    spawn_cheat_toggle_button(row, "Linger", CorpseStageButton(CorpseStage::Linger));
+                    spawn_cheat_toggle_button(row, "Dissolve", CorpseStageButton(CorpseStage::Dissolve));
+                    spawn_cheat_toggle_button(row, "Remove", CorpseStageButton(CorpseStage::Remove));
+                });
+                page.spawn((
                     Text::new("Weapons"),
                     TextFont {
                         font_size: FontSize::Px(16.0),
@@ -727,6 +751,57 @@ pub(crate) struct CheatGodModeButton;
 pub(crate) struct CheatFreezeButton;
 #[derive(Component)]
 pub(crate) struct CheatGunButton;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CorpseStage {
+    Clip,
+    Ragdoll,
+    Linger,
+    Dissolve,
+    Remove,
+}
+
+#[derive(Component)]
+pub(crate) struct CorpseStageButton(pub(crate) CorpseStage);
+
+fn stage_of(stages: &mut CorpseStages, which: CorpseStage) -> &mut bool {
+    match which {
+        CorpseStage::Clip => &mut stages.clip,
+        CorpseStage::Ragdoll => &mut stages.ragdoll,
+        CorpseStage::Linger => &mut stages.linger,
+        CorpseStage::Dissolve => &mut stages.dissolve,
+        CorpseStage::Remove => &mut stages.remove,
+    }
+}
+
+pub(crate) fn corpse_stage_buttons(
+    mut stages: ResMut<CorpseStages>,
+    buttons: Query<(&Interaction, &CorpseStageButton), Changed<Interaction>>,
+) {
+    for (interaction, button) in &buttons {
+        if *interaction == Interaction::Pressed {
+            let flag = stage_of(&mut stages, button.0);
+            *flag = !*flag;
+        }
+    }
+}
+
+pub(crate) fn update_corpse_stage_buttons(
+    mut stages: ResMut<CorpseStages>,
+    mut buttons: Query<(&CorpseStageButton, &mut BackgroundColor)>,
+) {
+    if !stages.is_changed() {
+        return;
+    }
+    for (button, mut background) in &mut buttons {
+        let on = *stage_of(&mut stages, button.0);
+        *background = BackgroundColor(if on {
+            Color::srgba(0.3, 1.0, 0.4, 0.5)
+        } else {
+            Color::srgba(1.0, 1.0, 1.0, 0.2)
+        });
+    }
+}
 
 /// Puts a weapon straight into the loadout, displacing whatever the slot
 /// rules say it should.

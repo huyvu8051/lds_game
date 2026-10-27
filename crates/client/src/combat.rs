@@ -3,6 +3,7 @@ use bevy::prelude::*;
 
 use crate::dismember::LimbDamage;
 use crate::dissolve::begin_death;
+use crate::CorpseStages;
 use crate::ragdoll::{DeathClipPlaying, DEATH_PUSH_SPEED};
 use crate::zombie_reaction::CorpseHit;
 use crate::map::*;
@@ -51,6 +52,7 @@ pub(crate) fn handle_fire_shot(
     mut respawns: ResMut<PendingRespawns>,
     mut threats: Query<&mut PlayerThreat>,
     damage_multiplier: Res<DamageMultiplierServer>,
+    corpse_stages: Res<CorpseStages>,
     mut limb_damage: ResMut<LimbDamage>,
     dying: Query<(Entity, &Transform, &ZombieHitboxBones), (With<DeathClipPlaying>, Without<Zombie>)>,
 ) {
@@ -151,6 +153,7 @@ pub(crate) fn handle_fire_shot(
                     &mut anim_players,
                     Vec3::new(shot.direction.x, 0.0, shot.direction.z).normalize_or_zero()
                         * DEATH_PUSH_SPEED,
+                    &corpse_stages,
                 );
                 respawns.0.push(PendingRespawn { timer: ZOMBIE_RESPAWN_DELAY });
             } else {

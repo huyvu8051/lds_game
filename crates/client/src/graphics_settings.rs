@@ -12,6 +12,33 @@ impl Default for SensitivityScale {
     }
 }
 
+/// The five stages a body goes through between being shot and being gone,
+/// each on its own switch.
+///
+/// They are not independent of one another so much as nested: a stage that
+/// is off hands straight on to the next one that is not. Removal is the
+/// outermost -- with it off the body simply stays, and the dissolve that
+/// would have taken it away has nothing to do.
+#[derive(Resource)]
+pub(crate) struct CorpseStages {
+    /// The stagger and the knee buckle, from the model's own death clip.
+    pub(crate) clip: bool,
+    /// Physics taking the fall, so the body lands on what is actually there.
+    pub(crate) ragdoll: bool,
+    /// A pause where it simply lies, before anything starts removing it.
+    pub(crate) linger: bool,
+    /// Sinking and fading out rather than blinking away.
+    pub(crate) dissolve: bool,
+    /// Whether the body is ever removed at all.
+    pub(crate) remove: bool,
+}
+
+impl Default for CorpseStages {
+    fn default() -> Self {
+        Self { clip: true, ragdoll: true, linger: false, dissolve: true, remove: true }
+    }
+}
+
 /// Whether the phone's own rotation turns the view.
 ///
 /// Off by default: a player who has not asked for it would find the view

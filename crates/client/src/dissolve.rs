@@ -13,6 +13,11 @@ const CLIP_SHARE_BEFORE_RAGDOLL: f32 = 0.7;
 /// How long physics keeps the body after the clip would have ended.
 const RAGDOLL_AFTER_CLIP_SECONDS: f32 = 5.0;
 
+/// How long a body lies once the switch for it is on. The shipped constant
+/// is zero, which is a choice about pacing rather than about whether the
+/// stage exists, so the switch needs a length of its own.
+const CORPSE_LINGER_SECONDS: f32 = 6.0;
+
 #[derive(Component)]
 pub(crate) struct PlayingDeath {
     until_handoff: f32,
@@ -32,10 +37,11 @@ pub(crate) fn begin_death(
     link: Option<&ZombieAnimationPlayer>,
     players: &mut Query<&mut AnimationPlayer>,
     push: Vec3,
+    stages: &CorpseStages,
 ) {
     // Without the graphs the body still has to die, or a kill that lands
     // before they are built leaves a corpse walking and shootable.
-    let clip_seconds = match anim {
+    let clip_seconds = match anim.filter(|_| stages.clip) {
         Some(anim) => {
             let (clip, seconds) = anim.slot(kind).death(entity.to_bits() as usize);
             if let Some(link) = link {
@@ -72,6 +78,7 @@ pub(crate) fn death_logging() -> bool {
 
 pub(crate) fn update_death(
     time: Res<Time>,
+    stages: Res<CorpseStages>,
     mut commands: Commands,
     mut dying: Query<(Entity, &mut PlayingDeath, Option<&ZombieAnimationPlayer>, Option<&ZombieHitboxBones>, &Transform)>,
     players: Query<&AnimationPlayer>,
@@ -104,15 +111,21 @@ pub(crate) fn update_death(
         // physics owes before the extra run starts.
         let rest_of_clip =
             death.total * (1.0 - CLIP_SHARE_BEFORE_RAGDOLL) / CLIP_SHARE_BEFORE_RAGDOLL;
-        commands
-            .entity(entity)
-            .remove::<PlayingDeath>()
-            .insert(ReadyToRagdoll(rest_of_clip + RAGDOLL_AFTER_CLIP_SECONDS));
+        let mut body = commands.entity(entity);
+        body.remove::<PlayingDeath>();
+        if stages.ragdoll {
+            body.insert(ReadyToRagdoll(rest_of_clip + RAGDOLL_AFTER_CLIP_SECONDS));
+        } else {
+            // Straight to settled: the clip put it where it is and nothing
+            // else is going to move it.
+            body.insert(CorpseSettled);
+        }
     }
 }
 
 pub(crate) fn settle_corpse(
     time: Res<Time>,
+    stages: Res<CorpseStages>,
     mut commands: Commands,
     newly_settled: Query<Entity, (With<CorpseSettled>, Without<LyingStill>)>,
     mut lying: Query<(Entity, &mut LyingStill, &Transform)>,
@@ -121,7 +134,12 @@ pub(crate) fn settle_corpse(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for entity in &newly_settled {
-        commands.entity(entity).insert(LyingStill { remaining: ZOMBIE_LIE_STILL_SECONDS });
+        let remaining = if stages.linger { CORPSE_LINGER_SECONDS } else { ZOMBIE_LIE_STILL_SECONDS };
+        commands.entity(entity).insert(LyingStill { remaining });
+    }
+    // Nothing takes the body away, so nothing has to count down to it.
+    if !stages.remove {
+        return;
     }
     for (entity, mut lying, transform) in &mut lying {
         lying.remaining -= time.delta_secs();
@@ -130,7 +148,11 @@ pub(crate) fn settle_corpse(
         }
         let start_y = transform.translation.y;
         commands.entity(entity).remove::<LyingStill>().remove::<CorpseSettled>();
-        begin_dissolve(&mut commands, entity, start_y, &children, &mesh_materials, &mut materials);
+        if stages.dissolve {
+            begin_dissolve(&mut commands, entity, start_y, &children, &mesh_materials, &mut materials);
+        } else {
+            commands.entity(entity).despawn();
+        }
     }
 }
 const DISSOLVE_SINK_DISTANCE: f32 = 0.55;
