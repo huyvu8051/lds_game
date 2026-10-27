@@ -5,6 +5,7 @@ use bevy::prelude::*;
 
 use crate::dismember::{is_severed, SeveredParts};
 use crate::{ActiveWeapon, FpsCamera, Lean, Player, TouchAiming, LEAN_SIDE_OFFSET};
+use crate::MouseLookDelta;
 use shared::{random_aim_point, resolve_bone_world_positions, Health, NetPlayer, Zombie, ZombieHitboxBones, PLAYER_MAX_HEALTH};
 
 #[derive(Resource)]
@@ -178,12 +179,39 @@ pub(crate) fn autopilot_pick_target(
     }
 }
 
+/// Signed difference from `from` to `to`, wrapped to half a turn either way.
+fn shortest_angle(from: f32, to: f32) -> f32 {
+    let raw = (to - from).rem_euclid(std::f32::consts::TAU);
+    if raw > std::f32::consts::PI { raw - std::f32::consts::TAU } else { raw }
+}
+
+/// Reports a turn the autopilot made as though a hand had made it.
+///
+/// Everything that rides the look -- the weapon lagging behind the view, the
+/// roll into a swing -- reads MouseLookDelta, and mouse_look and touch_look
+/// both stand down while the autopilot has the camera. So nothing wrote it,
+/// and under autopilot the weapon tracked the view rigidly: the game ran
+/// with half its gun motion missing, including in every measurement taken
+/// that way.
+///
+/// The sign matches what mouse_look publishes, which is the pointer travel
+/// rather than the rotation -- a view turning left is a pointer moving left,
+/// so the two are opposite.
+fn publish_look(look_delta: &mut MouseLookDelta, yaw_turned: f32, pitch_turned: f32) {
+    look_delta.0 += Vec2::new(-yaw_turned, -pitch_turned);
+}
+
 pub(crate) fn autopilot_think(
     time: Res<Time>,
     // Bundled into one parameter: Bevy caps a system at sixteen and this one
     // was already there, so the weapon rides in with the two flags rather
     // than pushing something else out.
-    (autopilot, active, look_only): (Res<Autopilot>, Res<ActiveWeapon>, Res<AutopilotLookOnly>),
+    (autopilot, active, look_only, mut look_delta): (
+        Res<Autopilot>,
+        Res<ActiveWeapon>,
+        Res<AutopilotLookOnly>,
+        ResMut<MouseLookDelta>,
+    ),
     mut state: ResMut<AutopilotState>,
     mut intent: ResMut<AutopilotIntent>,
     player: Query<&Transform, (With<Player>, Without<NetPlayer>, Without<FpsCamera>)>,
@@ -225,7 +253,9 @@ pub(crate) fn autopilot_think(
         state.target.and_then(|target| zombies.get(target).ok())
     else {
 
-        cam.yaw += AUTOPILOT_IDLE_SCAN_DEG_PER_SEC.to_radians() * dt;
+        let scan = AUTOPILOT_IDLE_SCAN_DEG_PER_SEC.to_radians() * dt;
+        cam.yaw += scan;
+        publish_look(&mut look_delta, scan, 0.0);
         *intent = AutopilotIntent::default();
         if autopilot.0 {
             touch_aiming.0 = false;
@@ -302,8 +332,17 @@ pub(crate) fn autopilot_think(
     } else {
         aim_vector.y.atan2(horizontal_distance.max(0.01)).clamp(-1.5, 1.5)
     };
-    cam.yaw = turn_towards_angle(cam.yaw, desired_yaw, turn_step);
-    cam.pitch = turn_towards_angle(cam.pitch, desired_pitch, turn_step);
+    let turned_yaw = turn_towards_angle(cam.yaw, desired_yaw, turn_step);
+    let turned_pitch = turn_towards_angle(cam.pitch, desired_pitch, turn_step);
+    // The shortest way round, because turning towards an angle can cross the
+    // wrap and a raw subtraction there reads as a whole turn in one frame.
+    publish_look(
+        &mut look_delta,
+        shortest_angle(cam.yaw, turned_yaw),
+        turned_pitch - cam.pitch,
+    );
+    cam.yaw = turned_yaw;
+    cam.pitch = turned_pitch;
 
     state.hold_fire_timer = (state.hold_fire_timer - dt).max(0.0);
 
