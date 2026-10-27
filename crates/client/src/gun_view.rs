@@ -132,12 +132,15 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
     // pulled somewhere.
     let amount = cycle.amount();
     let bob_x = cycle.carried.x * amount;
-    let bob_y = cycle.carried.y * amount;
+    // Not scaled by `amount` again: the impulse was already sized by it when
+    // the foot landed, and scaling the ring-down as well would fade a jolt
+    // that is still ringing the moment the player stops walking.
+    let bob_y = cycle.carried.y * amount + cycle.step_shock;
     let bob_roll = cycle.carried_roll * amount;
     // Pitch turns about the mesh origin, which sits on the bore at the muzzle,
     // so this pins the nose and swings the stock -- the muzzle stays the
     // steadiest thing on screen, which is what a carried weapon does.
-    let bob_pitch = cycle.carried_pitch * amount;
+    let bob_pitch = cycle.carried_pitch * amount + cycle.step_shock * STEP_SHOCK_PITCH_DEG;
     GunPoseTimings { recoil_t, dip, bob_x, bob_y, bob_roll, bob_pitch }
 }
 
@@ -940,6 +943,10 @@ pub(crate) struct WalkCycle {
     pub(crate) carried: Vec2,
     pub(crate) carried_roll: f32,
     pub(crate) carried_pitch: f32,
+    /// The jolt of a foot landing, ringing down. Driven by an impulse rather
+    /// than chased toward a target: a footfall is an event, not a place.
+    pub(crate) step_shock: f32,
+    step_velocity: f32,
 }
 
 impl WalkCycle {
@@ -947,6 +954,13 @@ impl WalkCycle {
     pub(crate) fn amount(&self) -> f32 {
         self.blend * self.aim_damp * self.gait
     }
+}
+
+/// A feel multiplier off the environment, read once. Sweeping a number is
+/// how these get settled, and a sweep that needs a rebuild per value is a
+/// sweep nobody finishes.
+fn env_scale(name: &str) -> f32 {
+    std::env::var(name).ok().and_then(|v| v.parse::<f32>().ok()).unwrap_or(1.0)
 }
 
 pub(crate) fn advance_walk_cycle(
@@ -957,6 +971,8 @@ pub(crate) fn advance_walk_cycle(
     player: Query<&Player, Without<NetPlayer>>,
     mut cycle: ResMut<WalkCycle>,
     mut bob_scale: Local<Option<f32>>,
+    mut last_phase: Local<f32>,
+    mut step_scale: Local<Option<f32>>,
 ) {
     let dt = time.delta_secs();
     // How fast the player is actually going, not whether a key is down.
@@ -1015,12 +1031,42 @@ pub(crate) fn advance_walk_cycle(
     // A multiplier on the whole walk, read once and cached. Feel is argued
     // about by sweeping it, and a sweep that needs a rebuild between each
     // value is a sweep nobody finishes.
-    let scale = *bob_scale.get_or_insert_with(|| {
-        std::env::var("BOB_SCALE").ok().and_then(|v| v.parse::<f32>().ok()).unwrap_or(1.0)
-    });
+    let scale = *bob_scale.get_or_insert_with(|| env_scale("BOB_SCALE"));
+    // Its own knob, not BOB_SCALE's: the sway and the jolt are argued about
+    // separately because one is a motion and the other is an interruption.
+    let step_scale = *step_scale.get_or_insert_with(|| env_scale("STEP_SHOCK"));
 
     let nominal = GUN_BOB_SPEED;
     let gain = ops::sqrt(GUN_CARRY_RATE * GUN_CARRY_RATE + nominal * nominal) / GUN_CARRY_RATE;
+
+    // A foot lands where the vertical bob is deepest, which |sin| reaches at
+    // a quarter and three quarters of the way round. Detected by the phase
+    // crossing those rather than by a timer, so it cannot drift out of step
+    // with the motion it belongs to.
+    let was = *last_phase;
+    *last_phase = cycle.phase;
+    let crossed = |mark: f32| {
+        if cycle.phase >= was { was < mark && cycle.phase >= mark } else { was < mark || cycle.phase >= mark }
+    };
+    if moving.0 && (crossed(std::f32::consts::FRAC_PI_2) || crossed(3.0 * std::f32::consts::FRAC_PI_2))
+    {
+        // Scaled by how hard the step was: a crouched shuffle and a sprint
+        // do not land the same way, and `amount` already knows the
+        // difference.
+        cycle.step_velocity -= STEP_SHOCK_IMPULSE * step_scale * cycle.amount();
+    }
+
+    // The same damped spring the sights and the look sway ride. An impulse
+    // into a spring rings; an impulse into an exponential ease just decays,
+    // and a weapon that only ever settles one way never reads as struck.
+    let omega = STEP_SHOCK_FREQUENCY;
+    let f = 1.0 + 2.0 * dt * STEP_SHOCK_DAMPING * omega;
+    let hoo = dt * omega * omega;
+    let hhoo = dt * hoo;
+    let det_inv = 1.0 / (f + hhoo);
+    let (sx, sv) = (cycle.step_shock, cycle.step_velocity);
+    cycle.step_shock = (sx * f + sv * dt) * det_inv;
+    cycle.step_velocity = (sv - sx * hoo) * det_inv;
 
     let keep = ops::exp(-GUN_CARRY_RATE * dt);
     let chase = |current: f32, target: f32| target + (current - target) * keep;

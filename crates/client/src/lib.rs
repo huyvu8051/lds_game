@@ -216,8 +216,8 @@ const SPRINT_CARRY_DELAY: f32 = 1.0;
 const SPRINT_CARRY_SPEED: f32 = 6.0;
 
 const GUN_BOB_SPEED: f32 = 8.0;
-const GUN_BOB_AMOUNT_X: f32 = 0.050;
-const GUN_BOB_AMOUNT_Y: f32 = 0.035;
+const GUN_BOB_AMOUNT_X: f32 = 0.0150;
+const GUN_BOB_AMOUNT_Y: f32 = 0.0105;
 const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// Radians the weapon's cant trails the body's. Arms are compliant; without
 /// the lag the weapon rolls in exact step with the hips and reads as welded.
@@ -235,12 +235,42 @@ const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// rather than pointed.
 const GUN_CARRY_RATE: f32 = 9.0;
 
+/// The kick a foot landing puts into the weapon, in metres per second of
+/// vertical speed. On the weapon only -- a camera that jolts every step is
+/// the thing players turn off first.
+///
+/// Measured through the same integrator the game runs, against a walk whose
+/// vertical bob is 1.05cm and whose feet land every 0.39s:
+///
+/// ```text
+///   impulse      drop    muzzle dip    rung down by
+///      0.30    0.37cm         0.21°           0.12s
+///      0.50    0.62cm         0.34°           0.17s
+///      0.75    0.93cm         0.51°           0.21s
+///      1.10    1.37cm         0.75°           0.23s
+/// ```
+///
+/// 0.50 is the middle: plainly there, and about half the bob it sits on.
+/// Past 1.1 the jolt is larger than the walk it interrupts and the player
+/// reads as limping. Everything here rings down well inside the gap between
+/// steps, which is the part that must hold -- a jolt still ringing when the
+/// next foot lands accumulates into a wobble.
+const STEP_SHOCK_IMPULSE: f32 = 0.50;
+/// How fast it rings, and how hard it is held. Short and nearly dead: a
+/// footfall is a thud, not a wobble.
+const STEP_SHOCK_FREQUENCY: f32 = 34.0;
+const STEP_SHOCK_DAMPING: f32 = 0.62;
+/// Degrees the muzzle dips per metre the weapon drops. Pitch rather than
+/// drop alone, because a carried thing rotates about the hands when the body
+/// under it stops.
+const STEP_SHOCK_PITCH_DEG: f32 = 55.0;
+
 /// Metres the weapon slides across the view per degree it is swung off line.
 ///
 /// CoD keeps swayHorizScale and swayVertScale apart from swayYawScale and
 /// swayPitchScale, but all four track the same clamped view delta, so one
 /// ratio off the angle says the same thing with one spring instead of two.
-const LOOK_SWAY_SHIFT_PER_DEG: f32 = 0.0150;
+const LOOK_SWAY_SHIFT_PER_DEG: f32 = 0.0045;
 
 /// How far the roll trails the sway, on top of what the tracker already
 /// delays it by.
@@ -261,7 +291,7 @@ const GUN_BOB_ROLL_ASYMMETRY: f32 = 1.5;
 /// one. 1.1 symmetric was 2.2 degrees of travel; this is 2.9 one way, which
 /// is the only part of the walk with any character in it -- the lateral bob
 /// is a sine either way and a sine is a sine.
-const GUN_BOB_ROLL_DEG: f32 = 6.0;
+const GUN_BOB_ROLL_DEG: f32 = 1.80;
 /// Degrees the weapon cants towards the side the player is stepping, about
 /// the bore. Not a lean of the body -- the shoulders stay square and the
 /// rifle rolls in the hands, which is what a man does carrying one at the
@@ -289,7 +319,7 @@ const GUN_STEP_LEAN_SPEED: f32 = 7.0;
 /// the barrel, so in the sights it moves the point of aim rather than just
 /// the picture.
 const AIM_STEP_LEAN_MULTIPLIER: f32 = 0.30;
-const GUN_BOB_PITCH_DEG: f32 = 1.80;
+const GUN_BOB_PITCH_DEG: f32 = 0.54;
 /// Cadence and amplitude together, so a sprint is a different gait rather
 /// than a walk with the volume turned up.
 const SPRINT_BOB_GAIT: f32 = 1.35;
