@@ -143,8 +143,12 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
     // One way only, and half again as far. A roll symmetric about zero is a
     // pendulum, and nobody walks like a pendulum: the weight goes onto one
     // side and comes back, it does not swing through.
-    let bob_roll =
-        (ops::sin(lagged) * GUN_BOB_ROLL_ASYMMETRY).min(0.0) * GUN_BOB_ROLL_DEG * amount;
+    //
+    // ROLL_SYMMETRIC=1 puts the swing back at the same amplitude, so the two
+    // can be compared on shape alone -- which is the only thing in question.
+    let swing = ops::sin(lagged) * GUN_BOB_ROLL_ASYMMETRY;
+    let shaped = if roll_symmetric() { swing } else { swing.min(0.0) };
+    let bob_roll = shaped * GUN_BOB_ROLL_DEG * roll_scale() * amount;
     // Pitch turns about the mesh origin, which sits on the bore at the muzzle,
     // so this pins the nose and swings the stock -- the muzzle stays the
     // steadiest thing on screen, which is what a carried weapon does.
@@ -943,6 +947,20 @@ impl WalkCycle {
     pub(crate) fn amount(&self) -> f32 {
         self.blend * self.aim_damp * self.gait
     }
+}
+
+/// Multiplies the walk roll, for finding out how big it wants to be.
+fn roll_scale() -> f32 {
+    static CACHED: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *CACHED.get_or_init(|| env_scale("ROLL_SCALE"))
+}
+
+/// Swings the roll both ways again, at whatever amplitude is set. The
+/// one-sided version is the only part of the walk that is not a sine, so
+/// this is the switch that asks whether that is worth anything.
+fn roll_symmetric() -> bool {
+    static CACHED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *CACHED.get_or_init(|| std::env::var("ROLL_SYMMETRIC").is_ok())
 }
 
 /// A feel multiplier off the environment, read once. Sweeping a number is
