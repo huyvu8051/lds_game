@@ -76,9 +76,11 @@ impl GameHost {
         self.app.update();
         self.last_update_ms = update_start.elapsed().as_secs_f32() * 1000.0;
         let extract_start = std::time::Instant::now();
-        let snapshot = super::native_game_extract::extract_render_snapshot(self.app.world_mut(), |id| {
-            self.renderer.has_uploaded_mesh(id)
-        });
+        let snapshot = super::native_game_extract::extract_render_snapshot(
+            self.app.world_mut(),
+            |id| self.renderer.has_uploaded_mesh(id),
+            |id| self.renderer.has_uploaded_texture(id),
+        );
         self.last_extract_ms = extract_start.elapsed().as_secs_f32() * 1000.0;
         let timings = self.renderer.render_frame(snapshot);
         self.report(timings);

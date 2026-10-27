@@ -151,6 +151,18 @@ fn find_first_skinned_mesh(
     None
 }
 
+/// Generous world sphere around a posed humanoid: the gameplay capsule it is
+/// simulated with, plus room for a ragdoll's limbs to swing outside it. Too
+/// large only costs a draw the frustum would have rejected; too small pops the
+/// actor out of view at the screen edge.
+fn actor_bounds(translation: Vec3, height: f32, radius: f32) -> ([f32; 3], f32) {
+    const RAGDOLL_MARGIN: f32 = 1.0;
+    (
+        [translation.x, translation.y + height * 0.5, translation.z],
+        height * 0.5 + radius + RAGDOLL_MARGIN,
+    )
+}
+
 fn joint_matrices_for(
     skinned: &SkinnedMesh,
     globals: &Query<&GlobalTransform>,
@@ -185,6 +197,7 @@ fn on_layer(layers: Option<&bevy::camera::visibility::RenderLayers>, layer: usiz
 pub fn extract_render_snapshot(
     world: &mut bevy::ecs::world::World,
     geometry_already_uploaded: impl Fn(AssetId<Mesh>) -> bool,
+    texture_already_uploaded: impl Fn(AssetId<Image>) -> bool,
 ) -> RenderSnapshot {
     let mut snapshot = RenderSnapshot::default();
 
@@ -227,10 +240,18 @@ pub fn extract_render_snapshot(
                 .and_then(|mesh_entity| skinned_mesh_query.get(mesh_entity).ok())
                 .map(|skinned| joint_matrices_for(skinned, &joint_globals, &inverse_bindposes_assets))
                 .unwrap_or_default();
+            let transform = transform.compute_transform();
+            let (bounds_centre, bounds_radius) = actor_bounds(
+                transform.translation,
+                shared::ZOMBIE_OUTER_HEIGHT,
+                shared::ZOMBIE_OUTER_RADIUS,
+            );
             SkinnedRenderState {
-                transform: transform.compute_transform(),
+                transform,
                 joint_matrices,
                 model: shared::zombie_kind_metal_model_name(kind.copied().unwrap_or_default()),
+                bounds_centre,
+                bounds_radius,
             }
         })
         .collect();
@@ -249,6 +270,10 @@ pub fn extract_render_snapshot(
                 // Already preloaded: zombie_model_specs registers the player
                 // mesh under this name for exactly this.
                 model: "soldier",
+                // Rides the camera, so a frustum test on it would only ever be
+                // a chance to wrongly drop the thing always on screen.
+                bounds_centre: [0.0; 3],
+                bounds_radius: 0.0,
             }
         }));
     }
@@ -274,7 +299,12 @@ pub fn extract_render_snapshot(
                 .map(|skinned| joint_matrices_for(skinned, &remote_joint_globals, &remote_inverse_bindposes_assets))
                 .unwrap_or_default();
 
-            SkinnedRenderState { transform, joint_matrices, model: "soldier" }
+            let (bounds_centre, bounds_radius) = actor_bounds(
+                transform.translation,
+                shared::PLAYER_REST_HEIGHT * 2.0,
+                shared::PLAYER_RADIUS,
+            );
+            SkinnedRenderState { transform, joint_matrices, model: "soldier", bounds_centre, bounds_radius }
         }),
     );
 
@@ -356,6 +386,7 @@ pub fn extract_render_snapshot(
                 &mut cache, entity, mesh3d, material3d, transform, visibility,
                 &meshes, &materials, &images, &mut texture_cache,
                 &geometry_already_uploaded,
+                &texture_already_uploaded,
                 on_viewmodel_layer(layers),
                 &decorate,
             );
@@ -376,6 +407,7 @@ pub fn extract_render_snapshot(
                 &mut cache, entity, mesh3d, material3d, transform, visibility,
                 &meshes, &materials, &images, &mut texture_cache,
                 &geometry_already_uploaded,
+                &texture_already_uploaded,
                 on_viewmodel_layer(layers),
                 &decorate,
             );
@@ -406,7 +438,7 @@ pub fn extract_render_snapshot(
     world.insert_resource(cache);
 
     snapshot.debug_lines = extract_hitbox_lines(world, &mut queries);
-    snapshot.generic_ui_nodes = extract_generic_ui_nodes(world, &mut queries);
+    snapshot.generic_ui_nodes = extract_generic_ui_nodes(world, &mut queries, &texture_already_uploaded);
 
     world.insert_resource(queries);
     snapshot
@@ -551,6 +583,7 @@ fn walk_generic_ui_node(
     query: &GenericUiQuery,
     images: &Assets<Image>,
     texture_cache: &mut DecodedTextureCache,
+    texture_already_uploaded: &impl Fn(AssetId<Image>) -> bool,
     out: &mut Vec<GenericUiNode>,
 ) {
     let Ok((node, computed, stack_index, transform, children, background, border_color, text, visibility, image)) =
@@ -590,7 +623,7 @@ fn walk_generic_ui_node(
 
     let image_snapshot = image
         .filter(|_| visible)
-        .and_then(|image| decode_texture(&image.image, images, texture_cache));
+        .and_then(|image| decode_texture(&image.image, images, texture_cache, texture_already_uploaded));
 
     if visible
         && (background_color.is_some()
@@ -624,13 +657,14 @@ fn walk_generic_ui_node(
 
     let Some(children) = children else { return };
     for &child in children.iter() {
-        walk_generic_ui_node(child, child_clip, visible, query, images, texture_cache, out);
+        walk_generic_ui_node(child, child_clip, visible, query, images, texture_cache, texture_already_uploaded, out);
     }
 }
 
 fn extract_generic_ui_nodes(
     world: &mut bevy::ecs::world::World,
     queries: &mut ExtractQueries,
+    texture_already_uploaded: &impl Fn(AssetId<Image>) -> bool,
 ) -> Vec<GenericUiNode> {
     let roots: Vec<_> = queries
         .ui_roots
@@ -644,7 +678,7 @@ fn extract_generic_ui_nodes(
 
     let mut out = Vec::new();
     for root in roots {
-        walk_generic_ui_node(root, None, true, &node_query, &images, &mut texture_cache, &mut out);
+        walk_generic_ui_node(root, None, true, &node_query, &images, &mut texture_cache, texture_already_uploaded, &mut out);
     }
     out.sort_by_key(|node| node.stack_index);
     out
