@@ -256,7 +256,12 @@ const GUN_BOB_ROLL_PHASE: f32 = 0.21;
 /// A one-sided roll spends half its cycle at zero, so it is given half again
 /// to keep the same presence. Also CoD's: `speed * 1.5`.
 const GUN_BOB_ROLL_ASYMMETRY: f32 = 1.5;
-const GUN_BOB_ROLL_DEG: f32 = 1.1;
+/// A one-sided roll spends half its cycle at zero, so the number that used to
+/// describe a symmetric swing of this size now describes three quarters of
+/// one. 1.1 symmetric was 2.2 degrees of travel; this is 2.9 one way, which
+/// is the only part of the walk with any character in it -- the lateral bob
+/// is a sine either way and a sine is a sine.
+const GUN_BOB_ROLL_DEG: f32 = 1.9;
 /// Degrees the weapon cants towards the side the player is stepping, about
 /// the bore. Not a lean of the body -- the shoulders stay square and the
 /// rifle rolls in the hands, which is what a man does carrying one at the
