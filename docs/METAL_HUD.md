@@ -7,6 +7,12 @@ thing that reports encoder and command-buffer counts, which is what separates
 Both commands use the same env block, so the two renderers can be read side by
 side.
 
+The HUD is for **counting**, not for timing: it costs about 2.4ms a frame,
+which is larger than most of what anyone is trying to measure. For frame rate,
+GPU time and CPU time on the phone, use `profile.sh` in `desert_swift_metal`
+instead -- it records an Instruments trace and reads nothing off the screen.
+See `desert_swift_metal/docs/PROFILING.md`.
+
 ## Bevy client
 
 ```sh
