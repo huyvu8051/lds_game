@@ -112,7 +112,6 @@ pub(crate) struct GunPoseTimings {
     dip: f32,
     bob_x: f32,
     bob_y: f32,
-    bob_roll: f32,
     bob_pitch: f32,
 }
 
@@ -137,20 +136,11 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
     // in exact step with the hips reads as welded to them -- the lag is most
     // of what makes it look carried rather than attached.
     let lagged = cycle.phase - GUN_BOB_LAG;
-    // One way only, and half again as far. A roll symmetric about zero is a
-    // pendulum, and nobody walks like a pendulum: the weight goes onto one
-    // side and comes back, it does not swing through.
-    //
-    // ROLL_SYMMETRIC=1 puts the swing back at the same amplitude, so the two
-    // can be compared on shape alone -- which is the only thing in question.
-    let swing = ops::sin(lagged) * GUN_BOB_ROLL_ASYMMETRY;
-    let shaped = if roll_symmetric() { swing } else { swing.min(0.0) };
-    let bob_roll = shaped * GUN_BOB_ROLL_DEG * roll_scale() * amount;
     // Pitch turns about the mesh origin, which sits on the bore at the muzzle,
     // so this pins the nose and swings the stock -- the muzzle stays the
     // steadiest thing on screen, which is what a carried weapon does.
     let bob_pitch = ops::sin(lagged).abs() * GUN_BOB_PITCH_DEG * amount;
-    GunPoseTimings { recoil_t, dip, bob_x, bob_y, bob_roll, bob_pitch }
+    GunPoseTimings { recoil_t, dip, bob_x, bob_y, bob_pitch }
 }
 
 
@@ -678,9 +668,9 @@ pub(crate) fn gun_view_animation(
         let kick = &active.def().recoil;
         let timings = gun_pose_timings(&gun, active.def(), &cycle);
         if std::env::var("BOB_LOG").is_ok() {
-            info!("[bob] amount={:.3} blend={:.3} gait={:.3} aim_damp={:.3} x={:.5} y={:.5} roll={:.3} sway={:.3?}",
+            info!("[bob] amount={:.3} blend={:.3} gait={:.3} aim_damp={:.3} x={:.5} y={:.5} pitch={:.3} sway={:.3?}",
                 cycle.amount(), cycle.blend, cycle.gait, cycle.aim_damp,
-                timings.bob_x, timings.bob_y, timings.bob_roll, gun.look_sway);
+                timings.bob_x, timings.bob_y, timings.bob_pitch, gun.look_sway);
         }
 
         // Faded out by ads_blend, the way the positional jitter already is
@@ -839,7 +829,6 @@ pub(crate) fn gun_view_animation(
             // About X. A positive turn here takes NEG_Z towards +Y, which is
             // the muzzle coming up, so forward has to be negative to drop it.
             * Quat::from_rotation_x(-GUN_STEP_PITCH_DEG.to_radians() * gun.step_lean.y)
-            * Quat::from_rotation_z(timings.bob_roll.to_radians())
             * Quat::from_rotation_x(timings.bob_pitch.to_radians())
             * Quat::from_rotation_y(kick.weapon.yaw_deg.to_radians() * gun.recoil_jitter.x * timings.recoil_t)
             * Quat::from_rotation_z(kick.weapon.roll_deg.to_radians() * gun.recoil_jitter.y * timings.recoil_t)
@@ -939,27 +928,6 @@ impl WalkCycle {
     pub(crate) fn amount(&self) -> f32 {
         self.blend * self.aim_damp * self.gait
     }
-}
-
-/// Multiplies the walk roll, for finding out how big it wants to be.
-fn roll_scale() -> f32 {
-    static CACHED: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
-    *CACHED.get_or_init(|| env_scale("ROLL_SCALE"))
-}
-
-/// Swings the roll both ways again, at whatever amplitude is set. The
-/// one-sided version is the only part of the walk that is not a sine, so
-/// this is the switch that asks whether that is worth anything.
-fn roll_symmetric() -> bool {
-    static CACHED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *CACHED.get_or_init(|| std::env::var("ROLL_SYMMETRIC").is_ok())
-}
-
-/// A feel multiplier off the environment, read once. Sweeping a number is
-/// how these get settled, and a sweep that needs a rebuild per value is a
-/// sweep nobody finishes.
-fn env_scale(name: &str) -> f32 {
-    std::env::var(name).ok().and_then(|v| v.parse::<f32>().ok()).unwrap_or(1.0)
 }
 
 pub(crate) fn advance_walk_cycle(

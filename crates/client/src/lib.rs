@@ -230,17 +230,6 @@ const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// gait. Arms are compliant; a weapon that cants in exact step with the hips
 /// reads as welded to them.
 const GUN_BOB_LAG: f32 = 0.35;
-/// A one-sided roll spends half its cycle at zero, so it is given half again
-/// to keep the same presence. Also CoD's: `speed * 1.5`.
-const GUN_BOB_ROLL_ASYMMETRY: f32 = 1.5;
-/// A one-sided roll spends half its cycle at zero, so the number that used to
-/// describe a symmetric swing of this size now describes three quarters of
-/// one. 1.1 symmetric was 2.2 degrees of travel; this is 2.9 one way, which
-/// is the only part of the walk with any character in it -- the lateral bob
-/// is a sine either way and a sine is a sine.
-/// Turned up from 1.80 so the shape can be watched rather than guessed at.
-/// ROLL_SCALE dials it without a rebuild; 0.3 is the shipped size.
-const GUN_BOB_ROLL_DEG: f32 = 6.0;
 /// Degrees the weapon cants towards the side the player is stepping, about
 /// the bore. Not a lean of the body -- the shoulders stay square and the
 /// rifle rolls in the hands, which is what a man does carrying one at the
