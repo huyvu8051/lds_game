@@ -228,10 +228,12 @@ const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// DiffTrack-ed toward the per-frame view delta. This is the same idea
 /// applied to the walk: the step writes a target, the weapon chases it.
 ///
-/// At the walk's 8 rad/s this returns about 0.89 of the amplitude and a 27
-/// degree lag, which is almost exactly the 0.4712 rad CoD writes into its
-/// roll by hand. That is the number this replaces.
-const GUN_CARRY_RATE: f32 = 16.0;
+/// Lower is heavier: the weapon arrives later and takes longer to settle.
+/// At the walk's 8 rad/s, 16 gives a 27 degree lag -- almost exactly the
+/// 0.4712 rad CoD writes into its roll by hand, and what GUN_BOB_LAG used to
+/// fake. 9 gives 42 degrees, which is a weapon that has to be hauled around
+/// rather than pointed.
+const GUN_CARRY_RATE: f32 = 9.0;
 
 /// Metres the weapon slides across the view per degree it is swung off line.
 ///

@@ -999,12 +999,22 @@ pub(crate) fn advance_walk_cycle(
     // goes onto one side and comes back, it does not swing through.
     let roll = (ops::sin(cycle.phase - GUN_BOB_ROLL_PHASE) * GUN_BOB_ROLL_ASYMMETRY).min(0.0);
 
+    // A first-order tracker takes amplitude off as well as adding lag, and
+    // the two are not separable: the slower it chases, the smaller what it
+    // hands back. Heavier is meant to read as later, not as quieter, so this
+    // puts back exactly what the lag cost at the walk's own frequency.
+    //
+    // Derived rather than written down, so lowering the rate to make the
+    // weapon heavier cannot quietly shrink the motion as well.
+    let nominal = GUN_BOB_SPEED;
+    let gain = ops::sqrt(GUN_CARRY_RATE * GUN_CARRY_RATE + nominal * nominal) / GUN_CARRY_RATE;
+
     let keep = ops::exp(-GUN_CARRY_RATE * dt);
     let chase = |current: f32, target: f32| target + (current - target) * keep;
-    cycle.carried.x = chase(cycle.carried.x, x * GUN_BOB_AMOUNT_X);
-    cycle.carried.y = chase(cycle.carried.y, y * GUN_BOB_AMOUNT_Y);
-    cycle.carried_roll = chase(cycle.carried_roll, roll * GUN_BOB_ROLL_DEG);
-    cycle.carried_pitch = chase(cycle.carried_pitch, y * GUN_BOB_PITCH_DEG);
+    cycle.carried.x = chase(cycle.carried.x, x * GUN_BOB_AMOUNT_X * gain);
+    cycle.carried.y = chase(cycle.carried.y, y * GUN_BOB_AMOUNT_Y * gain);
+    cycle.carried_roll = chase(cycle.carried_roll, roll * GUN_BOB_ROLL_DEG * gain);
+    cycle.carried_pitch = chase(cycle.carried_pitch, y * GUN_BOB_PITCH_DEG * gain);
 
     cycle.aim_damp = gun
         .single()
