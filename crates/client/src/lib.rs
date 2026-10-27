@@ -228,12 +228,6 @@ const GUN_BOB_BLEND_SPEED: f32 = 6.0;
 /// DiffTrack-ed toward the per-frame view delta. This is the same idea
 /// applied to the walk: the step writes a target, the weapon chases it.
 ///
-/// Lower is heavier: the weapon arrives later and takes longer to settle.
-/// At the walk's 8 rad/s, 16 gives a 27 degree lag -- almost exactly the
-/// 0.4712 rad CoD writes into its roll by hand, and what GUN_BOB_LAG used to
-/// fake. 9 gives 42 degrees, which is a weapon that has to be hauled around
-/// rather than pointed.
-const GUN_CARRY_RATE: f32 = 9.0;
 
 /// The kick a foot landing puts into the weapon, in metres per second of
 /// vertical speed. On the weapon only -- a camera that jolts every step is
@@ -250,12 +244,12 @@ const GUN_CARRY_RATE: f32 = 9.0;
 ///      1.10    1.37cm         0.75°           0.23s
 /// ```
 ///
-/// 0.50 is the middle: plainly there, and about half the bob it sits on.
-/// Past 1.1 the jolt is larger than the walk it interrupts and the player
-/// reads as limping. Everything here rings down well inside the gap between
+/// 0.28 ships: felt rather than watched, about a third of the bob it sits
+/// on. Past 1.1 the jolt is larger than the walk it interrupts and the
+/// player reads as limping. Everything here rings down well inside the gap between
 /// steps, which is the part that must hold -- a jolt still ringing when the
 /// next foot lands accumulates into a wobble.
-const STEP_SHOCK_IMPULSE: f32 = 0.50;
+const STEP_SHOCK_IMPULSE: f32 = 0.28;
 /// How fast it rings, and how hard it is held. Short and nearly dead: a
 /// footfall is a thud, not a wobble.
 const STEP_SHOCK_FREQUENCY: f32 = 34.0;
@@ -272,17 +266,10 @@ const STEP_SHOCK_PITCH_DEG: f32 = 55.0;
 /// ratio off the angle says the same thing with one spring instead of two.
 const LOOK_SWAY_SHIFT_PER_DEG: f32 = 0.0045;
 
-/// How far the roll trails the sway, on top of what the tracker already
-/// delays it by.
-///
-/// What matters is the total, not this number. CoD writes 0.4712 rad by hand
-/// on top of a tracker that appears to give it about 27 degrees, landing the
-/// roll near 54 degrees behind the step. Our tracker gives 42 at
-/// GUN_CARRY_RATE 9, so the hand-written part shrinks to match rather than
-/// stacking on top of it -- 0.21 puts the total back at 53.7.
-///
-/// Worth re-deriving if GUN_CARRY_RATE moves again: the two share the job.
-const GUN_BOB_ROLL_PHASE: f32 = 0.21;
+/// How far the weapon trails the body through a step, in radians of the
+/// gait. Arms are compliant; a weapon that cants in exact step with the hips
+/// reads as welded to them.
+const GUN_BOB_LAG: f32 = 0.35;
 /// A one-sided roll spends half its cycle at zero, so it is given half again
 /// to keep the same presence. Also CoD's: `speed * 1.5`.
 const GUN_BOB_ROLL_ASYMMETRY: f32 = 1.5;
