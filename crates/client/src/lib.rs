@@ -32,9 +32,11 @@ pub mod cadisplaylink;
 
 mod weapon;
 mod inventory;
+mod zombie_locomotion;
 mod loadout_hud;
 use weapon::*;
 use inventory::*;
+use zombie_locomotion::*;
 use loadout_hud::*;
 mod dismember;
 use dismember::*;
@@ -1289,6 +1291,7 @@ impl Plugin for GamePlugin {
             drive_skeleton_from_ragdoll,
             aim_zombie_heads,
             apply_bone_flinch,
+            lean_zombie_into_turn,
             hold_finger_grip,
         )
             .after(AnimationSystems)
