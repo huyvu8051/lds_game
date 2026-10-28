@@ -131,7 +131,7 @@ pub(crate) fn spawn_inventory_screen(commands: &mut Commands) {
                     row.spawn(column(GearColumn));
                 });
             screen.spawn((
-                Text::new("TAB to close".to_string()),
+                Text::new("B to close".to_string()),
                 TextFont { font_size: FontSize::Px(12.0), ..default() },
                 TextColor(Color::srgba(1.0, 1.0, 1.0, 0.4)),
             ));
@@ -144,7 +144,9 @@ pub(crate) fn toggle_inventory_screen(
     mut was_pressed: Local<bool>,
     button: Query<&Interaction, With<InventoryToggleButton>>,
 ) {
-    if keys.just_pressed(KeyCode::Tab) {
+    // B, not Tab. Tab belongs to the touch-UI toggle on the phone, and a
+    // key that means two things is a key that means neither.
+    if keys.just_pressed(KeyCode::KeyB) {
         open.0 = !open.0;
     }
     // Edge-triggered off the button's own state rather than Changed<>, which

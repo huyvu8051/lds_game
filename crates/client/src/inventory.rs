@@ -466,7 +466,9 @@ pub(crate) fn use_consumable_key(
     boost: ResMut<Boost>,
     player: Query<&mut Health, With<Player>>,
 ) {
-    if keys.just_pressed(KeyCode::KeyX) {
+    // H for heal. X was taken by going prone, which this was quietly
+    // doing at the same time every time anybody drank anything.
+    if keys.just_pressed(KeyCode::KeyH) {
         use_selected_consumable(inventory, boost, player);
     }
 }

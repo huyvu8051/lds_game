@@ -773,13 +773,19 @@ pub(crate) fn toggle_debug_flags(
 
         commands.trigger(SetFreezeZombies(freeze.0));
     }
-    if keys.just_pressed(KeyCode::KeyH) {
+    // Y, because H is the heal key now and a player reaching for a bandage
+    // should not get a wireframe.
+    if keys.just_pressed(KeyCode::KeyY) {
         show_hitboxes.0 = !show_hitboxes.0;
     }
-    if keys.just_pressed(KeyCode::KeyG) {
+    // O and K, not G and B. Those two became gameplay keys -- G throws a
+    // grenade and B opens the backpack -- and a debug toggle sharing a key
+    // with something the player does on purpose is a debug toggle that
+    // fires by accident.
+    if keys.just_pressed(KeyCode::KeyO) {
         god_mode.0 = !god_mode.0;
     }
-    if keys.just_pressed(KeyCode::KeyB) {
+    if keys.just_pressed(KeyCode::KeyK) {
         aim_blur.0 = !aim_blur.0;
     }
     if keys.just_pressed(KeyCode::KeyV) {
@@ -797,15 +803,18 @@ pub(crate) fn toggle_debug_flags(
     }
 }
 
-/// B walks the weapon's modes. PUBG's key, and the only one not already
-/// spoken for by a debug toggle -- and those are dev-only anyway.
+/// Z walks the weapon's modes.
+///
+/// PUBG puts this on B and B is now the backpack, so it moves. Z is free,
+/// and it sits under the hand already on WASD, which matters more for a
+/// thing pressed mid-fight than matching another game's layout does.
 pub(crate) fn cycle_fire_mode(
     keys: Res<ButtonInput<KeyCode>>,
     active: Res<ActiveWeapon>,
     mut fire_mode: ResMut<weapon::FireModeSelection>,
     mut gun: Query<&mut Gun>,
 ) {
-    if !keys.just_pressed(KeyCode::KeyB) {
+    if !keys.just_pressed(KeyCode::KeyZ) {
         return;
     }
     let def = active.def();

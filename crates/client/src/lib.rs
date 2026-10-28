@@ -1255,7 +1255,6 @@ impl Plugin for GamePlugin {
                     demote_fully_metallic_imports,
                     exclude_oversized_shadow_casters.run_if(ui_tick()),
                     (
-                    test_blast_key.run_if(debug_keys_allowed),
                     select_weapon_slot,
                     (begin_weapon_swap, advance_weapon_swap, switch_weapon).chain(),
                     use_consumable_key,

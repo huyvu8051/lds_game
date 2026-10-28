@@ -100,20 +100,3 @@ pub(crate) fn apply_pending_blast(
     }
 }
 
-const TEST_BLAST_AHEAD: f32 = 6.0;
-const TEST_BLAST_RADIUS: f32 = 7.0;
-const TEST_BLAST_FORCE: f32 = 13.0;
-
-pub(crate) fn test_blast_key(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut commands: Commands,
-    camera: Query<&GlobalTransform, With<FpsCamera>>,
-) {
-    if !keys.just_pressed(KeyCode::KeyB) {
-        return;
-    }
-    let Ok(eye) = camera.single() else { return };
-    let at = eye.translation() + eye.forward() * TEST_BLAST_AHEAD;
-    commands.trigger(Explosion { at, radius: TEST_BLAST_RADIUS, force: TEST_BLAST_FORCE });
-    info!("[blast] at {at:.2?} radius {TEST_BLAST_RADIUS} force {TEST_BLAST_FORCE}");
-}
