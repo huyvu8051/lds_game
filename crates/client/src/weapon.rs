@@ -307,6 +307,8 @@ pub(crate) enum WeaponId {
     BerylM762,
     Ace32,
     Mk47Mutant,
+    Groza,
+    Vector,
 }
 
 #[derive(Resource)]
@@ -332,7 +334,7 @@ impl ActiveWeapon {
 }
 
 impl WeaponId {
-    pub(crate) const ALL: [WeaponId; 14] = [
+    pub(crate) const ALL: [WeaponId; 16] = [
         WeaponId::Ak47,
         WeaponId::M4a1,
         WeaponId::M24,
@@ -347,6 +349,8 @@ impl WeaponId {
         WeaponId::BerylM762,
         WeaponId::Ace32,
         WeaponId::Mk47Mutant,
+        WeaponId::Groza,
+        WeaponId::Vector,
     ];
 
     pub(crate) fn index(self) -> usize {
@@ -365,6 +369,8 @@ impl WeaponId {
             WeaponId::BerylM762 => 11,
             WeaponId::Ace32 => 12,
             WeaponId::Mk47Mutant => 13,
+            WeaponId::Groza => 14,
+            WeaponId::Vector => 15,
         }
     }
 
@@ -384,6 +390,8 @@ impl WeaponId {
             WeaponId::BerylM762 => &BERYL_M762,
             WeaponId::Ace32 => &ACE32,
             WeaponId::Mk47Mutant => &MK47_MUTANT,
+            WeaponId::Groza => &GROZA,
+            WeaponId::Vector => &VECTOR,
         }
     }
 
@@ -1229,6 +1237,155 @@ static MK47_MUTANT: WeaponDef = WeaponDef {
             freq_yaw: 9.0,
             freq_roll: 10.5,
             decay: 25.0,
+        },
+    },
+};
+
+/// A 7.62 bullpup: short, heavy, and the fastest-firing thing at that
+/// calibre. Thirty-six named parts, so its magazine was already its own mesh
+/// and only needed renaming.
+///
+/// 700mm overall puts the magazine at 30.4mm wide and the muzzle device at
+/// 24.2mm, both right. Its carry handle, though, stands 128mm over the bore
+/// where a real one is nearer 60 -- the model's own proportion -- so
+/// Socket_Aim rides at the top of the handle and the weapon hangs low.
+static GROZA: WeaponDef = WeaponDef {
+    name: "Groza",
+    mesh_path: "models/groza/mesh/groza.glb",
+    rest_offset: Vec3::new(0.160, -0.1635, -0.4415),
+    ready_offset: Vec3::new(0.071, -0.2335, -0.3515),
+    ads_eye_relief: 0.115,
+    // Short enough to swing like an SMG.
+    ads_speed: AdsSpeed { from_ready: 15.0, from_rest: 8.8 },
+    hold_ads_fraction: 0.280,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.093, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.019,
+    ads_settle_miss_deg: 1.0,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 20.0,
+    autopilot_sprint_approach_distance: 13.0,
+    autopilot_sprint_pathing_distance: 8.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/groza_fire.wav", reload: "audio/weapons/groza_reload.wav" },
+    // Bullpup: the magazine goes in behind the hand.
+    reload_duration: 2.5,
+    damage_scale: 1.0,
+    // 700rpm real against the AK's 600, and the heaviest round in the game
+    // going out that fast.
+    fire_rate: 0.103,
+    magazine: 40,
+    fire_modes: &[FireMode::Auto, FireMode::Single],
+    ammo: crate::ItemKind::Ammo762,
+    // Heavy and fired straight into the shoulder: it shoves hard and climbs
+    // less than the AK, but at this rate there is no time to give any back.
+    recoil: Recoil {
+        strike_speed: 66.0,
+        view: ViewKick {
+            climb_per_shot: 0.0092,
+            climb_max: 0.092,
+            wander_per_shot: 0.0058,
+            shove_per_shot: 0.034,
+            shove_max: 0.066,
+            recover_speed: 6.2,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.132,
+            lift: 0.0,
+            pitch_deg: 0.66,
+            roll_deg: 0.60,
+            yaw_deg: 0.52,
+            settle_speed: 12.5,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.076,
+            view_yaw_deg: 0.062,
+            view_roll_deg: 0.150,
+            gun_pitch_deg: 0.30,
+            gun_yaw_deg: 0.23,
+            gun_roll_deg: 0.42,
+            gun_shift_m: 0.0011,
+            freq_pitch: 13.0,
+            freq_yaw: 9.5,
+            freq_roll: 11.0,
+            decay: 24.0,
+        },
+    },
+};
+
+/// .45 at 1091 rounds a minute: the fastest trigger in the game and the
+/// smallest magazine to feed it. Thirteen rounds go in about seven tenths of
+/// a second.
+///
+/// A holographic sight is part of the mesh; Socket_Aim is the middle of its
+/// window, 70.8mm over the bore.
+static VECTOR: WeaponDef = WeaponDef {
+    name: "Vector",
+    mesh_path: "models/vector/mesh/vector.glb",
+    rest_offset: Vec3::new(0.160, -0.1113, -0.4580),
+    ready_offset: Vec3::new(0.071, -0.1813, -0.3680),
+    ads_eye_relief: 0.11,
+    // Nothing comes up faster.
+    ads_speed: AdsSpeed { from_ready: 18.0, from_rest: 11.0 },
+    hold_ads_fraction: 0.330,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0408, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.012,
+    ads_settle_miss_deg: 1.4,
+    aim_fov_multiplier: 0.80,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 16.0,
+    autopilot_sprint_approach_distance: 10.0,
+    autopilot_sprint_pathing_distance: 7.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/vector_fire.wav", reload: "audio/weapons/vector_reload.wav" },
+    reload_duration: 2.0,
+    // A short barrel and a pistol round: the least damage per shot here, and
+    // it makes it up in how many of them arrive.
+    damage_scale: 0.65,
+    // 1200rpm real against the UMP's 600, so half the UMP's 0.10.
+    fire_rate: 0.055,
+    magazine: 25,
+    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    ammo: crate::ItemKind::Ammo45,
+    // The action drives the bolt down and back rather than straight back, and
+    // the weapon is built around keeping that off the shoulder: very little
+    // climb, and what there is comes back fast.
+    recoil: Recoil {
+        strike_speed: 58.0,
+        view: ViewKick {
+            climb_per_shot: 0.0042,
+            climb_max: 0.048,
+            wander_per_shot: 0.0040,
+            shove_per_shot: 0.0070,
+            shove_max: 0.032,
+            recover_speed: 9.0,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.085,
+            lift: 0.0,
+            pitch_deg: 0.12,
+            roll_deg: 0.45,
+            yaw_deg: 0.36,
+            settle_speed: 19.0,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.034,
+            view_yaw_deg: 0.030,
+            view_roll_deg: 0.070,
+            gun_pitch_deg: 0.140,
+            gun_yaw_deg: 0.110,
+            gun_roll_deg: 0.210,
+            gun_shift_m: 0.0005,
+            freq_pitch: 17.0,
+            freq_yaw: 13.0,
+            freq_roll: 15.0,
+            decay: 26.0,
         },
     },
 };
