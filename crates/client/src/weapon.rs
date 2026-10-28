@@ -548,9 +548,9 @@ static M416: WeaponDef = WeaponDef {
     scoped: false,
     reticle: ReticleKind::Dot,
     holo: None,
-    // No M416 audio exists yet, so it borrows the M4A1's. Same calibre, same
-    // action; it is a stand-in rather than a choice.
-    sound: WeaponSound { fire: "audio/weapons/m4a1_fire.wav", reload: "audio/weapons/m4a1_reload.wav" },
+    // Its own files, which happen to be copies of the M4A1's for now. The
+    // weapon owns its paths; replacing the stand-in is dropping a wav in.
+    sound: WeaponSound { fire: "audio/weapons/m416_fire.wav", reload: "audio/weapons/m416_reload.wav" },
     reload_duration: 1.9,
     damage_scale: 0.85,
     // PUBG's numbers for this rifle: 30 rounds, about 700 a minute.
