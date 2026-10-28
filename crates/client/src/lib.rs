@@ -1093,10 +1093,8 @@ impl Plugin for GamePlugin {
             // is cleared the frame after it is pressed and the scroll message
             // is gone in two.
             (
-                toggle_settings_menu,
                 scroll_settings_menu,
                 touch_scroll_settings_menu,
-                update_touch_controls_idle_hidden,
             )
                 .chain(),
             (
@@ -1137,7 +1135,6 @@ impl Plugin for GamePlugin {
                         (crosshair_in_ads_button, infinite_ammo_button),
                         zombie_walk_buttons,
                         update_zombie_walk_buttons,
-                        toggle_inventory_screen,
                         update_inventory_screen,
                         rebuild_inventory_screen,
                         inventory_screen_rows,
@@ -1175,6 +1172,13 @@ impl Plugin for GamePlugin {
                 (
                     grab_cursor,
                     update_aim_held,
+                    // Every frame, not on the UI tick. just_pressed is true
+                    // for exactly one frame, and the UI tick only looks every
+                    // 33ms, so at 120fps it saw roughly one press in four --
+                    // which is what made B feel broken. The idle timer below
+                    // was worse off: it sums a per-frame delta, so running it
+                    // at 30Hz had it counting about four times too slow.
+                    (toggle_inventory_screen, toggle_settings_menu, update_touch_controls_idle_hidden),
                     toggle_noclip.run_if(debug_keys_allowed),
                     toggle_player_stance,
                     toggle_debug_flags.run_if(debug_keys_allowed),
