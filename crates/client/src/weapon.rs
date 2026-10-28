@@ -299,6 +299,8 @@ pub(crate) enum WeaponId {
     Ump45,
     Deagle,
     ScarL,
+    M16a4,
+    Famas,
 }
 
 #[derive(Resource)]
@@ -324,13 +326,15 @@ impl ActiveWeapon {
 }
 
 impl WeaponId {
-    pub(crate) const ALL: [WeaponId; 6] = [
+    pub(crate) const ALL: [WeaponId; 8] = [
         WeaponId::Ak47,
         WeaponId::M4a1,
         WeaponId::M24,
         WeaponId::Ump45,
         WeaponId::Deagle,
         WeaponId::ScarL,
+        WeaponId::M16a4,
+        WeaponId::Famas,
     ];
 
     pub(crate) fn index(self) -> usize {
@@ -341,6 +345,8 @@ impl WeaponId {
             WeaponId::Ump45 => 3,
             WeaponId::Deagle => 4,
             WeaponId::ScarL => 5,
+            WeaponId::M16a4 => 6,
+            WeaponId::Famas => 7,
         }
     }
 
@@ -352,6 +358,8 @@ impl WeaponId {
             WeaponId::Ump45 => &UMP45,
             WeaponId::Deagle => &DEAGLE,
             WeaponId::ScarL => &SCAR_L,
+            WeaponId::M16a4 => &M16A4,
+            WeaponId::Famas => &FAMAS,
         }
     }
 
@@ -598,6 +606,163 @@ static SCAR_L: WeaponDef = WeaponDef {
             freq_yaw: 9.5,
             freq_roll: 11.5,
             decay: 20.0,
+        },
+    },
+};
+
+/// The download was already muzzle-forward, Z-up and in metres -- the flash
+/// hider measures 22.3mm against the real rifle's 22 -- so this is a move of
+/// the origin and nothing else. Two cross-sections of the barrel 42mm apart
+/// put the bore on the Y axis to within 0.01mm.
+///
+/// A flat-top with an empty rail: the download carries no rear sight, so
+/// Socket_Aim sits at the back of the receiver rail at the front post's own
+/// height, which is where a carry handle or a folding sight would put the
+/// aperture on a real one.
+static M16A4: WeaponDef = WeaponDef {
+    name: "M16A4",
+    mesh_path: "models/m16a4/mesh/m16a4.glb",
+    // Socket_Aim sits 0.655 down this weapon against the M4's 0.5125.
+    rest_offset: Vec3::new(0.160, -0.1018, -0.7685),
+    ready_offset: Vec3::new(0.071, -0.1718, -0.6785),
+    ads_eye_relief: 0.11,
+    // A full-length rifle: slower onto the eye than either carbine.
+    ads_speed: AdsSpeed { from_ready: 12.5, from_rest: 7.0 },
+    hold_ads_fraction: 0.260,
+    // Sums to -0.0708 with rest_offset, level with the M4 and the M24.
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.031, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.020,
+    ads_settle_miss_deg: 1.0,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 26.0,
+    autopilot_sprint_approach_distance: 16.0,
+    autopilot_sprint_pathing_distance: 10.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    // Its own files, which are copies of the M4's until the M16 has
+    // recordings of its own.
+    sound: WeaponSound { fire: "audio/weapons/m16a4_fire.wav", reload: "audio/weapons/m16a4_reload.wav" },
+    reload_duration: 2.0,
+    // A 20in barrel against the M4's 14.5: the same round, leaving faster.
+    damage_scale: 0.90,
+    // 800rpm real against the M416's 750, so a shade quicker than the M4 here.
+    fire_rate: 0.098,
+    magazine: 45,
+    // No auto on an A4. Three rounds or one, which is the whole character of
+    // the rifle: a 474mm sight radius and a trigger that will not run away.
+    fire_modes: &[FireMode::Burst, FireMode::Single],
+    ammo: crate::ItemKind::Ammo556,
+    // The M4's, a touch lighter per shot for the longer rifle's mass, and
+    // recovering sooner because a burst ends on its own.
+    recoil: Recoil {
+        strike_speed: 72.0,
+        view: ViewKick {
+            climb_per_shot: 0.0076,
+            climb_max: 0.064,
+            wander_per_shot: 0.0040,
+            shove_per_shot: 0.0090,
+            shove_max: 0.036,
+            recover_speed: 8.2,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.115,
+            lift: 0.0,
+            pitch_deg: 0.19,
+            roll_deg: 0.72,
+            yaw_deg: 0.55,
+            settle_speed: 15.5,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.055,
+            view_yaw_deg: 0.046,
+            view_roll_deg: 0.10,
+            gun_pitch_deg: 0.21,
+            gun_yaw_deg: 0.155,
+            gun_roll_deg: 0.31,
+            gun_shift_m: 0.0007,
+            freq_pitch: 13.0,
+            freq_yaw: 10.0,
+            freq_roll: 12.0,
+            decay: 23.0,
+        },
+    },
+};
+
+/// A bullpup, and the download comes with a suppressor and a red dot already
+/// on it -- neither is an attachment the game can take off. Scale is set by
+/// the weapon's own 757mm, measured to where the suppressor screws on; that
+/// leaves the can 189mm and 33mm across, which is a real one.
+///
+/// Socket_Aim is the middle of the red dot's glass, 163mm over the bore. A
+/// FAMAS carries its sights high to begin with and this adds an optic on top,
+/// so it sits lower in the sighted frame than anything else here.
+static FAMAS: WeaponDef = WeaponDef {
+    name: "FAMAS",
+    mesh_path: "models/famas/mesh/famas.glb",
+    rest_offset: Vec3::new(0.160, -0.1018, -0.6570),
+    ready_offset: Vec3::new(0.071, -0.1718, -0.5670),
+    ads_eye_relief: 0.11,
+    // Short and balanced over the hand: the quickest of the rifles onto the
+    // eye.
+    ads_speed: AdsSpeed { from_ready: 17.0, from_rest: 10.0 },
+    hold_ads_fraction: 0.310,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.031, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.013,
+    ads_settle_miss_deg: 1.3,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 20.0,
+    autopilot_sprint_approach_distance: 13.0,
+    autopilot_sprint_pathing_distance: 8.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/famas_fire.wav", reload: "audio/weapons/famas_reload.wav" },
+    // Bullpup: the magazine goes in behind the hand, which is slower.
+    reload_duration: 2.4,
+    damage_scale: 0.85,
+    // The fastest cyclic rate in the game. A real F1 runs about 1000rpm
+    // against the M416's 750, and the M4 here is 571, so this lands at 761.
+    fire_rate: 0.079,
+    magazine: 35,
+    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    ammo: crate::ItemKind::Ammo556,
+    // Light per shot, but at this rate the climb stacks faster than anything
+    // else, so the ceiling is what holds it rather than the step.
+    recoil: Recoil {
+        strike_speed: 68.0,
+        view: ViewKick {
+            climb_per_shot: 0.0062,
+            climb_max: 0.070,
+            wander_per_shot: 0.0048,
+            shove_per_shot: 0.0088,
+            shove_max: 0.040,
+            recover_speed: 7.0,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.105,
+            lift: 0.0,
+            pitch_deg: 0.17,
+            roll_deg: 0.66,
+            yaw_deg: 0.50,
+            settle_speed: 17.0,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.048,
+            view_yaw_deg: 0.042,
+            view_roll_deg: 0.095,
+            gun_pitch_deg: 0.185,
+            gun_yaw_deg: 0.140,
+            gun_roll_deg: 0.280,
+            gun_shift_m: 0.0006,
+            freq_pitch: 15.5,
+            freq_yaw: 11.5,
+            freq_roll: 13.5,
+            decay: 24.0,
         },
     },
 };
