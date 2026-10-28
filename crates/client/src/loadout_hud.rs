@@ -32,6 +32,15 @@ fn health_colour(fraction: f32) -> Color {
     }
 }
 
+/// One button per kind, so a grenade can be cooked without first cycling to
+/// it. Held, not tapped: the hold is the cook.
+#[derive(Component)]
+pub(crate) struct ThrowButton(pub(crate) ItemKind);
+#[derive(Component)]
+pub(crate) struct ThrowButtonLabel(pub(crate) ItemKind);
+#[derive(Component)]
+pub(crate) struct CookRing;
+
 #[derive(Component)]
 pub(crate) struct ThrowableSlotButton;
 #[derive(Component)]
@@ -250,6 +259,58 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
                     HEALTH_BAR_HEIGHT,
                     health_colour(1.0),
                     HealthBarFill,
+                ));
+            });
+
+            // One button per throwable, above the heal selector. PUBG puts
+            // these on the weapon bar; here they are their own column
+            // because holding one is a different gesture from tapping a
+            // weapon slot and the two should not be neighbours by accident.
+            row.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(3.0),
+                align_items: AlignItems::Center,
+                ..default()
+            })
+            .with_children(|col| {
+                for kind in inventory::THROWABLES {
+                    col.spawn((
+                        Node {
+                            width: Val::Px(74.0),
+                            height: Val::Px(22.0),
+                            border: UiRect::all(Val::Px(1.0)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+                        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
+                        Button,
+                        Interaction::default(),
+                        ThrowButton(kind),
+                        children![(
+                            Text::new(String::new()),
+                            TextFont { font_size: FontSize::Px(10.0), ..default() },
+                            TextColor(kind.colour()),
+                            ThrowButtonLabel(kind),
+                        )],
+                    ));
+                }
+                // How much fuse is left while one is in the hand. The only
+                // thing worth seeing at that moment.
+                col.spawn((
+                    Node {
+                        width: Val::Px(74.0),
+                        height: Val::Px(4.0),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.1)),
+                    children![(
+                        Node { width: Val::Percent(0.0), height: Val::Percent(100.0), ..default() },
+                        BackgroundColor(Color::srgb(1.0, 0.5, 0.2)),
+                        CookRing,
+                    )],
                 ));
             });
 
@@ -525,5 +586,69 @@ pub(crate) fn throwable_slot(
         // everything they need to in one.
         let short = kind.label().split_whitespace().next().unwrap_or("--");
         text.0 = if held > 0 { format!("{short} {held}") } else { "--".to_string() };
+    }
+}
+
+/// The per-kind throw buttons. Pressing one pulls the pin; letting go throws
+/// it, with whatever fuse is left.
+///
+/// Edge-detected against its own last state rather than Changed<Interaction>,
+/// because a hold has to be seen for its whole length and Changed only fires
+/// when the state turns over.
+pub(crate) fn throw_buttons(
+    mut cooking: ResMut<grenade::Cooking>,
+    mut inventory: ResMut<Inventory>,
+    mut commands: Commands,
+    assets: Option<Res<grenade::GrenadeAssets>>,
+    sounds: Option<Res<GrenadeSounds>>,
+    camera: Query<&GlobalTransform, With<FpsCamera>>,
+    buttons: Query<(&Interaction, &ThrowButton)>,
+    mut held: Local<Option<ItemKind>>,
+    mut labels: Query<(&ThrowButtonLabel, &mut Text, &mut TextColor)>,
+    mut ring: Query<&mut Node, With<CookRing>>,
+) {
+    let pressed = buttons
+        .iter()
+        .find(|(interaction, _)| **interaction == Interaction::Pressed)
+        .map(|(_, button)| button.0);
+
+    match (*held, pressed) {
+        (None, Some(kind)) => {
+            grenade::begin_cook(&mut cooking, &inventory, kind);
+            if cooking.kind == Some(kind) {
+                *held = Some(kind);
+                if let Some(sounds) = sounds.as_ref() {
+                    grenade::play_sample(&mut commands, sounds.pin.clone(), 0.9);
+                }
+            }
+        }
+        (Some(_), None) => {
+            *held = None;
+            if let (Some(assets), Ok(eye)) = (assets.as_ref(), camera.single()) {
+                grenade::throw_now(&mut commands, &mut cooking, &mut inventory, assets, sounds.as_deref(), eye);
+            }
+        }
+        _ => {}
+    }
+
+    for (label, mut text, mut colour) in &mut labels {
+        let count = inventory.count(label.0);
+        let short = label.0.label().split_whitespace().next().unwrap_or("--");
+        text.0 = format!("{short} {count}");
+        let base = label.0.colour().to_srgba();
+        *colour = TextColor(Color::srgba(
+            base.red,
+            base.green,
+            base.blue,
+            if count == 0 { 0.25 } else { 1.0 },
+        ));
+    }
+    if let Ok(mut node) = ring.single_mut() {
+        let left = match cooking.kind {
+            Some(_) => ((grenade::FUSE_SECONDS - cooking.elapsed) / grenade::FUSE_SECONDS)
+                .clamp(0.0, 1.0),
+            None => 0.0,
+        };
+        node.width = Val::Percent(left * 100.0);
     }
 }

@@ -319,18 +319,21 @@ pub(crate) fn gun_view_animation(
     keys: Res<ButtonInput<KeyCode>>,
     mut look_delta: ResMut<MouseLookDelta>,
     mut pose: ResMut<WeaponPose>,
-    mut inventory: ResMut<Inventory>,
     cursor: Query<&CursorOptions, With<PrimaryWindow>>,
     camera: Query<(&Transform, &Lean), (With<FpsCamera>, Without<Gun>)>,
     spatial_query: SpatialQuery,
     mut query: Query<(&mut Transform, &GlobalTransform, &mut Gun), Without<FpsCamera>>,
     aim: Query<&GlobalTransform, (With<AimSocket>, Without<Gun>, Without<FpsCamera>)>,
     local: LocalPlayerState,
-    (active, cycle, shock, mut wall_probe): (
+    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose): (
         Res<ActiveWeapon>,
         Res<WalkCycle>,
         Res<crate::movement_combat::FireShock>,
         Local<WallProbe>,
+        // Riding in with the rest: Bevy caps a system at sixteen and this
+        // one has been at the cap since the wall probe went in.
+        ResMut<Inventory>,
+        Res<grenade::ThrowPose>,
     ),
 ) {
     // Taken, not read: the single consumer clearing it is what lets each
@@ -870,6 +873,11 @@ pub(crate) fn gun_view_animation(
         let inspect_swing =
             outer * sway * hold_turn * (between_hands - inspect_turn * between_hands);
 
+        // The arm winding back and coming over the top. Added outside the
+        // weapon's own pose so the whole thing travels -- a throw moves the
+        // rifle out of the way, it does not cant it in place.
+        let (throw_offset, throw_pitch, throw_yaw) = throw_pose.pose();
+
         let (shock_pitch, shock_yaw, shock_roll) = shock.gun_angles();
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);
         transform.translation = Vec3::new(swapped_x, base_pos.y, base_pos.z)
@@ -887,12 +895,14 @@ pub(crate) fn gun_view_animation(
             // a rifle in the shoulder judders along its own travel, not only
             // about a point. Reusing the angles keeps the two in phase.
             + Vec3::new(shock_yaw, shock_pitch, shock_roll)
-                * shock.gun_shift();
+                * shock.gun_shift()
+            + throw_offset;
 
         // Outermost, so the whole weapon rattles in view rather than each
         // part twisting about its own pivot. Several times what the eye gets:
         // this is the thing the round was fired out of.
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, shock_yaw, shock_pitch, shock_roll)
+        transform.rotation = Quat::from_euler(EulerRot::YXZ, throw_yaw, throw_pitch, 0.0)
+            * Quat::from_euler(EulerRot::YXZ, shock_yaw, shock_pitch, shock_roll)
             * outer
             * sway
             * hold_turn

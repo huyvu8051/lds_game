@@ -30,3 +30,12 @@ feedback/
     down and given a small room.
 
     tools/make_feedback_sounds.sh rebuilds all five.
+
+grenades/
+    Not sampled from anything either. The pin is two metal partials; the
+    throw is band-passed noise with a swell and no onset; the blast is a
+    crack over a body over a low tail, each on its own decay; the smoke is
+    narrow-band noise that swells and holds; the flash is a crack with
+    nothing under it and then the ring in the ears.
+
+    tools/make_grenade_sounds.sh rebuilds all five.

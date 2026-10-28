@@ -79,6 +79,13 @@ pub(crate) fn setup_common(
             .map(|name| asset_server.load(format!("audio/feedback/{name}.wav")))
             .collect(),
     });
+    commands.insert_resource(GrenadeSounds {
+        pin: asset_server.load("audio/grenades/pin.wav"),
+        throw: asset_server.load("audio/grenades/throw.wav"),
+        blast: asset_server.load("audio/grenades/blast.wav"),
+        hiss: asset_server.load("audio/grenades/hiss.wav"),
+        flash: asset_server.load("audio/grenades/flash.wav"),
+    });
     commands.insert_resource(FootstepSounds {
         player: (0..PLAYER_FOOTSTEP_SAMPLES)
             .map(|i| asset_server.load(format!("audio/footsteps/{PLAYER_FOOTSTEP_SURFACE}/{i}.ogg")))
@@ -452,6 +459,7 @@ pub(crate) fn setup_gameplay(
     spawn_crosshair(&mut commands);
     spawn_loadout_hud(&mut commands);
     spawn_inventory_screen(&mut commands);
+    spawn_flash_overlay(&mut commands);
     spawn_kill_ui(&mut commands);
     spawn_ammo_ui(&mut commands);
     spawn_compass_ui(&mut commands);

@@ -35,12 +35,14 @@ mod items;
 mod inventory;
 mod zombie_locomotion;
 mod inventory_screen;
+mod grenade;
 mod loadout_hud;
 use weapon::*;
 use items::*;
 use inventory::*;
 use zombie_locomotion::*;
 use inventory_screen::*;
+use grenade::*;
 use loadout_hud::*;
 mod dismember;
 use dismember::*;
@@ -928,6 +930,8 @@ impl Plugin for GamePlugin {
         .add_observer(on_explosion)
         .add_observer(on_shot_confirmed)
         .add_observer(drop_loot_on_kill)
+        .add_observer(on_smoke_started)
+        .add_observer(on_flash_started)
         .add_observer(on_corpse_hit)
         .add_observer(on_game_state_event)
         .add_plugins(F9DebugPlugin)
@@ -1034,8 +1038,11 @@ impl Plugin for GamePlugin {
         .init_resource::<Attachments>()
         .init_resource::<ThrowableSelection>()
         .init_resource::<weapon::FireModeSelection>()
+        .init_resource::<Cooking>()
+        .init_resource::<Flashed>()
+        .init_resource::<ThrowPose>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
-        .add_systems(Startup, (spawn_pole_targets, init_pickup_assets))
+        .add_systems(Startup, (spawn_pole_targets, init_pickup_assets, init_grenade_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
         .add_systems(OnExit(AppState::Menu), exit_menu)
         // Gameplay is built while the loading screen is still up, so the map
@@ -1130,7 +1137,7 @@ impl Plugin for GamePlugin {
                     ),
                     update_bars,
                     update_weapon_slots,
-                    (update_item_ui, update_gear_cells, throwable_slot),
+                    (update_item_ui, update_gear_cells, throwable_slot, update_fuse_labels, update_flash_overlay, throw_buttons),
                     damage_multiplier_buttons,
                     update_damage_multiplier_text,
                     auto_maintain_button,
@@ -1249,7 +1256,15 @@ impl Plugin for GamePlugin {
                     advance_boost,
                     // Grouped only to stay inside the twenty this tuple
                     // takes; nothing here is ordered against anything.
-                    (advance_pickups, throw_selected, advance_thrown, cycle_fire_mode),
+                    (
+                        advance_pickups,
+                        cycle_fire_mode,
+                        cook_and_throw,
+                        advance_grenades,
+                        advance_smoke,
+                        advance_flash,
+                        advance_throw_pose,
+                    ),
                     collect_pickups,
                     forget_gone_zombies.run_if(ui_tick()),
                     update_gore,
