@@ -354,12 +354,12 @@ pub(crate) fn spawn_touch_controls(commands: &mut Commands) {
                 width: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
                 height: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
                 position_type: PositionType::Absolute,
-                // Top left, under the radar and sharing its left edge. The
-                // bottom right corner it used to sit in is three deep already
-                // -- fire, ADS and the throwables -- and that is all right
-                // thumb work.
-                left: Val::Px(RADAR_LEFT),
-                top: Val::Px(RADAR_TOP + RADAR_SIZE + 12.0),
+                // Top right, under the settings and bag toggles. The left
+                // edge below the radar is the kill feed's now, and the bottom
+                // right corner is three deep already -- fire, ADS and the
+                // throwables.
+                right: Val::Px(16.0),
+                top: Val::Px(68.0),
                 border: UiRect::all(Val::Px(2.0)),
                 border_radius: BorderRadius::all(Val::Px(TOUCH_FIRE_BUTTON_PX * 0.35)),
                 justify_content: JustifyContent::Center,

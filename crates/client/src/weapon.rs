@@ -16,11 +16,13 @@ pub(crate) enum FireMode {
 }
 
 impl FireMode {
+    /// One letter. The word does not fit beside a name and a round count in
+    /// 132 pixels, and the initial is what the eye is checking for anyway.
     pub(crate) fn label(self) -> &'static str {
         match self {
-            FireMode::Single => "SINGLE",
-            FireMode::Burst => "BURST",
-            FireMode::Auto => "AUTO",
+            FireMode::Single => "S",
+            FireMode::Burst => "B",
+            FireMode::Auto => "A",
         }
     }
 }

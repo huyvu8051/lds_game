@@ -81,21 +81,16 @@ pub(crate) struct KillFeedEntry {
 pub(crate) fn spawn_kill_ui(commands: &mut Commands) {
     commands
         .spawn((
-            // A stated width, not one measured from the text. `right` can
-            // only place a box it already knows the size of, and text is
-            // measured during layout -- which runs at UI_LAYOUT_HZ, not every
-            // frame -- so a tally that grew a digit walked off the screen and
-            // stayed there. The settings button anchors the same way and has
-            // always landed, because it says how wide it is.
-            //
-            // Below that button rather than beside it: both want this corner.
+            // Under the radar, anchored from the left. Both are things you
+            // glance at rather than aim with, and the left edge is where the
+            // glance already goes.
             Node {
                 position_type: PositionType::Absolute,
-                top: Val::Px(64.0),
-                right: Val::Px(KILL_FEED_RIGHT),
+                top: Val::Px(RADAR_TOP + RADAR_SIZE + 12.0),
+                left: Val::Px(RADAR_LEFT),
                 width: Val::Px(KILL_FEED_WIDTH),
                 flex_direction: FlexDirection::Column,
-                align_items: AlignItems::End,
+                align_items: AlignItems::Start,
                 row_gap: Val::Px(6.0),
                 ..default()
             },
@@ -208,9 +203,6 @@ pub(crate) struct FloatingDamageText {
     remaining: f32,
 }
 
-#[derive(Component)]
-pub(crate) struct AmmoUi;
-
 pub(crate) fn spawn_floating_damage(commands: &mut Commands, world_pos: Vec3, damage: f32) {
     let critical = damage >= HEAD_DAMAGE;
     commands.spawn((
@@ -271,45 +263,6 @@ pub(crate) fn update_floating_damage_texts(
 }
 
 
-
-
-
-pub(crate) fn spawn_ammo_ui(commands: &mut Commands) {
-    // A full-width container with the text pushed to its end, rather than
-    // the text anchored by `right` itself. Anchoring that way cannot place a
-    // node until its own width is measured, and UI layout does not run every
-    // frame -- so the readout walked off the screen whenever it grew, which
-    // adding the fire mode to it made permanent.
-    //
-    // The container does the pushing because justify_content aligns a node's
-    // children; a Text node given it aligns nothing and stays where it was.
-    commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(0.0),
-                bottom: Val::Px(16.0),
-                width: Val::Percent(100.0),
-                justify_content: JustifyContent::End,
-                // The same 72 the kill feed needed. The UI's idea of the
-                // screen is wider than what gets drawn, so anything pushed
-                // to the far edge loses its tail; this is the margin that
-                // was measured to be enough.
-                padding: UiRect::right(Val::Px(72.0)),
-                ..default()
-            },
-            GlobalZIndex(STATIC_UI_Z_INDEX),
-            NativeUiRoot,
-        ))
-        .with_children(|row| {
-            row.spawn((
-                Text::new(String::new()),
-                TextFont { font_size: FontSize::Px(24.0), ..default() },
-                TextColor(Color::WHITE),
-                AmmoUi,
-            ));
-        });
-}
 
 
 
@@ -602,38 +555,6 @@ pub(crate) fn update_radar_ui(
         node.left = Val::Px(RADAR_LEFT + RADAR_RADIUS + scaled.x - RADAR_BLIP_SIZE_PX / 2.0);
         node.top = Val::Px(RADAR_TOP + RADAR_RADIUS + scaled.y - RADAR_BLIP_SIZE_PX / 2.0);
     }
-}
-
-pub(crate) fn update_ammo_ui(
-    inventory: Res<Inventory>,
-    fire_mode: Res<weapon::FireModeSelection>,
-    gun: Query<&Gun, Changed<Gun>>,
-    mut text: Query<&mut Text, With<AmmoUi>>,
-    active: Res<ActiveWeapon>,
-) {
-    let Ok(gun) = gun.single() else {
-        return;
-    };
-    let Ok(mut text) = text.single_mut() else {
-        return;
-    };
-    text.0 = if gun.reload_remaining > 0.0 {
-        "RELOADING...".to_string()
-    } else {
-        // Magazine over reserve, the way a battle royale reads it: the
-        // second number is what is left to reload with, not how big the
-        // magazine is -- which the first number already implies.
-        // The mode rides with the count, which is where a shooter looks
-        // when it matters. Left off entirely for a weapon that offers one:
-        // a bolt rifle saying SINGLE is telling nobody anything.
-        let def = active.def();
-        let reserve = inventory.count(def.ammo);
-        if def.fire_modes.len() > 1 {
-            format!("{}  {} / {}", fire_mode.mode(def).label(), gun.ammo, reserve)
-        } else {
-            format!("{} / {}", gun.ammo, reserve)
-        }
-    };
 }
 
 #[derive(Component)]

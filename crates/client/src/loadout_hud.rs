@@ -11,13 +11,13 @@ use bevy::prelude::*;
 use crate::*;
 
 const PANEL_BOTTOM: f32 = 16.0;
-const BAR_WIDTH: f32 = 360.0;
-const HEALTH_BAR_HEIGHT: f32 = 12.0;
-const BOOST_BAR_HEIGHT: f32 = 5.0;
 /// Wide enough for the longest weapon name. "DESERT EAGLE" overflowed 112
 /// and the throwable cell beside it was what the overflow landed on.
 const SLOT_WIDTH: f32 = 132.0;
-const SLOT_HEIGHT: f32 = 26.0;
+/// Two lines now: the name, and the rounds under it. The readout used to be
+/// its own box in the far corner, which meant checking the weapon and
+/// checking what was in it were two looks at opposite ends of the screen.
+const SLOT_HEIGHT: f32 = 38.0;
 const ITEM_BUTTON: f32 = 44.0;
 
 fn health_colour(fraction: f32) -> Color {
@@ -53,16 +53,22 @@ pub(crate) struct GearCellWear(pub(crate) WearSlot);
 
 /// How wide the three equipment cells are. PUBG puts icons here; this puts
 /// three letters, which says the same thing and needs no artist.
-const GEAR_CELL: f32 = 46.0;
+const GEAR_CELL: f32 = 58.0;
 
 #[derive(Component)]
 pub(crate) struct HealthBarFill;
 #[derive(Component)]
 pub(crate) struct BoostBarFill;
 #[derive(Component)]
+pub(crate) struct HealthCellLabel;
+#[derive(Component)]
+pub(crate) struct BoostCellLabel;
+#[derive(Component)]
 pub(crate) struct WeaponSlotButton(pub(crate) inventory::Slot);
 #[derive(Component)]
 pub(crate) struct WeaponSlotLabel(pub(crate) inventory::Slot);
+#[derive(Component)]
+pub(crate) struct WeaponSlotAmmo(pub(crate) inventory::Slot);
 #[derive(Component)]
 pub(crate) struct ItemUseButton;
 #[derive(Component)]
@@ -84,21 +90,41 @@ fn text(content: &str, size: f32, colour: Color) -> impl Bundle {
     )
 }
 
-fn bar(width: f32, height: f32, fill: Color, marker: impl Component) -> impl Bundle {
+/// The shape every cell on this panel shares: a short label over a thin bar.
+/// Health and boost ask the same question the armour cells ask -- how much of
+/// it is left -- so they are drawn the same way rather than as two wide bars
+/// of their own.
+fn stat_cell(
+    label: &str,
+    fill: Color,
+    label_marker: impl Component,
+    fill_marker: impl Component,
+) -> impl Bundle {
     (
         Node {
-            width: Val::Px(width),
-            height: Val::Px(height),
+            width: Val::Px(GEAR_CELL),
+            height: Val::Px(SLOT_HEIGHT),
             border: UiRect::all(Val::Px(1.0)),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            row_gap: Val::Px(2.0),
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.25)),
-        children![(
-            Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
-            BackgroundColor(fill),
-            marker,
-        )],
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
+        children![
+            (text(label, 10.0, Color::srgba(1.0, 1.0, 1.0, 0.4)), label_marker),
+            (
+                Node { width: Val::Px(GEAR_CELL - 12.0), height: Val::Px(3.0), ..default() },
+                BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.12)),
+                children![(
+                    Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+                    BackgroundColor(fill),
+                    fill_marker,
+                )],
+            ),
+        ],
     )
 }
 
@@ -124,9 +150,9 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
             NativeUiRoot,
         ))
         .with_children(|row| {
-            // Left of the bars, which is where PUBG's equipment HUD sits.
-            // A level alone would be half the point: what the indicator is
-            // mostly read for is how much of the plate is left.
+            // Condition first, then what you can reach for: health, boost and
+            // the three plates all answer "how much is left", so they share a
+            // run of identical cells and the weapons follow on the same line.
             row.spawn(Node {
                 flex_direction: FlexDirection::Row,
                 column_gap: Val::Px(4.0),
@@ -134,132 +160,102 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
                 ..default()
             })
             .with_children(|gear| {
+                gear.spawn(stat_cell(
+                    "HP",
+                    health_colour(1.0),
+                    HealthCellLabel,
+                    HealthBarFill,
+                ));
+                gear.spawn(stat_cell(
+                    "BST",
+                    Color::srgb(0.95, 0.80, 0.25),
+                    BoostCellLabel,
+                    BoostBarFill,
+                ));
                 for slot in WearSlot::ALL {
-                    gear.spawn((
-                        Node {
-                            width: Val::Px(GEAR_CELL),
-                            height: Val::Px(SLOT_HEIGHT),
-                            border: UiRect::all(Val::Px(1.0)),
-                            flex_direction: FlexDirection::Column,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            row_gap: Val::Px(2.0),
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-                        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
-                    ))
-                    .with_children(|cell| {
-                        cell.spawn((
-                            text(slot.label(), 10.0, Color::srgba(1.0, 1.0, 1.0, 0.4)),
-                            GearCellLabel(slot),
-                        ));
-                        cell.spawn((
-                            Node {
-                                width: Val::Px(GEAR_CELL - 12.0),
-                                height: Val::Px(3.0),
-                                ..default()
-                            },
-                            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.12)),
-                            children![(
-                                Node {
-                                    width: Val::Percent(0.0),
-                                    height: Val::Percent(100.0),
-                                    ..default()
-                                },
-                                BackgroundColor(Color::srgb(0.6, 0.95, 0.7)),
-                                GearCellWear(slot),
-                            )],
-                        ));
-                    });
+                    gear.spawn(stat_cell(
+                        slot.label(),
+                        Color::srgb(0.6, 0.95, 0.7),
+                        GearCellLabel(slot),
+                        GearCellWear(slot),
+                    ));
                 }
             });
 
             row.spawn(Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(4.0),
-                align_items: AlignItems::Start,
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(4.0),
+                align_items: AlignItems::End,
                 ..default()
             })
-            .with_children(|col| {
-                // The three slots, above the bars: what you can reach for
-                // sits over what reaching for it is protecting.
-                col.spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(4.0),
-                    ..default()
-                })
-                .with_children(|slots| {
-                    for slot in inventory::Slot::ALL {
-                        slots
-                            .spawn((
-                                Node {
-                                    width: Val::Px(SLOT_WIDTH),
-                                    height: Val::Px(SLOT_HEIGHT),
-                                    border: UiRect::all(Val::Px(1.0)),
-                                    align_items: AlignItems::Center,
-                                    justify_content: JustifyContent::Center,
-                                    column_gap: Val::Px(5.0),
-                                    // Clipped rather than allowed to spill:
-                                    // a name too long for its cell should
-                                    // lose its own tail, not cover the cell
-                                    // next door.
-                                    overflow: Overflow::clip(),
-                                    ..default()
-                                },
-                                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-                                BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
-                                Button,
-                                Interaction::default(),
-                                WeaponSlotButton(slot),
-                            ))
-                            .with_children(|cell| {
-                                cell.spawn(text(slot.label(), 11.0, Color::srgb(1.0, 0.85, 0.2)));
-                                cell.spawn((
-                                    text("--", 12.0, Color::srgba(1.0, 1.0, 1.0, 0.85)),
-                                    WeaponSlotLabel(slot),
-                                ));
-                            });
-                    }
-                    // A fourth cell beside the three. PUBG keeps throwables
-                    // out of the weapon slots because they are not weapons
-                    // you hold, they are weapons you spend.
+            .with_children(|slots| {
+                for slot in inventory::Slot::ALL {
                     slots
                         .spawn((
                             Node {
-                                width: Val::Px(GEAR_CELL + 24.0),
+                                width: Val::Px(SLOT_WIDTH),
                                 height: Val::Px(SLOT_HEIGHT),
                                 border: UiRect::all(Val::Px(1.0)),
+                                flex_direction: FlexDirection::Column,
                                 align_items: AlignItems::Center,
                                 justify_content: JustifyContent::Center,
+                                // Clipped rather than allowed to spill: a
+                                // name too long for its cell should lose its
+                                // own tail, not cover the cell next door.
+                                overflow: Overflow::clip(),
                                 ..default()
                             },
                             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
                             BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
                             Button,
                             Interaction::default(),
-                            ThrowableSlotButton,
+                            WeaponSlotButton(slot),
                         ))
                         .with_children(|cell| {
+                            cell.spawn(Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                column_gap: Val::Px(5.0),
+                                ..default()
+                            })
+                            .with_children(|line| {
+                                line.spawn(text(slot.label(), 11.0, Color::srgb(1.0, 0.85, 0.2)));
+                                line.spawn((
+                                    text("--", 12.0, Color::srgba(1.0, 1.0, 1.0, 0.85)),
+                                    WeaponSlotLabel(slot),
+                                ));
+                            });
                             cell.spawn((
-                                text("--", 11.0, Color::srgb(0.95, 0.55, 0.25)),
-                                ThrowableSlotLabel,
+                                text("", 11.0, Color::srgba(1.0, 1.0, 1.0, 0.6)),
+                                WeaponSlotAmmo(slot),
                             ));
                         });
-                });
-
-                col.spawn(bar(
-                    BAR_WIDTH,
-                    BOOST_BAR_HEIGHT,
-                    Color::srgb(0.95, 0.80, 0.25),
-                    BoostBarFill,
-                ));
-                col.spawn(bar(
-                    BAR_WIDTH,
-                    HEALTH_BAR_HEIGHT,
-                    health_colour(1.0),
-                    HealthBarFill,
-                ));
+                }
+                // A fourth cell beside the three. PUBG keeps throwables out
+                // of the weapon slots because they are not weapons you hold,
+                // they are weapons you spend.
+                slots
+                    .spawn((
+                        Node {
+                            width: Val::Px(GEAR_CELL + 24.0),
+                            height: Val::Px(SLOT_HEIGHT),
+                            border: UiRect::all(Val::Px(1.0)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+                        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
+                        Button,
+                        Interaction::default(),
+                        ThrowableSlotButton,
+                    ))
+                    .with_children(|cell| {
+                        cell.spawn((
+                            text("--", 11.0, Color::srgb(0.95, 0.55, 0.25)),
+                            ThrowableSlotLabel,
+                        ));
+                    });
             });
 
             // One button per throwable, above the heal selector. PUBG puts
@@ -420,14 +416,23 @@ pub(crate) fn update_bars(
     player: Query<&Health, With<Player>>,
     mut health_bar: Query<(&mut Node, &mut BackgroundColor), With<HealthBarFill>>,
     mut boost_bar: Query<&mut Node, (With<BoostBarFill>, Without<HealthBarFill>)>,
+    mut health_label: Query<&mut Text, With<HealthCellLabel>>,
+    mut boost_label: Query<&mut Text, (With<BoostCellLabel>, Without<HealthCellLabel>)>,
 ) {
     if let (Ok(health), Ok((mut node, mut colour))) = (player.single(), health_bar.single_mut()) {
         let fraction = (health.0 / PLAYER_MAX_HEALTH).clamp(0.0, 1.0);
         node.width = Val::Percent(fraction * 100.0);
         *colour = BackgroundColor(health_colour(fraction));
+        if let Ok(mut text) = health_label.single_mut() {
+            text.0 = format!("HP {}", health.0.max(0.0).round() as i32);
+        }
     }
     if let Ok(mut node) = boost_bar.single_mut() {
-        node.width = Val::Percent((boost.0 / inventory::BOOST_MAX).clamp(0.0, 1.0) * 100.0);
+        let fraction = (boost.0 / inventory::BOOST_MAX).clamp(0.0, 1.0);
+        node.width = Val::Percent(fraction * 100.0);
+        if let Ok(mut text) = boost_label.single_mut() {
+            text.0 = format!("BST {}", boost.0.max(0.0).round() as i32);
+        }
     }
 }
 
@@ -457,6 +462,44 @@ pub(crate) fn update_weapon_slots(
         } else {
             Color::srgba(0.0, 0.0, 0.0, 0.5)
         });
+    }
+}
+
+/// The rounds and the fire mode, in the cell for the weapon they belong to.
+///
+/// A slot that is not in hand has no `Gun` of its own -- switching to one
+/// hands it a full magazine -- so that is what its cell shows. The reserve is
+/// the real count either way, since it lives in the inventory by calibre.
+pub(crate) fn update_weapon_slot_ammo(
+    loadout: Res<Loadout>,
+    inventory: Res<Inventory>,
+    fire_mode: Res<weapon::FireModeSelection>,
+    gun: Query<&Gun>,
+    mut labels: Query<(&WeaponSlotAmmo, &mut Text)>,
+) {
+    let held = gun.single().ok();
+    for (label, mut text) in &mut labels {
+        let Some(weapon) = loadout.get(label.0) else {
+            text.0 = String::new();
+            continue;
+        };
+        let def = weapon.def();
+        let active = label.0 == loadout.active;
+        text.0 = match held {
+            Some(gun) if active && gun.reload_remaining > 0.0 => "RELOADING".to_string(),
+            _ => {
+                let mag = match held {
+                    Some(gun) if active => gun.ammo,
+                    _ => def.magazine,
+                };
+                let reserve = inventory.count(def.ammo);
+                if def.fire_modes.len() > 1 {
+                    format!("{} {} / {}", fire_mode.mode(def).label(), mag, reserve)
+                } else {
+                    format!("{mag} / {reserve}")
+                }
+            }
+        };
     }
 }
 
