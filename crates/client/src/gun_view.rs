@@ -437,10 +437,9 @@ pub(crate) fn gun_view_animation(
                 let def = active.def();
                 let wanted = def.magazine - gun.ammo;
                 if infinite_ammo.0 {
-                    // Still a reload, just not a withdrawal. The animation,
-                    // the sound and the hand going for the magazine are part
-                    // of how a weapon reads; a weapon that never reloads is
-                    // a different one to measure.
+                    // A full magazine and no withdrawal. Everything else
+                    // about the reload is untouched: the time it takes, the
+                    // sound, the hand going for the magazine.
                     gun.ammo = def.magazine;
                 } else {
                     let had = inventory.count(def.ammo).min(wanted);

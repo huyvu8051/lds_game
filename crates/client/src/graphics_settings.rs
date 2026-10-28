@@ -28,11 +28,12 @@ impl Default for WeaponSpawnEnabled {
     }
 }
 
-/// Neither the magazine nor the pack ever runs down.
+/// The pack never runs short of ammunition.
 ///
-/// Reloads still happen -- the animation, the sound, the hand going for the
-/// magazine are all part of how a weapon reads, and a weapon that never
-/// reloads is a different weapon to measure. What stops is the counting.
+/// The magazine still empties and still has to be reloaded. That is the
+/// point: the firing cadence stays what it is, including the pause every
+/// thirty rounds, because a weapon that never reloads is a different one to
+/// measure. What stops is running out of the stuff to reload with.
 #[derive(Resource, Default)]
 pub(crate) struct InfiniteAmmo(pub(crate) bool);
 
