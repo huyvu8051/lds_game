@@ -16,20 +16,22 @@ use shared::{Zombie, ZombieHitboxBones, ZombieMotion};
 const LEAN_DEG_PER_RAD_SEC: f32 = 9.0;
 const LEAN_MAX_DEG: f32 = 14.0;
 
-/// How much of the gap between where the body faces and where it is going
-/// the hips are allowed to take up.
+/// Degrees the hips lead a turn, per radian a second of turning.
 ///
-/// Orientation warping, cheaply. Because the body only turns at a limited
-/// rate, it spends a turn pointing somewhere the path has already left; this
-/// lets the legs point along the path while the torso is still coming round,
-/// which is what stops a turn reading as the whole model being rotated by a
-/// crane. The chest hands part of it back so the shoulders do not travel
-/// with the hips.
+/// This began as orientation warping -- take up the gap between where the
+/// body faces and where it is going, so the legs point along the path while
+/// the torso comes round. Measured over a minute of play, that gap was
+/// exactly zero on every one of fifty-eight thousand frames: the body turns
+/// at up to 130 degrees a second, a path's direction changes by far less
+/// than that in a frame, and turn_towards therefore lands on its target
+/// every time. There is no lag to fill.
 ///
-/// It costs nothing in a straight line: the gap is zero, so the rotation is
-/// identity.
-const HIP_LEAD_FRACTION: f32 = 0.55;
-const HIP_LEAD_MAX_DEG: f32 = 38.0;
+/// So it reads the turn itself instead. The hips lead and the shoulders
+/// follow, which is how a person turns -- not a gap being filled but an
+/// order the body does things in. The chest hands part of it back so the
+/// shoulders do not simply travel with the hips.
+const HIP_LEAD_DEG_PER_RAD_SEC: f32 = 11.0;
+const HIP_LEAD_MAX_DEG: f32 = 26.0;
 const CHEST_RECOVER_FRACTION: f32 = 0.45;
 
 /// Banks the body into its turn.
@@ -39,29 +41,31 @@ const CHEST_RECOVER_FRACTION: f32 = 0.45;
 /// to shoot at.
 pub(crate) fn lean_zombie_into_turn(
     walk: Res<crate::ZombieWalk>,
-    zombies: Query<(&Transform, &ZombieMotion, &ZombieHitboxBones), With<Zombie>>,
+    zombies: Query<(&ZombieMotion, &ZombieHitboxBones), With<Zombie>>,
     child_of: Query<&ChildOf>,
     mut transforms: Query<&mut Transform, Without<Zombie>>,
 ) {
-    for (root, motion, bones) in &zombies {
+    for (motion, bones) in &zombies {
         // The hips are the parent of either thigh. Not in the hitbox table,
         // because nothing shoots at them.
         let Some(hips) = bones.left_leg[0].and_then(|leg| child_of.get(leg).ok()).map(|p| p.0)
         else {
             continue;
         };
-        // Into the turn, so a body swinging left drops its left side.
-        let lean = if !walk.lean { 0.0 } else { -motion.turn_rate * LEAN_DEG_PER_RAD_SEC }
+        // Into the turn, so a body swinging left drops its left side. The
+        // sign is the one that was wrong: it leaned away, which is what a
+        // thing being pushed does, not what a thing turning itself does.
+        let lean = if !walk.lean { 0.0 } else { motion.turn_rate * LEAN_DEG_PER_RAD_SEC }
         .clamp(-LEAN_MAX_DEG, LEAN_MAX_DEG)
         .to_radians();
-        // How far the path has got ahead of the body. Zero once the turn is
-        // over, which is what makes this free in a straight line.
-        let lead = if walk.hips && motion.horizontal_velocity.length_squared() > 1e-4 {
-            let facing = (root.rotation * Vec3::NEG_Z).xz();
-            let going = -motion.horizontal_velocity.xz().normalize_or_zero();
-            let gap = (facing.x * going.y - facing.y * going.x).atan2(facing.dot(going));
-            (gap * HIP_LEAD_FRACTION)
-                .clamp(-HIP_LEAD_MAX_DEG.to_radians(), HIP_LEAD_MAX_DEG.to_radians())
+        // Negated against turn_rate's own sign. That rate is positive when
+        // the forward vector sweeps counterclockwise in the x/z plane, and a
+        // positive rotation about Y sweeps the other way -- so leading the
+        // turn means turning the hips by the opposite sign.
+        let lead = if walk.hips {
+            (-motion.turn_rate * HIP_LEAD_DEG_PER_RAD_SEC)
+                .clamp(-HIP_LEAD_MAX_DEG, HIP_LEAD_MAX_DEG)
+                .to_radians()
         } else {
             0.0
         };
