@@ -395,6 +395,20 @@ pub(crate) fn backpack_capacity(level: u8) -> f32 {
     }
 }
 
+/// How much a helmet or vest can soak before it breaks. PUBG's figures:
+/// helmets 80/150/230, vests 200/220/250.
+pub(crate) fn armour_durability(slot: WearSlot, level: u8) -> f32 {
+    match (slot, level) {
+        (WearSlot::Helmet, 1) => 80.0,
+        (WearSlot::Helmet, 2) => 150.0,
+        (WearSlot::Helmet, 3) => 230.0,
+        (WearSlot::Vest, 1) => 200.0,
+        (WearSlot::Vest, 2) => 220.0,
+        (WearSlot::Vest, 3) => 250.0,
+        _ => 0.0,
+    }
+}
+
 /// Damage a helmet or vest turns away, by level. PUBG's figures.
 pub(crate) fn armour_reduction(level: u8) -> f32 {
     match level {

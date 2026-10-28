@@ -31,6 +31,15 @@ fn health_colour(fraction: f32) -> Color {
 }
 
 #[derive(Component)]
+pub(crate) struct GearCellLabel(pub(crate) WearSlot);
+#[derive(Component)]
+pub(crate) struct GearCellWear(pub(crate) WearSlot);
+
+/// How wide the three equipment cells are. PUBG puts icons here; this puts
+/// three letters, which says the same thing and needs no artist.
+const GEAR_CELL: f32 = 46.0;
+
+#[derive(Component)]
 pub(crate) struct HealthBarFill;
 #[derive(Component)]
 pub(crate) struct BoostBarFill;
@@ -99,6 +108,57 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
             NativeUiRoot,
         ))
         .with_children(|row| {
+            // Left of the bars, which is where PUBG's equipment HUD sits.
+            // A level alone would be half the point: what the indicator is
+            // mostly read for is how much of the plate is left.
+            row.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(4.0),
+                align_items: AlignItems::End,
+                ..default()
+            })
+            .with_children(|gear| {
+                for slot in WearSlot::ALL {
+                    gear.spawn((
+                        Node {
+                            width: Val::Px(GEAR_CELL),
+                            height: Val::Px(SLOT_HEIGHT),
+                            border: UiRect::all(Val::Px(1.0)),
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            row_gap: Val::Px(2.0),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+                        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
+                    ))
+                    .with_children(|cell| {
+                        cell.spawn((
+                            text(slot.label(), 10.0, Color::srgba(1.0, 1.0, 1.0, 0.4)),
+                            GearCellLabel(slot),
+                        ));
+                        cell.spawn((
+                            Node {
+                                width: Val::Px(GEAR_CELL - 12.0),
+                                height: Val::Px(3.0),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.12)),
+                            children![(
+                                Node {
+                                    width: Val::Percent(0.0),
+                                    height: Val::Percent(100.0),
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgb(0.6, 0.95, 0.7)),
+                                GearCellWear(slot),
+                            )],
+                        ));
+                    });
+                }
+            });
+
             row.spawn(Node {
                 flex_direction: FlexDirection::Column,
                 row_gap: Val::Px(4.0),
@@ -361,5 +421,40 @@ pub(crate) fn loadout_hud_buttons(
     }
     if use_button.iter().any(|i| *i == Interaction::Pressed) {
         inventory::use_selected_consumable(inventory, boost, player);
+    }
+}
+
+/// Keeps the three equipment cells saying what is worn and what is left of
+/// it. Empty reads as the slot's own name, dimmed -- the slot being there is
+/// information too.
+pub(crate) fn update_gear_cells(
+    equipment: Res<Equipment>,
+    mut labels: Query<(&GearCellLabel, &mut Text, &mut TextColor)>,
+    mut wear: Query<(&GearCellWear, &mut Node, &mut BackgroundColor)>,
+) {
+    if !equipment.is_changed() {
+        return;
+    }
+    for (cell, mut text, mut colour) in &mut labels {
+        match equipment.level(cell.0) {
+            Some(level) => {
+                text.0 = format!("{} {}", cell.0.label(), level);
+                *colour = TextColor(Color::srgb(0.75, 0.95, 0.8));
+            }
+            None => {
+                text.0 = cell.0.label().to_string();
+                *colour = TextColor(Color::srgba(1.0, 1.0, 1.0, 0.25));
+            }
+        }
+    }
+    for (cell, mut node, mut background) in &mut wear {
+        let condition = equipment.condition(cell.0);
+        node.width = Val::Percent(condition * 100.0);
+        // Warns before it breaks, which is the whole reason to watch it.
+        *background = BackgroundColor(if condition > 0.35 {
+            Color::srgb(0.6, 0.95, 0.7)
+        } else {
+            Color::srgb(0.95, 0.5, 0.3)
+        });
     }
 }

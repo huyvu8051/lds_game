@@ -1128,7 +1128,7 @@ impl Plugin for GamePlugin {
                     ),
                     update_bars,
                     update_weapon_slots,
-                    update_item_ui,
+                    (update_item_ui, update_gear_cells),
                     damage_multiplier_buttons,
                     update_damage_multiplier_text,
                     auto_maintain_button,

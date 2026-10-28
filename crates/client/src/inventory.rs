@@ -226,29 +226,75 @@ impl Inventory {
     }
 }
 
+/// A worn piece and what is left of it. Armour in PUBG is spent, not
+/// merely owned: it turns damage away until it has soaked its durability
+/// and then it is gone.
+#[derive(Clone, Copy)]
+pub(crate) struct Worn {
+    pub(crate) level: u8,
+    pub(crate) durability: f32,
+}
+
 /// What is being worn. Armour turns damage away; the backpack sets capacity.
 #[derive(Resource, Default)]
 pub(crate) struct Equipment {
-    pub(crate) helmet: Option<u8>,
-    pub(crate) vest: Option<u8>,
+    pub(crate) helmet: Option<Worn>,
+    pub(crate) vest: Option<Worn>,
     pub(crate) backpack: Option<u8>,
 }
 
 impl Equipment {
-    pub(crate) fn level(&self, slot: WearSlot) -> Option<u8> {
+    pub(crate) fn worn(&self, slot: WearSlot) -> Option<Worn> {
         match slot {
             WearSlot::Helmet => self.helmet,
             WearSlot::Vest => self.vest,
-            WearSlot::Backpack => self.backpack,
+            WearSlot::Backpack => {
+                self.backpack.map(|level| Worn { level, durability: 1.0 })
+            }
+        }
+    }
+
+    pub(crate) fn level(&self, slot: WearSlot) -> Option<u8> {
+        self.worn(slot).map(|w| w.level)
+    }
+
+    /// What is left of it, zero to one. A backpack does not wear out, so it
+    /// is always full.
+    pub(crate) fn condition(&self, slot: WearSlot) -> f32 {
+        let Some(worn) = self.worn(slot) else { return 0.0 };
+        match slot {
+            WearSlot::Backpack => 1.0,
+            _ => {
+                let full = armour_durability(slot, worn.level).max(1.0);
+                (worn.durability / full).clamp(0.0, 1.0)
+            }
         }
     }
 
     pub(crate) fn set(&mut self, slot: WearSlot, level: Option<u8>) {
+        let fresh =
+            level.map(|level| Worn { level, durability: armour_durability(slot, level) });
         match slot {
-            WearSlot::Helmet => self.helmet = level,
-            WearSlot::Vest => self.vest = level,
+            WearSlot::Helmet => self.helmet = fresh,
+            WearSlot::Vest => self.vest = fresh,
             WearSlot::Backpack => self.backpack = level,
         }
+    }
+
+    /// Spends a vest against a hit and reports what still gets through.
+    ///
+    /// Broken armour is removed rather than left at zero: a vest reading 0%
+    /// that still shows is a thing the player thinks they have.
+    pub(crate) fn absorb(&mut self, damage: f32) -> f32 {
+        let Some(mut vest) = self.vest else { return damage };
+        let stopped = damage * armour_reduction(vest.level);
+        vest.durability -= stopped;
+        if vest.durability <= 0.0 {
+            self.vest = None;
+        } else {
+            self.vest = Some(vest);
+        }
+        damage - stopped
     }
 
     pub(crate) fn capacity(&self) -> f32 {
