@@ -258,7 +258,7 @@ pub(crate) fn build_zombie_anims_when_loaded(
             // A kind with zero spawn weight is not loaded at all; its graph
             // is built empty and never played.
             if pending.of(kind).is_some() {
-                warn!("[zombie] {kind:?} has no clip {index}, wanted {}", all(kind).len());
+                warn!("[zombie] {kind:?} wanted clip {index} but the glb has {}", all(kind).len());
             }
             Handle::default()
         })
