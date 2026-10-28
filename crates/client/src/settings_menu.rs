@@ -982,6 +982,7 @@ pub(crate) fn update_corpse_stage_buttons(
 pub(crate) struct GiveWeaponButton(pub(crate) WeaponId);
 
 pub(crate) fn give_weapon_buttons(
+    mut commands: Commands,
     mut loadout: ResMut<Loadout>,
     mut request: ResMut<weapon::WeaponSwitchRequest>,
     buttons: Query<(&Interaction, &GiveWeaponButton), Changed<Interaction>>,
@@ -990,16 +991,17 @@ pub(crate) fn give_weapon_buttons(
         if *interaction != Interaction::Pressed {
             continue;
         }
-        // The same rule a weapon on the ground follows: an empty slot if
-        // there is one, otherwise the weapon in hand. A menu button that
-        // obeyed different rules from a pickup would be a second thing to
-        // learn for no reason.
-        //
-        // What it displaces is discarded rather than dropped at the
-        // player's feet. This is the menu; nobody pressed it expecting
-        // litter.
-        loadout.take(button.0);
-        request.0 = Some(button.0);
+        // Through the same door a weapon on the ground goes through, with
+        // no position to drop at -- what this displaces is discarded. This
+        // is the menu; nobody pressed it expecting litter.
+        inventory::pick_up_weapon(
+            &mut commands,
+            &mut loadout,
+            &mut request,
+            None,
+            button.0,
+            None,
+        );
     }
 }
 #[derive(Component)]

@@ -420,15 +420,14 @@ pub(crate) fn inventory_screen_rows(
                 let Ok((pickup, _)) = pickups.get(entity) else { continue };
                 match pickup.kind {
                     inventory::PickupKind::Item(kind) => inventory.add(kind, 1),
-                    inventory::PickupKind::Weapon(weapon) => {
-                        let displaced = loadout.take(weapon);
-                        request.0 = Some(weapon);
-                        if let (Some(displaced), Some(assets), Ok(at)) =
-                            (displaced, assets.as_ref(), player.single())
-                        {
-                            inventory::drop_weapon(&mut commands, assets, displaced, at.translation);
-                        }
-                    }
+                    inventory::PickupKind::Weapon(weapon) => inventory::pick_up_weapon(
+                        &mut commands,
+                        &mut loadout,
+                        &mut request,
+                        assets.as_deref(),
+                        weapon,
+                        player.single().ok().map(|at| at.translation),
+                    ),
                 }
                 commands.entity(entity).try_despawn();
             }

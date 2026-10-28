@@ -66,6 +66,9 @@ impl Default for Loadout {
             .and_then(|v| v.trim().parse::<usize>().ok())
             .and_then(|n| WeaponId::ALL.get(n.checked_sub(1)?).copied())
         {
+            // take() directly rather than pick_up_weapon: there is no
+            // world yet to drop anything into and nothing to ask for a
+            // switch. This is the only caller with that excuse.
             loadout.take(wanted);
         }
         loadout
@@ -617,6 +620,32 @@ pub(crate) fn drop_loot_on_kill(
     }
 }
 
+/// Takes a weapon into the loadout and puts it in the hand.
+///
+/// The one door for this. Three places let a player acquire a weapon -- the
+/// ground, the backpack screen, the settings menu -- and each of them used
+/// to repeat the same three steps afterwards. Repeating them is how two of
+/// them ended up obeying different rules from the third.
+///
+/// `drop_displaced_at` is where whatever came out lands, or nothing to
+/// discard it. The ground and the pack give a position so a swap is
+/// reversible by walking back two steps; the menu does not, because nobody
+/// presses a menu expecting litter.
+pub(crate) fn pick_up_weapon(
+    commands: &mut Commands,
+    loadout: &mut Loadout,
+    request: &mut weapon::WeaponSwitchRequest,
+    assets: Option<&PickupAssets>,
+    weapon: WeaponId,
+    drop_displaced_at: Option<Vec3>,
+) {
+    let displaced = loadout.take(weapon);
+    request.0 = Some(weapon);
+    if let (Some(displaced), Some(assets), Some(at)) = (displaced, assets, drop_displaced_at) {
+        drop_weapon(commands, assets, displaced, at);
+    }
+}
+
 /// Puts a weapon on the ground, a short step from wherever the player is.
 pub(crate) fn drop_weapon(
     commands: &mut Commands,
@@ -673,20 +702,14 @@ pub(crate) fn collect_pickups(
         }
         match pickup.kind {
             PickupKind::Item(kind) => inventory.add(kind, 1),
-            PickupKind::Weapon(weapon) => {
-                // What came out goes back on the ground, so a swap is
-                // reversible by walking back two steps.
-                let displaced = loadout.take(weapon);
-                request.0 = Some(weapon);
-                if let (Some(displaced), Some(assets)) = (displaced, assets.as_ref()) {
-                    spawn_pickup(
-                        &mut commands,
-                        assets,
-                        PickupKind::Weapon(displaced),
-                        transform.translation,
-                    );
-                }
-            }
+            PickupKind::Weapon(weapon) => pick_up_weapon(
+                &mut commands,
+                &mut loadout,
+                &mut request,
+                assets.as_deref(),
+                weapon,
+                Some(transform.translation),
+            ),
         }
         commands.entity(entity).try_despawn();
     }
