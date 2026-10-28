@@ -301,6 +301,9 @@ pub(crate) enum WeaponId {
     ScarL,
     M16a4,
     Famas,
+    G36c,
+    Qbz95,
+    AugA3,
 }
 
 #[derive(Resource)]
@@ -326,7 +329,7 @@ impl ActiveWeapon {
 }
 
 impl WeaponId {
-    pub(crate) const ALL: [WeaponId; 8] = [
+    pub(crate) const ALL: [WeaponId; 11] = [
         WeaponId::Ak47,
         WeaponId::M4a1,
         WeaponId::M24,
@@ -335,6 +338,9 @@ impl WeaponId {
         WeaponId::ScarL,
         WeaponId::M16a4,
         WeaponId::Famas,
+        WeaponId::G36c,
+        WeaponId::Qbz95,
+        WeaponId::AugA3,
     ];
 
     pub(crate) fn index(self) -> usize {
@@ -347,6 +353,9 @@ impl WeaponId {
             WeaponId::ScarL => 5,
             WeaponId::M16a4 => 6,
             WeaponId::Famas => 7,
+            WeaponId::G36c => 8,
+            WeaponId::Qbz95 => 9,
+            WeaponId::AugA3 => 10,
         }
     }
 
@@ -360,6 +369,9 @@ impl WeaponId {
             WeaponId::ScarL => &SCAR_L,
             WeaponId::M16a4 => &M16A4,
             WeaponId::Famas => &FAMAS,
+            WeaponId::G36c => &G36C,
+            WeaponId::Qbz95 => &QBZ95,
+            WeaponId::AugA3 => &AUG_A3,
         }
     }
 
@@ -543,14 +555,18 @@ static SCAR_L: WeaponDef = WeaponDef {
     // Socket_Aim sits 0.6585 down this weapon against the M4's 0.5125, so the
     // muzzle goes 146mm further out to leave the sight the same distance from
     // the eye at rest.
-    rest_offset: Vec3::new(0.160, -0.1018, -0.7720),
-    ready_offset: Vec3::new(0.071, -0.1718, -0.6820),
+    // rest_offset.y places the bore, and this weapon's sight sits higher
+    // over it than the M4's, so the whole thing drops by the difference:
+    // every gun then carries its sight 40.5mm under the eye, as the M4
+    // does. Copying the M4's own -0.1018 put the AUG's eyepiece 23mm under
+    // the eye, where it filled the screen.
+    rest_offset: Vec3::new(0.160, -0.1252, -0.7720),
+    ready_offset: Vec3::new(0.071, -0.1952, -0.6820),
     ads_eye_relief: 0.11,
     // About a kilo heavier than the M4, so it comes up slower.
     ads_speed: AdsSpeed { from_ready: 14.0, from_rest: 8.0 },
     hold_ads_fraction: 0.280,
-    // Sums to -0.0708 with rest_offset, level with the M4 and the M24.
-    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.031, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0547, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.018,
     ads_settle_miss_deg: 1.0,
     aim_fov_multiplier: 0.75,
@@ -623,14 +639,13 @@ static M16A4: WeaponDef = WeaponDef {
     name: "M16A4",
     mesh_path: "models/m16a4/mesh/m16a4.glb",
     // Socket_Aim sits 0.655 down this weapon against the M4's 0.5125.
-    rest_offset: Vec3::new(0.160, -0.1018, -0.7685),
-    ready_offset: Vec3::new(0.071, -0.1718, -0.6785),
+    rest_offset: Vec3::new(0.160, -0.1088, -0.7685),
+    ready_offset: Vec3::new(0.071, -0.1788, -0.6785),
     ads_eye_relief: 0.11,
     // A full-length rifle: slower onto the eye than either carbine.
     ads_speed: AdsSpeed { from_ready: 12.5, from_rest: 7.0 },
     hold_ads_fraction: 0.260,
-    // Sums to -0.0708 with rest_offset, level with the M4 and the M24.
-    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.031, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0383, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.020,
     ads_settle_miss_deg: 1.0,
     aim_fov_multiplier: 0.75,
@@ -702,14 +717,14 @@ static M16A4: WeaponDef = WeaponDef {
 static FAMAS: WeaponDef = WeaponDef {
     name: "FAMAS",
     mesh_path: "models/famas/mesh/famas.glb",
-    rest_offset: Vec3::new(0.160, -0.1018, -0.6570),
-    ready_offset: Vec3::new(0.071, -0.1718, -0.5670),
+    rest_offset: Vec3::new(0.160, -0.2031, -0.6570),
+    ready_offset: Vec3::new(0.071, -0.2731, -0.5670),
     ads_eye_relief: 0.11,
     // Short and balanced over the hand: the quickest of the rifles onto the
     // eye.
     ads_speed: AdsSpeed { from_ready: 17.0, from_rest: 10.0 },
     hold_ads_fraction: 0.310,
-    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.031, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.1326, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.013,
     ads_settle_miss_deg: 1.3,
     aim_fov_multiplier: 0.75,
@@ -762,6 +777,232 @@ static FAMAS: WeaponDef = WeaponDef {
             freq_pitch: 15.5,
             freq_yaw: 11.5,
             freq_roll: 13.5,
+            decay: 24.0,
+        },
+    },
+};
+
+/// The one download that came apart properly: fifteen named parts, so the
+/// magazine needed no splitting and the sights could be found by name. The
+/// artist's 148.68-degree placement yaw sat on the root node and came off
+/// in one line.
+///
+/// 720mm overall for a G36C puts the flash hider at 22.1mm against the real
+/// 22 -- the length and the muzzle agreeing is the check that the scale is
+/// right. Its ghost ring and front post meet at 72.6mm over the bore, which
+/// is where Socket_Aim goes.
+static G36C: WeaponDef = WeaponDef {
+    name: "G36C",
+    mesh_path: "models/g36c/mesh/g36c.glb",
+    rest_offset: Vec3::new(0.160, -0.1131, -0.5615),
+    ready_offset: Vec3::new(0.071, -0.1831, -0.4715),
+    ads_eye_relief: 0.11,
+    // The shortest rifle here, and it comes up like one.
+    ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.5 },
+    hold_ads_fraction: 0.300,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0426, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.014,
+    ads_settle_miss_deg: 1.2,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 19.0,
+    autopilot_sprint_approach_distance: 12.0,
+    autopilot_sprint_pathing_distance: 8.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/g36c_fire.wav", reload: "audio/weapons/g36c_reload.wav" },
+    reload_duration: 2.1,
+    // A 228mm barrel: the same round, leaving slower than any other rifle
+    // here.
+    damage_scale: 0.80,
+    // 750rpm real, the same as the M416, so the same number the M4 carries.
+    fire_rate: 0.105,
+    magazine: 40,
+    fire_modes: &[FireMode::Auto, FireMode::Single],
+    ammo: crate::ItemKind::Ammo556,
+    // Short and light: more of the shot reaches the shoulder, and there is
+    // less weapon to absorb it, so the gun moves more than the view does.
+    recoil: Recoil {
+        strike_speed: 66.0,
+        view: ViewKick {
+            climb_per_shot: 0.0086,
+            climb_max: 0.070,
+            wander_per_shot: 0.0050,
+            shove_per_shot: 0.0100,
+            shove_max: 0.040,
+            recover_speed: 7.6,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.125,
+            lift: 0.0,
+            pitch_deg: 0.26,
+            roll_deg: 0.92,
+            yaw_deg: 0.66,
+            settle_speed: 16.0,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.062,
+            view_yaw_deg: 0.052,
+            view_roll_deg: 0.115,
+            gun_pitch_deg: 0.270,
+            gun_yaw_deg: 0.200,
+            gun_roll_deg: 0.390,
+            gun_shift_m: 0.0009,
+            freq_pitch: 14.5,
+            freq_yaw: 11.0,
+            freq_roll: 13.0,
+            decay: 23.0,
+        },
+    },
+};
+
+/// A bullpup with no textures at all -- the download is flat-shaded material
+/// colours, so the packer copies it across untouched at 1MB.
+///
+/// It arrived with a backdrop sphere, a camera and a lamp in the scene, and
+/// an armature whose display bone reaches 4.6km from the gun. All of that is
+/// scenery and none of it ships.
+///
+/// 746mm overall puts its muzzle device at 17mm across, and Socket_Aim is
+/// the aperture in the carry handle, 86.8mm over the bore.
+static QBZ95: WeaponDef = WeaponDef {
+    name: "QBZ-95",
+    mesh_path: "models/qbz95/mesh/qbz95.glb",
+    rest_offset: Vec3::new(0.160, -0.1273, -0.6285),
+    ready_offset: Vec3::new(0.071, -0.1973, -0.5385),
+    ads_eye_relief: 0.11,
+    ads_speed: AdsSpeed { from_ready: 15.0, from_rest: 8.5 },
+    hold_ads_fraction: 0.290,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0568, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.016,
+    ads_settle_miss_deg: 1.1,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 22.0,
+    autopilot_sprint_approach_distance: 14.0,
+    autopilot_sprint_pathing_distance: 9.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/qbz95_fire.wav", reload: "audio/weapons/qbz95_reload.wav" },
+    // Bullpup: the magazine goes in behind the hand.
+    reload_duration: 2.3,
+    damage_scale: 0.85,
+    // 650rpm real against the M416's 750, which lands at 495 on the scale
+    // the M4's 571 sets.
+    fire_rate: 0.121,
+    magazine: 40,
+    fire_modes: &[FireMode::Auto, FireMode::Single],
+    ammo: crate::ItemKind::Ammo556,
+    // A bullpup fires into the shoulder rather than above it, so less of the
+    // shot becomes climb and more of it becomes a shove.
+    recoil: Recoil {
+        strike_speed: 70.0,
+        view: ViewKick {
+            climb_per_shot: 0.0074,
+            climb_max: 0.062,
+            wander_per_shot: 0.0042,
+            shove_per_shot: 0.0104,
+            shove_max: 0.044,
+            recover_speed: 7.8,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.118,
+            lift: 0.0,
+            pitch_deg: 0.18,
+            roll_deg: 0.70,
+            yaw_deg: 0.56,
+            settle_speed: 15.5,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.052,
+            view_yaw_deg: 0.048,
+            view_roll_deg: 0.105,
+            gun_pitch_deg: 0.200,
+            gun_yaw_deg: 0.160,
+            gun_roll_deg: 0.300,
+            gun_shift_m: 0.0008,
+            freq_pitch: 13.5,
+            freq_yaw: 10.5,
+            freq_roll: 12.5,
+            decay: 22.0,
+        },
+    },
+};
+
+/// A bullpup with a 1.5x optic sitting on it, which the game cannot take off
+/// any more than it can the FAMAS's red dot. Socket_Aim is the middle of the
+/// eyepiece, 78.6mm over the bore, and aim_fov_multiplier carries the
+/// magnification instead of the scope view -- there is no second camera for
+/// a sight this weak.
+///
+/// 790mm overall puts the muzzle device at 25.4mm across.
+static AUG_A3: WeaponDef = WeaponDef {
+    name: "AUG A3",
+    mesh_path: "models/aug_a3/mesh/aug_a3.glb",
+    rest_offset: Vec3::new(0.160, -0.1191, -0.5185),
+    ready_offset: Vec3::new(0.071, -0.1891, -0.4285),
+    // An eyepiece, not an aperture: the eye sits further back than on irons.
+    ads_eye_relief: 0.085,
+    ads_speed: AdsSpeed { from_ready: 13.5, from_rest: 7.5 },
+    hold_ads_fraction: 0.270,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0486, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.017,
+    ads_settle_miss_deg: 0.9,
+    // 1.5x, from the glass that is modelled on it.
+    aim_fov_multiplier: 0.62,
+    autopilot_ads_min_distance: 1.5,
+    autopilot_engage_range: 24.0,
+    autopilot_sprint_approach_distance: 15.0,
+    autopilot_sprint_pathing_distance: 10.0,
+    sprint_one_handed: false,
+    // Real glass, so the reticle comes on when it is sighted. The lenses
+    // ship blended rather than opaque, or the sight picture is a wall.
+    scoped: true,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/aug_a3_fire.wav", reload: "audio/weapons/aug_a3_reload.wav" },
+    reload_duration: 2.3,
+    damage_scale: 0.85,
+    // 700rpm real, which is 533 on the scale the M4's 571 sets.
+    fire_rate: 0.1125,
+    magazine: 40,
+    fire_modes: &[FireMode::Auto, FireMode::Single],
+    ammo: crate::ItemKind::Ammo556,
+    // Heavy for a 5.56 and balanced over the shoulder, so it is the steadiest
+    // of them: the least climb per shot and the soonest back on target.
+    recoil: Recoil {
+        strike_speed: 72.0,
+        view: ViewKick {
+            climb_per_shot: 0.0068,
+            climb_max: 0.058,
+            wander_per_shot: 0.0038,
+            shove_per_shot: 0.0092,
+            shove_max: 0.038,
+            recover_speed: 8.4,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.110,
+            lift: 0.0,
+            pitch_deg: 0.16,
+            roll_deg: 0.62,
+            yaw_deg: 0.48,
+            settle_speed: 16.5,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.046,
+            view_yaw_deg: 0.040,
+            view_roll_deg: 0.090,
+            gun_pitch_deg: 0.175,
+            gun_yaw_deg: 0.135,
+            gun_roll_deg: 0.265,
+            gun_shift_m: 0.0007,
+            freq_pitch: 13.0,
+            freq_yaw: 10.0,
+            freq_roll: 12.0,
             decay: 24.0,
         },
     },
