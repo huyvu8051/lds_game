@@ -21,6 +21,20 @@ pub(crate) const FUSE_SECONDS: f32 = 5.0;
 const THROW_SPEED: f32 = 16.0;
 const THROW_LIFT: f32 = 3.0;
 const GRENADE_RADIUS: f32 = 0.055;
+/// Avian takes density, and the collider is a 5.5cm ball, so this is what a
+/// 400g grenade works out to. Left at the default it weighed 0.7g, which is
+/// a ping-pong ball with a fuse in it.
+const GRENADE_DENSITY: f32 = 574.0;
+/// Averaged with the map's own 0.0, so the bounce it actually gets is half
+/// this. Steel on concrete does come back, just not far.
+const GRENADE_RESTITUTION: f32 = 0.2;
+/// A sphere has nothing to catch on, so the grip has to come from here or it
+/// skates away down the street.
+const GRENADE_FRICTION: f32 = 0.9;
+const GRENADE_LINEAR_DAMPING: f32 = 0.3;
+/// The heaviest hand here: a perfect ball rolls forever otherwise, and
+/// nothing in the solver models a lumpy casting scrubbing itself to a stop.
+const GRENADE_ANGULAR_DAMPING: f32 = 3.0;
 
 /// Radius and shove of a frag. A molotov uses the same, weaker and wider.
 const FRAG_RADIUS: f32 = 6.5;
@@ -175,7 +189,11 @@ pub(crate) fn throw_now(
         Transform::from_translation(eye.translation() + eye.forward() * 0.45),
         RigidBody::Dynamic,
         Collider::sphere(GRENADE_RADIUS),
-        Restitution::new(0.35),
+        ColliderDensity(GRENADE_DENSITY),
+        Restitution::new(GRENADE_RESTITUTION),
+        Friction::new(GRENADE_FRICTION),
+        LinearDamping(GRENADE_LINEAR_DAMPING),
+        AngularDamping(GRENADE_ANGULAR_DAMPING),
         LinearVelocity(eye.forward() * THROW_SPEED + Vec3::Y * THROW_LIFT),
         AngularVelocity(Vec3::new(7.0, 4.0, 5.0)),
         Grenade { kind, fuse },
@@ -560,3 +578,5 @@ pub(crate) fn shake_on_explosion(
     }
     shock.strike(blast_kick(strength), time.elapsed_secs());
 }
+
+
