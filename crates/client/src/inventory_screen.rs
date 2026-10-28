@@ -43,6 +43,12 @@ pub(crate) struct GroundColumn;
 pub(crate) struct PackColumn;
 #[derive(Component)]
 pub(crate) struct GearColumn;
+
+/// The two long guns. Split off the worn column because that one was
+/// carrying three weapons' worth of sockets under the armour and ran off the
+/// bottom of the screen.
+#[derive(Component)]
+pub(crate) struct GunColumn;
 #[derive(Component)]
 pub(crate) struct CapacityText;
 #[derive(Component)]
@@ -128,6 +134,7 @@ pub(crate) fn spawn_inventory_screen(commands: &mut Commands) {
                 .with_children(|row| {
                     row.spawn(column(GroundColumn));
                     row.spawn(column(PackColumn));
+                    row.spawn(column(GunColumn));
                     row.spawn(column(GearColumn));
                 });
             screen.spawn((
@@ -264,15 +271,18 @@ pub(crate) fn rebuild_inventory_screen(
     ground: Query<Entity, With<GroundColumn>>,
     pack: Query<Entity, With<PackColumn>>,
     gear: Query<Entity, With<GearColumn>>,
+    guns: Query<Entity, With<GunColumn>>,
     mut capacity: Query<&mut Text, With<CapacityText>>,
 ) {
     if !open.0 {
         return;
     }
-    let (Ok(ground), Ok(pack), Ok(gear)) = (ground.single(), pack.single(), gear.single()) else {
+    let (Ok(ground), Ok(pack), Ok(gear), Ok(guns)) =
+        (ground.single(), pack.single(), gear.single(), guns.single())
+    else {
         return;
     };
-    for column in [ground, pack, gear] {
+    for column in [ground, pack, gear, guns] {
         commands.entity(column).despawn_related::<Children>();
     }
 
@@ -339,6 +349,13 @@ pub(crate) fn rebuild_inventory_screen(
         }
     });
 
+    commands.entity(guns).with_children(|col| {
+        col.spawn(heading("WEAPONS"));
+        for slot in [inventory::Slot::Primary(0), inventory::Slot::Primary(1)] {
+            weapon_rows(col, slot, &loadout, &attachments);
+        }
+    });
+
     commands.entity(gear).with_children(|col| {
         col.spawn(heading("WORN"));
         for slot in WearSlot::ALL {
@@ -349,51 +366,54 @@ pub(crate) fn rebuild_inventory_screen(
             row(col, slot.label().to_string(), note, colour, RowAction::Unwear(slot));
         }
 
-        col.spawn(heading("CARRIED"));
-        for slot in inventory::Slot::ALL {
-            match loadout.get(slot) {
-                Some(weapon) => {
-                    let held = slot == loadout.active;
-                    row(
-                        col,
-                        format!("{}  {}", slot.label(), weapon.def().name),
-                        if held { "IN HAND".to_string() } else { "equip".to_string() },
-                        if held { Color::srgb(1.0, 0.85, 0.2) } else { Color::WHITE },
-                        RowAction::Equip(slot),
-                    );
-                    row(col, String::new(), "drop".to_string(), Color::srgba(1.0, 1.0, 1.0, 0.3), RowAction::Unequip(slot));
-                    // The five sockets, listed under the weapon they belong
-                    // to. Empty ones are shown: the socket existing is what
-                    // makes an attachment on the ground worth stopping for.
-                    for socket in AttachSlot::ALL {
-                        let (note, colour) = match attachments.get(slot, socket) {
-                            Some(item) => (item.label().to_string(), item.colour()),
-                            None => ("--".to_string(), Color::srgba(1.0, 1.0, 1.0, 0.25)),
-                        };
-                        row(
-                            col,
-                            format!("  {}", socket.label()),
-                            note,
-                            colour,
-                            RowAction::Unfit(slot, socket),
-                        );
-                    }
-                }
-                None => {
-                    row(
-                        col,
-                        format!("{}  --", slot.label()),
-                        "empty".to_string(),
-                        Color::srgba(1.0, 1.0, 1.0, 0.3),
-                        RowAction::Equip(slot),
-                    );
-                }
-            }
-        }
+        col.spawn(heading("SIDEARM"));
+        weapon_rows(col, inventory::Slot::Sidearm, &loadout, &attachments);
     });
 
     if let Ok(mut text) = capacity.single_mut() {
         text.0 = format!("PACK  {:.0} / {:.0}", inventory.carried(), equipment.capacity());
+    }
+}
+
+/// One weapon slot: the gun, its drop, and its five sockets.
+///
+/// Shared rather than written twice, now that the long guns and the sidearm
+/// are listed in different columns -- two copies is how the two of them would
+/// drift apart.
+fn weapon_rows(
+    col: &mut ChildSpawnerCommands<'_>,
+    slot: inventory::Slot,
+    loadout: &Loadout,
+    attachments: &Attachments,
+) {
+    let Some(weapon) = loadout.get(slot) else {
+        row(
+            col,
+            format!("{}  --", slot.label()),
+            "empty".to_string(),
+            Color::srgba(1.0, 1.0, 1.0, 0.3),
+            RowAction::Equip(slot),
+        );
+        return;
+    };
+    let held = slot == loadout.active;
+    row(
+        col,
+        format!("{}  {}", slot.label(), weapon.def().name),
+        if held { "IN HAND".to_string() } else { "equip".to_string() },
+        if held { Color::srgb(1.0, 0.85, 0.2) } else { Color::WHITE },
+        RowAction::Equip(slot),
+    );
+    row(col, String::new(), "drop".to_string(), Color::srgba(1.0, 1.0, 1.0, 0.3), RowAction::Unequip(slot));
+    // The five sockets, listed under the weapon they belong to. Empty ones
+    // are shown: the socket existing is what makes an attachment on the
+    // ground worth stopping for.
+    for socket in AttachSlot::ALL {
+        let (note, colour) = match attachments.get(slot, socket) {
+            Some(item) => (item.label().to_string(), item.colour()),
+            None => ("--".to_string(), Color::srgba(1.0, 1.0, 1.0, 0.25)),
+        };
+        row(col, format!("  {}", socket.label()), note, colour, RowAction::Unfit(slot, socket));
     }
 }
 
