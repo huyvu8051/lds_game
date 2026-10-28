@@ -18,17 +18,23 @@ use bevy::prelude::*;
 
 use crate::*;
 
-/// Seconds to put one away, and to bring the next out. Drawing is the
+/// Seconds to put a long gun away and to bring one out. Drawing is the
 /// slower half: it is the part the player is waiting on, and a draw that
 /// matches the holster reads as a cut rather than a handover.
-const HOLSTER_SECONDS: f32 = 0.18;
-const DRAW_SECONDS: f32 = 0.30;
+const HOLSTER_SECONDS: f32 = 0.34;
+const DRAW_SECONDS: f32 = 0.55;
 
-/// What a sidearm is worth in time. It is lighter, it is carried where the
-/// hand already is, and reaching for it is what a player does when the thing
-/// in their hands has run out -- so the whole exchange is quicker, including
-/// putting away the rifle that failed them.
-const SIDEARM_SPEEDUP: f32 = 0.55;
+/// The sidearm's own times rather than a fraction of the rifle's. It is
+/// lighter, it is carried where the hand already is, and reaching for it is
+/// what a player does when the thing in their hands has run out -- so it
+/// stays quick no matter how heavy the long guns get, and the number says
+/// so outright instead of depending on theirs.
+///
+/// The holster applies to whichever weapon is being put away when a sidearm
+/// is on either end of the swap. Dropping the rifle that failed you is part
+/// of the same hurry.
+const SIDEARM_HOLSTER_SECONDS: f32 = 0.10;
+const SIDEARM_DRAW_SECONDS: f32 = 0.17;
 
 fn is_sidearm(slot: inventory::Slot) -> bool {
     matches!(slot, inventory::Slot::Sidearm)
@@ -38,6 +44,16 @@ fn is_sidearm(slot: inventory::Slot) -> bool {
 const TRAVEL: f32 = 0.55;
 const TRAVEL_PITCH_DEG: f32 = 52.0;
 const TRAVEL_ROLL_DEG: f32 = 22.0;
+
+/// What the slot on the right of the back does differently.
+///
+/// It is taken over the shoulder rather than reached for at the waist, so it
+/// starts higher, further behind the eye, and muzzle-up -- the weapon swings
+/// through from behind to in front rather than sliding up a wall. Multiplies
+/// the figures above for the upward slot only.
+const OVERHEAD_LIFT: f32 = 1.7;
+const OVERHEAD_BACK: f32 = 2.4;
+const OVERHEAD_PITCH: f32 = 1.5;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Phase {
@@ -97,10 +113,20 @@ impl WeaponSwap {
         if away <= 0.0 {
             return (Vec3::ZERO, 0.0, 0.0);
         }
-        let offset = Vec3::new(0.0, self.direction * TRAVEL * away, TRAVEL * 0.35 * away);
+        // The slot taken over the shoulder travels further in every sense.
+        let over = self.direction > 0.0;
+        let lift = if over { OVERHEAD_LIFT } else { 1.0 };
+        let back = if over { OVERHEAD_BACK } else { 1.0 };
+        let turn = if over { OVERHEAD_PITCH } else { 1.0 };
+
+        let offset = Vec3::new(
+            0.0,
+            self.direction * TRAVEL * lift * away,
+            TRAVEL * 0.35 * back * away,
+        );
         // Turned as it goes, because a weapon lowered without rotating reads
         // as a prop being slid off a shelf.
-        let pitch = (TRAVEL_PITCH_DEG * self.direction * away).to_radians();
+        let pitch = (TRAVEL_PITCH_DEG * turn * self.direction * away).to_radians();
         let roll = (TRAVEL_ROLL_DEG * away).to_radians();
         (offset, pitch, roll)
     }
@@ -148,8 +174,11 @@ pub(crate) fn begin_weapon_swap(
     swap.elapsed = 0.0;
     // Shortened by whichever end is the sidearm, including the rifle being
     // put away to reach for it.
-    swap.duration = HOLSTER_SECONDS
-        * if is_sidearm(from) || is_sidearm(to) { SIDEARM_SPEEDUP } else { 1.0 };
+    swap.duration = if is_sidearm(from) || is_sidearm(to) {
+        SIDEARM_HOLSTER_SECONDS
+    } else {
+        HOLSTER_SECONDS
+    };
     // Which way out is decided by where the weapon being put away lives,
     // and which way in by where the next one does.
     swap.direction = direction_of(from);
@@ -181,7 +210,7 @@ pub(crate) fn advance_weapon_swap(
             swap.phase = Phase::Draw;
             swap.elapsed = 0.0;
             swap.direction = direction_of(to);
-            swap.duration = DRAW_SECONDS * if is_sidearm(to) { SIDEARM_SPEEDUP } else { 1.0 };
+            swap.duration = if is_sidearm(to) { SIDEARM_DRAW_SECONDS } else { DRAW_SECONDS };
         }
         Phase::Draw if swap.elapsed >= swap.duration => {
             swap.phase = Phase::Idle;
