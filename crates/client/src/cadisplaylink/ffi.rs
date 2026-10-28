@@ -427,8 +427,8 @@ pub extern "C" fn native_metal_probe_mouse_connected(obj: *mut std::ffi::c_void,
     }
 }
 
-/// The wheel. Two things read it -- the scope's magnification and the settings
-/// menu's scroll -- and on this path nothing was writing it, so both were dead.
+/// The wheel. One thing reads it now: the settings menu scrolls with it.
+/// The scope's magnification used to as well, and no longer exists to.
 #[unsafe(no_mangle)]
 pub extern "C" fn native_metal_probe_mouse_wheel(
     obj: *mut std::ffi::c_void,

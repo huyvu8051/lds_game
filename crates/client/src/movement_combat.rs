@@ -452,7 +452,8 @@ pub(crate) fn apply_aim_zoom(
     // Following the blend also means the view arrives when the sights do, at
     // whatever rate this weapon raises, rather than on a second clock of its
     // own that happened to be close.
-    let target_fov = BASE_FOV * (1.0 + (active.def().aim_fov_multiplier - 1.0) * pose.sighted);
+    let def = active.def();
+    let magnified = BASE_FOV * def.aim_fov_multiplier;
 
     let Ok(mut projection) = camera.single_mut() else {
         return;
@@ -460,6 +461,24 @@ pub(crate) fn apply_aim_zoom(
     let Projection::Perspective(perspective) = projection.as_mut() else {
         return;
     };
+
+    // A scope has one magnification, not a range of them.
+    //
+    // Blending the fov across the raise made the number on the side of the
+    // glass a lie for most of the time it was being read: an eight times
+    // scope spent the whole way up at two, then four, then six. Real glass
+    // does not do that, and neither does any game with a scope in it -- the
+    // view is either through it or it is not. So it switches, at the same
+    // point the reticle appears, with no interpolation on either side.
+    //
+    // Iron sights keep the blend. There is almost no magnification in them
+    // to argue about, and the ramp is what makes bringing them up feel like
+    // a movement rather than a cut.
+    if def.scoped {
+        perspective.fov = if pose.sighted > SCOPED_RETICLE_SIGHTED { magnified } else { BASE_FOV };
+        return;
+    }
+    let target_fov = BASE_FOV + (magnified - BASE_FOV) * pose.sighted;
     let t = (AIM_ZOOM_SPEED * time.delta_secs()).min(1.0);
     perspective.fov += (target_fov - perspective.fov) * t;
 }
