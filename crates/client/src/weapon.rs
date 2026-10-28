@@ -296,6 +296,7 @@ pub(crate) enum WeaponId {
     M24,
     Ump45,
     Deagle,
+    ScarL,
 }
 
 #[derive(Resource)]
@@ -321,8 +322,14 @@ impl ActiveWeapon {
 }
 
 impl WeaponId {
-    pub(crate) const ALL: [WeaponId; 5] =
-        [WeaponId::Ak47, WeaponId::M4a1, WeaponId::M24, WeaponId::Ump45, WeaponId::Deagle];
+    pub(crate) const ALL: [WeaponId; 6] = [
+        WeaponId::Ak47,
+        WeaponId::M4a1,
+        WeaponId::M24,
+        WeaponId::Ump45,
+        WeaponId::Deagle,
+        WeaponId::ScarL,
+    ];
 
     pub(crate) fn index(self) -> usize {
         match self {
@@ -331,6 +338,7 @@ impl WeaponId {
             WeaponId::M24 => 2,
             WeaponId::Ump45 => 3,
             WeaponId::Deagle => 4,
+            WeaponId::ScarL => 5,
         }
     }
 
@@ -341,6 +349,7 @@ impl WeaponId {
             WeaponId::M24 => &M24,
             WeaponId::Ump45 => &UMP45,
             WeaponId::Deagle => &DEAGLE,
+            WeaponId::ScarL => &SCAR_L,
         }
     }
 
@@ -504,6 +513,89 @@ static M4A1: WeaponDef = WeaponDef {
             freq_yaw: 10.5,
             freq_roll: 12.5,
             decay: 22.0,
+        },
+    },
+};
+
+/// Aligned by hand in Blender to the convention in
+/// `zombie_assets/WEAPON_ALIGNMENT.md`. Its two sights agree to 0.1mm over a
+/// 426mm sight radius, and the flash hider and magazine measure 23.8mm and
+/// 24.8mm against the real rifle's 22mm and 25.4mm, which is the check that
+/// the scale is right rather than merely plausible.
+///
+/// Socket_Aim is the centre of the rear aperture, 84.7mm over the bore
+/// against the M4's 61.3mm: the download's flip-up sights are modelled tall.
+/// ADS is unaffected, being subtracted from Socket_Aim, but the weapon rides
+/// lower in the sighted frame than the M4 does.
+static SCAR_L: WeaponDef = WeaponDef {
+    name: "SCAR-L",
+    mesh_path: "models/scar_l/mesh/scar_l.glb",
+    // Socket_Aim sits 0.6585 down this weapon against the M4's 0.5125, so the
+    // muzzle goes 146mm further out to leave the sight the same distance from
+    // the eye at rest.
+    rest_offset: Vec3::new(0.160, -0.1018, -0.7720),
+    ready_offset: Vec3::new(0.071, -0.1718, -0.6820),
+    ads_eye_relief: 0.11,
+    // About a kilo heavier than the M4, so it comes up slower.
+    ads_speed: AdsSpeed { from_ready: 14.0, from_rest: 8.0 },
+    hold_ads_fraction: 0.280,
+    // Sums to -0.0708 with rest_offset, level with the M4 and the M24.
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.031, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.018,
+    ads_settle_miss_deg: 1.0,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 22.0,
+    autopilot_sprint_approach_distance: 14.0,
+    autopilot_sprint_pathing_distance: 9.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    // Its own files, which are copies of the M4's until the SCAR has
+    // recordings of its own.
+    sound: WeaponSound { fire: "audio/weapons/scar_l_fire.wav", reload: "audio/weapons/scar_l_reload.wav" },
+    reload_duration: 2.2,
+    damage_scale: 0.85,
+    // The real SCAR-L is 625rpm against the M416's 750. The M4 here runs at
+    // 571, so holding that ratio puts this one at 476.
+    fire_rate: 0.126,
+    magazine: 40,
+    // Safe, semi, auto. No burst on a Mk16.
+    fire_modes: &[FireMode::Auto, FireMode::Single],
+    ammo: crate::ItemKind::Ammo556,
+    // The M4's, kicking a little harder per shot and ringing lower and longer
+    // for the extra mass, which the slower cyclic rate leaves room for.
+    recoil: Recoil {
+        strike_speed: 70.0,
+        view: ViewKick {
+            climb_per_shot: 0.0090,
+            climb_max: 0.072,
+            wander_per_shot: 0.0049,
+            shove_per_shot: 0.0106,
+            shove_max: 0.042,
+            recover_speed: 7.4,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.13,
+            lift: 0.0,
+            pitch_deg: 0.24,
+            roll_deg: 0.85,
+            yaw_deg: 0.6,
+            settle_speed: 14.0,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.07,
+            view_yaw_deg: 0.055,
+            view_roll_deg: 0.12,
+            gun_pitch_deg: 0.26,
+            gun_yaw_deg: 0.19,
+            gun_roll_deg: 0.37,
+            gun_shift_m: 0.0009,
+            freq_pitch: 12.5,
+            freq_yaw: 9.5,
+            freq_roll: 11.5,
+            decay: 20.0,
         },
     },
 };
