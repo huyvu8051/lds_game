@@ -4,10 +4,15 @@
 //! appeared in its place. Nothing in the hand ever travelled, so the only
 //! thing separating an AK from an M24 was that the shape changed.
 //!
-//! Which way a weapon travels is decided by where it is kept. A long gun
-//! comes off the back and down into the hands; a sidearm comes up off the
-//! hip. That is the two ends of the slot bar, and the middle slot holds
-//! another long gun, so it goes with the left.
+//! Which way a weapon travels is decided by where it is kept. Slot one is
+//! slung on the left of the back and slot two on the right, which puts them
+//! on opposite sides of the shoulder: one is reached for low and across, the
+//! other over the top. Slot three is the hip.
+//!
+//! So each slot owns a side rather than a direction. One and three come up
+//! from below and go back down; two comes down from above and goes back up.
+//! The draw and the holster of any slot run through the same half of the
+//! frame, which is what makes them read as one motion reversed.
 
 use bevy::prelude::*;
 
@@ -60,11 +65,17 @@ impl Default for WeaponSwap {
     }
 }
 
-/// Down for a long gun, up for a sidearm.
+/// Which half of the frame a slot's weapon travels through: -1 below, +1
+/// above. The same for its draw and its holster, which is why one number
+/// serves both -- a weapon that comes up from below goes back down.
 fn direction_of(slot: inventory::Slot) -> f32 {
     match slot {
-        inventory::Slot::Sidearm => 1.0,
-        _ => -1.0,
+        // Left of the back: reached for low and across.
+        inventory::Slot::Primary(0) => -1.0,
+        // Right of the back: taken over the shoulder.
+        inventory::Slot::Primary(_) => 1.0,
+        // The hip.
+        inventory::Slot::Sidearm => -1.0,
     }
 }
 
