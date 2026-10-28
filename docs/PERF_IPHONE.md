@@ -156,29 +156,35 @@ in one file, which made a bisect impossible. Commit the perf work in pieces.
 
 ## What is left, in the order the measurements put it
 
-Ranked by the heat section below, not by guesswork. The first two attack the
-CPU, which is where the power goes; the third is the GPU's own limiter.
+The honest headline first: **at this viewpoint the frame is not bound by
+anything in this app.** 118 fps, fragment 5.920 ms against an 8.333 ms budget,
+GPU at its minimum performance state, CPU at about 0.65 of a core, and the main
+thread blocked 72.6% of the time inside `nextDrawable`. The app asks for a
+drawable and waits for the display. That is what a frame loop should look like.
 
-**1. Cut the draw count** -- merge meshes by material and spatial cluster.
-Over 15% of all cycles sit in Metal's draw encoding (`AGX::*`,
-`*ResourceListAddHashValue`), on two P-cores that never go idle. This is the
-single biggest measured lever on heat. Not started.
+So nothing below is a bottleneck fix. They are reductions in how much work is
+done per frame, which is a battery and thermal argument, not a frame-rate one.
 
-**2. Work out why the main thread never blocks.** Fragment time is 5.920 ms
-against an 8.333 ms budget and the GPU stays at its Minimum performance state,
-yet Main Thread and Compute Task Pool are both 100% Running. The CPU, not the
-display, is pacing the frame. Anything the loop does every frame that it does
-not have to do is heat for nothing. Start at `ca-client-buffer-wait-interval`:
-a frame loop that paces properly should spend time there.
+**1. Measure a hot phone.** Every trace here was recorded with a thermoelectric
+cooler attached, so the thermal state never leaves Nominal and there is no
+thermal behaviour in the data at all. That was the right call for finding a
+bottleneck and the wrong data for answering "why does it get hot". Record
+without the cooler, long enough to leave Nominal, with `Power Profiler`
+alongside, and watch what changes at each thermal transition. Until that
+exists, any ranking of heat causes -- including this one -- is inference.
 
-**3. Move fragment math to F16.** The GPU is ALU-bound (limiter 60%) and does
-that arithmetic in F32 -- F16 utilization is 0.62%. This buys fragment budget;
-it does less for heat than 1 and 2, because the GPU never leaves its minimum
-clock.
+**2. Cut the draw count** -- merge meshes by material and spatial cluster.
+`AGX::*` plus `*ResourceListAddHashValue` is over 15% of sampled cycles, the
+largest single thing in the app's CPU profile. It is 15% of 0.65 of a core, so
+expect a modest power win rather than a visible one.
+
+**3. Move fragment math to F16.** The GPU is ALU-bound (limiter 60%, max 99%)
+and does that arithmetic in F32 -- F16 utilization is 0.62%. The clearest
+headroom on the GPU side, though the GPU never leaves its minimum clock here.
 
 **Re-encode the gore textures** -- *demoted*. They do carry exactly one mip
-level, so distant samples fetch at full resolution, and that was written up
-here as the largest remaining fragment cost. The counters disagree: Texture
+level, so distant samples fetch at full resolution, and this document used to
+call that the largest remaining fragment cost. The counters disagree: Texture
 Cache Limiter is 8.89% and read bandwidth 2.38 against a 28.0 peak. Worth
 fixing as asset hygiene, not as a performance measure.
 
@@ -198,26 +204,33 @@ never clocks up for this workload, so its contribution to heat is not a clock
 ramp. Read the GPU counters in that light: ALU Limiter at 60% is 60% of the
 *minimum-clock* GPU.
 
-**Both performance cores run continuously.** From a `CPU Profiler` trace:
+**The CPU is not saturated either.** An earlier version of this section claimed
+both performance cores ran continuously, from a sampled table that reported
+Main Thread as 100% Running. That was wrong: `kdebug-counters-with-time-sample`
+samples predominantly while a thread is on-CPU, so reading residency off it is
+circular. The `thread-state` schema carries real intervals, and its per-thread
+totals sum to the trace length, which is the check that it means what it says:
 
-| core | share of the game's cycles |
-|---|---|
-| CPU 4 (P) | 53.5% |
-| CPU 5 (P) | 44.7% |
-| the four E cores, together | 1.7% |
+| thread | Blocked | Running | Runnable |
+|---|---|---|---|
+| Main Thread | 72.6% | 23.7% | 3.5% |
+| Compute Task Pool (two threads) | 69.4% | 20.5% | 4.6% |
+| Async Compute Task Pool | 99.8% | 0.1% | — |
 
-And neither busy thread ever waits: Main Thread is **100% Running** (1 Blocked
-sample in 2525), Compute Task Pool **100% Running** (2 in 4057). The sampler
-does record blocked threads -- IO Task Pool shows 0% Running -- so this is real
-and not an artifact of only sampling on-CPU threads.
+That is 2.58 s + 4.46 s = 7.04 s of CPU across 10.87 s of wall clock: about
+**0.65 of one core**, not two cores pegged. It agrees with
+`ca-client-buffer-wait-interval`, which records one wait per frame averaging
+**4.679 ms** against an 8.47 ms frame -- the main thread spends most of a frame
+blocked in `nextDrawable`, waiting for the display.
 
-Two A16 P-cores held at full tilt with no idle is the expensive placement, and
-it is the best explanation for the heat that the data supports.
+Where the app's CPU work does run is still worth knowing: 98.3% of
+`CPU Profiler` samples land on the two P cores (CPU 4 53.5%, CPU 5 44.7%) and
+1.7% on the four E cores. That is placement, not utilization.
 
-The largest identifiable slice of that CPU work is **Metal's own draw
-encoding**, not game logic. By leaf symbol:
+The largest identifiable slice of that work is **Metal's own draw encoding**,
+not game logic. By leaf symbol, as a share of sampled cycles:
 
-| share of cycles | symbol |
+| share | symbol |
 |---|---|
 | 6.8% | `AGX::RenderContext::encodeISPPrimitiveType` |
 | 2.9% | `AGX::RenderUSCStateLoader::extractProgramVariant` |
@@ -229,11 +242,17 @@ encoding**, not game logic. By leaf symbol:
 | 3.6% / 1.0% | `avian3d propagate_collider_transforms_recursive` / `parry3d TriMesh::aabb` |
 
 The `AGX::*` and `*ResourceListAddHashValue` frames together are over 15% of
-all cycles: that is the CPU price of issuing draws. Physics is the Compute Task
-Pool's share.
+sampled cycles -- the CPU price of issuing draws, and the biggest single thing
+in the app's CPU profile. But it is 15% of 0.65 of a core, so it is a frame-time
+and battery argument, not the explanation for a hot phone.
 
-This reorders the remaining work. **Cutting draw count attacks the measured
-heat source; re-encoding the gore textures does not.**
+**What these traces do not answer.** They were recorded with a thermoelectric
+cooler on the phone, which is right for finding a bottleneck -- nothing is
+throttled -- but it also means `device-thermal-state-intervals` reads Nominal
+throughout and there is no thermal behaviour in them to study. Nothing measured
+here is a device under thermal stress. Answering "why does it get hot" needs a
+run **without** the cooler, long enough to leave Nominal, watching the thermal
+state transitions and the `Power Profiler` template alongside them.
 
 ### The GPU counters, and what they rule out
 
