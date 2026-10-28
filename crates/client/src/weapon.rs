@@ -102,6 +102,9 @@ pub(crate) reticle: ReticleKind,
     pub(crate) damage_scale: f32,
     pub(crate) fire_rate: f32,
     pub(crate) magazine: u32,
+/// The calibre it feeds on, which is what the reserve count beside the
+/// magazine is counting and what a reload draws from.
+pub(crate) ammo: crate::ItemKind,
     pub(crate) recoil: Recoil,
 }
 
@@ -337,6 +340,7 @@ static AK47: WeaponDef = WeaponDef {
     damage_scale: 1.0,
     fire_rate: 0.12,
     magazine: 50,
+    ammo: crate::ItemKind::Ammo762,
     // 7.62: slower, heavier, looser at the top of a burst. Every axis above
     // the M4's.
     recoil: Recoil {
@@ -417,6 +421,7 @@ static M4A1: WeaponDef = WeaponDef {
     damage_scale: 0.85,
     fire_rate: 0.105,
     magazine: 45,
+    ammo: crate::ItemKind::Ammo556,
     // 5.56: about two thirds the AK's kick, settling faster. Cut by more than
     // a flat ratio because it also fires faster, and matching per shot would
     // have climbed harder for the same trigger hold.
@@ -502,6 +507,7 @@ static M24: WeaponDef = WeaponDef {
     damage_scale: 3.2,
     fire_rate: 1.3,
     magazine: 5,
+    ammo: crate::ItemKind::Ammo762,
     recoil: Recoil {
         strike_speed: 28.0,
         view: ViewKick {
@@ -594,6 +600,7 @@ static UMP45: WeaponDef = WeaponDef {
     damage_scale: 0.80,
     fire_rate: 0.10,
     magazine: 35,
+    ammo: crate::ItemKind::Ammo45,
     // .45 ACP is a heavy, slow round, but the UMP's bolt is built to swallow
     // it: more kick per shot than the M4 and less climb over a burst, because
     // what stacks is the rate and this fires no faster than the AK.
@@ -677,6 +684,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     // Semi-automatic: the ceiling is the trigger finger, not the action.
     fire_rate: 0.26,
     magazine: 7,
+    ammo: crate::ItemKind::Ammo45,
     // The hardest kick here, and the slowest recovery. strike_speed below the
     // M24's because this is not braced against anything -- the blow pushes
     // the hands rather than being stopped by a shoulder.

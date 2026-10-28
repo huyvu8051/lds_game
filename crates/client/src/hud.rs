@@ -588,6 +588,7 @@ pub(crate) fn update_radar_ui(
 }
 
 pub(crate) fn update_ammo_ui(
+    inventory: Res<Inventory>,
     gun: Query<&Gun, Changed<Gun>>,
     mut text: Query<&mut Text, With<AmmoUi>>,
     active: Res<ActiveWeapon>,
@@ -601,7 +602,10 @@ pub(crate) fn update_ammo_ui(
     text.0 = if gun.reload_remaining > 0.0 {
         "RELOADING...".to_string()
     } else {
-        format!("{} / {}", gun.ammo, active.def().magazine)
+        // Magazine over reserve, the way a battle royale reads it: the
+        // second number is what is left to reload with, not how big the
+        // magazine is -- which the first number already implies.
+        format!("{} / {}", gun.ammo, inventory.count(active.def().ammo))
     };
 }
 

@@ -319,6 +319,7 @@ pub(crate) fn gun_view_animation(
     keys: Res<ButtonInput<KeyCode>>,
     mut look_delta: ResMut<MouseLookDelta>,
     mut pose: ResMut<WeaponPose>,
+    mut inventory: ResMut<Inventory>,
     cursor: Query<&CursorOptions, With<PrimaryWindow>>,
     camera: Query<(&Transform, &Lean), (With<FpsCamera>, Without<Gun>)>,
     spatial_query: SpatialQuery,
@@ -425,7 +426,16 @@ pub(crate) fn gun_view_animation(
         if gun.reload_remaining > 0.0 {
             gun.reload_remaining = (gun.reload_remaining - time.delta_secs()).max(0.0);
             if gun.reload_remaining == 0.0 {
-                gun.ammo = active.def().magazine;
+                // Drawn from the pack rather than conjured. Partial if the
+                // pack is short, which is what makes the reserve count
+                // beside the magazine worth reading.
+                let def = active.def();
+                let wanted = def.magazine - gun.ammo;
+                let had = inventory.count(def.ammo).min(wanted);
+                for _ in 0..had {
+                    inventory.take_one(def.ammo);
+                }
+                gun.ammo += had;
             }
         }
 
