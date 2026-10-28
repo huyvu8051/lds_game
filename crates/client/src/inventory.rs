@@ -89,10 +89,15 @@ impl Loadout {
 
     /// Where a weapon would go, and what it would displace getting there.
     ///
-    /// An empty slot of the right kind first, then the one in hand if it is
-    /// of that kind, then the first of that kind -- so a pickup never
-    /// silently replaces a weapon the player is not looking at while an empty
-    /// slot stands beside it.
+    /// An empty slot of the right kind first, then the one in hand. That is
+    /// the battle-royale rule and it is the one anybody expects: a pickup
+    /// never silently replaces a weapon while an empty slot stands beside
+    /// it, and once the slots are full it takes the one you were holding,
+    /// because that is the one you were looking at when you chose.
+    ///
+    /// Kind comes first regardless. A sidearm has one possible home and a
+    /// long gun cannot go there, so either of those decides the slot before
+    /// anything else is asked.
     fn slot_for(&self, weapon: WeaponId) -> Slot {
         if is_sidearm(weapon) {
             return Slot::Sidearm;
@@ -102,7 +107,10 @@ impl Loadout {
         }
         match self.active {
             Slot::Primary(i) => Slot::Primary(i),
-            Slot::Sidearm => Slot::Primary(0),
+            // Holding the sidearm with both long slots full: the one it
+            // replaces is the one you were carrying before you drew it,
+            // not slot one every time.
+            Slot::Sidearm => Slot::Primary(self.last_primary),
         }
     }
 
@@ -112,33 +120,6 @@ impl Loadout {
             self.last_primary = i.min(1);
         }
         self.active = slot;
-    }
-
-    /// Which slot a weapon handed over by the settings menu belongs in.
-    ///
-    /// Not slot_for's rules: that one is for finding a weapon on the ground
-    /// somewhere to live, and will fill an empty slot rather than the one in
-    /// your hands. This replaces what is held, which is what pressing a
-    /// weapon's name on a menu reads as -- except that a sidearm cannot go
-    /// in a back slot, nor a long gun on the hip, so either of those moves
-    /// the hand as well.
-    pub(crate) fn hand_slot_for(&self, weapon: WeaponId) -> Slot {
-        if is_sidearm(weapon) {
-            return Slot::Sidearm;
-        }
-        match self.active {
-            Slot::Primary(i) => Slot::Primary(i),
-            // Coming off the sidearm goes back to the long gun you left.
-            Slot::Sidearm => Slot::Primary(self.last_primary),
-        }
-    }
-
-    /// Puts a weapon straight into the hand, in whichever slot it belongs.
-    pub(crate) fn put_in_hand(&mut self, weapon: WeaponId) -> Slot {
-        let slot = self.hand_slot_for(weapon);
-        self.set(slot, Some(weapon));
-        self.hold(slot);
-        slot
     }
 
     pub(crate) fn holds(&self, weapon: WeaponId) -> bool {

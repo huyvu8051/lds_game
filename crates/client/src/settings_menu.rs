@@ -990,11 +990,15 @@ pub(crate) fn give_weapon_buttons(
         if *interaction != Interaction::Pressed {
             continue;
         }
-        // Replaces what is in the hand rather than filling an empty slot:
-        // pressing a weapon's name on a menu means "give me this one now".
-        // A sidearm still goes to the hip and a long gun still goes to a
-        // back slot, so either of those moves the hand too.
-        loadout.put_in_hand(button.0);
+        // The same rule a weapon on the ground follows: an empty slot if
+        // there is one, otherwise the weapon in hand. A menu button that
+        // obeyed different rules from a pickup would be a second thing to
+        // learn for no reason.
+        //
+        // What it displaces is discarded rather than dropped at the
+        // player's feet. This is the menu; nobody pressed it expecting
+        // litter.
+        loadout.take(button.0);
         request.0 = Some(button.0);
     }
 }
