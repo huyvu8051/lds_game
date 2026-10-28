@@ -7,6 +7,7 @@
 //! something, which is the whole of the decision the arrangement exists to
 //! create.
 
+use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::*;
@@ -125,6 +126,94 @@ impl Loadout {
     }
 }
 
+/// What the throwable slot cycles.
+pub(crate) const THROWABLES: [ItemKind; 4] = [
+    ItemKind::FragGrenade,
+    ItemKind::SmokeGrenade,
+    ItemKind::StunGrenade,
+    ItemKind::Molotov,
+];
+
+/// How hard it leaves the hand, how long the fuse runs, and how far the
+/// frag reaches. A smoke and a stun have no blast, so they land and do
+/// nothing yet -- the slot is real, the chemistry is not.
+pub(crate) const THROW_SPEED: f32 = 14.0;
+pub(crate) const THROW_FUSE: f32 = 3.5;
+pub(crate) const FRAG_RADIUS: f32 = 6.0;
+pub(crate) const FRAG_FORCE: f32 = 26.0;
+
+/// A grenade in the air.
+#[derive(Component)]
+pub(crate) struct ThrownItem {
+    pub(crate) kind: ItemKind,
+    fuse: f32,
+}
+
+/// Which throwable the slot is on.
+#[derive(Resource, Default)]
+pub(crate) struct ThrowableSelection(pub(crate) usize);
+
+impl ThrowableSelection {
+    pub(crate) fn kind(&self) -> ItemKind {
+        THROWABLES[self.0.min(THROWABLES.len() - 1)]
+    }
+}
+
+/// Puts the selected throwable into the air, if there is one.
+pub(crate) fn throw_selected(
+    keys: Res<ButtonInput<KeyCode>>,
+    selection: Res<ThrowableSelection>,
+    mut inventory: ResMut<Inventory>,
+    mut commands: Commands,
+    assets: Option<Res<PickupAssets>>,
+    camera: Query<&GlobalTransform, With<FpsCamera>>,
+) {
+    if !keys.just_pressed(KeyCode::KeyG) {
+        return;
+    }
+    let kind = selection.kind();
+    let (Some(assets), Ok(eye)) = (assets, camera.single()) else { return };
+    if !inventory.take_one(kind) {
+        return;
+    }
+    // Out of the eye rather than the muzzle: a grenade is thrown by the
+    // hand, and the hand is where the view is.
+    let from = eye.translation() + eye.forward() * 0.5;
+    commands.spawn((
+        Name::new("Thrown"),
+        Mesh3d(assets.mesh.clone()),
+        MeshMaterial3d(assets.material_for(kind)),
+        Transform::from_translation(from),
+        RigidBody::Dynamic,
+        Collider::sphere(0.09),
+        LinearVelocity(eye.forward() * THROW_SPEED + Vec3::Y * 2.0),
+        AngularVelocity(Vec3::new(5.0, 3.0, 4.0)),
+        ThrownItem { kind, fuse: THROW_FUSE },
+    ));
+}
+
+/// Runs the fuse down and sets off whatever was thrown.
+pub(crate) fn advance_thrown(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut thrown: Query<(Entity, &mut ThrownItem, &Transform)>,
+) {
+    for (entity, mut item, transform) in &mut thrown {
+        item.fuse -= time.delta_secs();
+        if item.fuse > 0.0 {
+            continue;
+        }
+        if item.kind == ItemKind::FragGrenade || item.kind == ItemKind::Molotov {
+            commands.trigger(crate::explosion::Explosion {
+                at: transform.translation,
+                radius: FRAG_RADIUS,
+                force: FRAG_FORCE,
+            });
+        }
+        commands.entity(entity).try_despawn();
+    }
+}
+
 /// The items the heal selector cycles: everything that mends or boosts.
 /// A view over the item list rather than a list of its own, so adding a
 /// medicine to items.rs puts it in the selector without a second edit.
@@ -188,6 +277,10 @@ impl Default for Inventory {
             (ItemKind::EnergyDrink, 2),
             (ItemKind::Ammo762, 60),
             (ItemKind::Ammo45, 30),
+            // One of each to throw, so the slot beside the weapons is not
+            // empty the first time anybody looks at it.
+            (ItemKind::FragGrenade, 2),
+            (ItemKind::SmokeGrenade, 1),
         ] {
             inventory.add(kind, n);
         }
@@ -475,7 +568,7 @@ const CONSUMABLE_DROP_CHANCE: f32 = 0.45;
 
 #[derive(Resource)]
 pub(crate) struct PickupAssets {
-    mesh: Handle<Mesh>,
+    pub(crate) mesh: Handle<Mesh>,
     /// One per entry in ALL_ITEMS, so a thing on the ground is its own
     /// colour before anybody is near enough to read its name.
     materials: Vec<Handle<StandardMaterial>>,
@@ -483,7 +576,7 @@ pub(crate) struct PickupAssets {
 }
 
 impl PickupAssets {
-    fn material_for(&self, kind: ItemKind) -> Handle<StandardMaterial> {
+    pub(crate) fn material_for(&self, kind: ItemKind) -> Handle<StandardMaterial> {
         self.materials[kind.index().min(self.materials.len() - 1)].clone()
     }
 }

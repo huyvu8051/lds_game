@@ -1032,6 +1032,7 @@ impl Plugin for GamePlugin {
         .init_resource::<InventoryScreenOpen>()
         .init_resource::<Equipment>()
         .init_resource::<Attachments>()
+        .init_resource::<ThrowableSelection>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, (spawn_pole_targets, init_pickup_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
@@ -1128,7 +1129,7 @@ impl Plugin for GamePlugin {
                     ),
                     update_bars,
                     update_weapon_slots,
-                    (update_item_ui, update_gear_cells),
+                    (update_item_ui, update_gear_cells, throwable_slot),
                     damage_multiplier_buttons,
                     update_damage_multiplier_text,
                     auto_maintain_button,
@@ -1244,6 +1245,8 @@ impl Plugin for GamePlugin {
                     advance_use_cooldown,
                     advance_boost,
                     advance_pickups,
+                    throw_selected,
+                    advance_thrown,
                     collect_pickups,
                     forget_gone_zombies.run_if(ui_tick()),
                     update_gore,
