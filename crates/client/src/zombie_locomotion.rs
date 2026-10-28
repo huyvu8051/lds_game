@@ -78,3 +78,188 @@ pub(crate) fn lean_zombie_into_turn(
         }
     }
 }
+
+/// Below this the foot counts as planted and gets pinned.
+const FOOT_PLANT_HEIGHT: f32 = 0.12;
+/// How far a pinned foot may be dragged before the pin is given up. A foot
+/// held past this is a leg stretched past its reach, which looks worse than
+/// the slide it was fixing.
+const FOOT_PIN_MAX_DRAG: f32 = 0.45;
+
+#[derive(Component, Default)]
+pub(crate) struct ZombieFootPins {
+    /// Where each foot was when it planted, in world space, or nothing while
+    /// it is in the air.
+    planted: [Option<Vec3>; 2],
+}
+
+/// Keeps a planted foot where it was planted.
+///
+/// The clip plants feet along a straight line and the body turns underneath
+/// them, which is the whole of why a turn slides. Pinning the foot and
+/// bending the leg to reach it is the direct answer: the foot stops moving
+/// because the foot is told not to move.
+/// Off with NO_FOOT_PIN=1.
+///
+/// Of the four things done to the walk this is the only one that can look
+/// badly wrong rather than merely wrong: the others nudge a bone by a few
+/// degrees, this one decides where a leg must reach and bends it there. The
+/// plant test leans on LEG_SPAN_GUESS, which is a guess.
+fn foot_pinning_enabled() -> bool {
+    static CACHED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *CACHED.get_or_init(|| std::env::var("NO_FOOT_PIN").is_err())
+}
+
+pub(crate) fn pin_zombie_feet(
+    mut zombies: Query<(&ZombieHitboxBones, &mut ZombieFootPins), With<Zombie>>,
+    children: Query<&Children>,
+    child_of: Query<&ChildOf>,
+    mut transforms: Query<(&mut Transform, &mut GlobalTransform)>,
+) {
+    if !foot_pinning_enabled() {
+        return;
+    }
+    for (bones, mut pins) in &mut zombies {
+        for (side, leg) in [bones.left_leg, bones.right_leg].into_iter().enumerate() {
+            let (Some(thigh), Some(shin), Some(foot)) = (leg[0], leg[1], leg[2]) else {
+                continue;
+            };
+            let Ok(foot_now) = transforms.get(foot).map(|(_, g)| g.translation()) else {
+                continue;
+            };
+
+            // Height off the ground decides it. The clip's own vertical
+            // travel is the plant signal, which is why this needs no phase
+            // and no event from the animation.
+            let hip_y = transforms.get(thigh).map(|(_, g)| g.translation().y).unwrap_or(foot_now.y);
+            let planted = foot_now.y - (hip_y - LEG_SPAN_GUESS) < FOOT_PLANT_HEIGHT;
+
+            if !planted {
+                pins.planted[side] = None;
+                continue;
+            }
+            let anchor = *pins.planted[side].get_or_insert(foot_now);
+            if anchor.distance(foot_now) > FOOT_PIN_MAX_DRAG {
+                // Given up rather than stretched: a leg reaching past itself
+                // is worse than the slide it was fixing.
+                pins.planted[side] = Some(foot_now);
+                continue;
+            }
+            solve_leg(thigh, shin, foot, anchor, &child_of, &children, &mut transforms);
+        }
+    }
+}
+
+/// Roughly how far the foot hangs below the thigh when standing, used only to
+/// turn an absolute foot height into one measured against the body.
+const LEG_SPAN_GUESS: f32 = 0.85;
+
+/// Two bones to a point, the same construction the hands use.
+fn solve_leg(
+    thigh: Entity,
+    shin: Entity,
+    foot: Entity,
+    target: Vec3,
+    child_of: &Query<&ChildOf>,
+    children: &Query<&Children>,
+    transforms: &mut Query<(&mut Transform, &mut GlobalTransform)>,
+) -> Option<()> {
+    let hip = transforms.get(thigh).ok()?.1.translation();
+    let knee = transforms.get(shin).ok()?.1.translation();
+    let ankle = transforms.get(foot).ok()?.1.translation();
+
+    let upper = knee.distance(hip);
+    let lower = ankle.distance(knee);
+    if upper < 1e-4 || lower < 1e-4 {
+        return None;
+    }
+    let span = (target - hip).length().clamp(1e-4, (upper + lower) * 0.999);
+    let to_target = (target - hip) / (target - hip).length().max(1e-4);
+
+    // The knee bends forward, so the pole is ahead of the hip. Taken from the
+    // leg's own current bend rather than the body's facing, so a leg already
+    // turned by the clip is not straightened out by this.
+    let pole = knee - hip - to_target * (knee - hip).dot(to_target);
+    let plane = if pole.length_squared() < 1e-6 {
+        Vec3::Y.cross(to_target).normalize_or_zero()
+    } else {
+        to_target.cross(pole).normalize_or_zero()
+    };
+    if plane.length_squared() < 1e-6 {
+        return None;
+    }
+
+    let cos_hip = ((upper * upper + span * span - lower * lower) / (2.0 * upper * span)).clamp(-1.0, 1.0);
+    let thigh_dir = Quat::from_axis_angle(plane, -cos_hip.acos()) * to_target;
+    let new_knee = hip + thigh_dir * upper;
+    let shin_dir = (target - new_knee).normalize_or_zero();
+
+    aim_bone(thigh, thigh_dir, plane, child_of, children, transforms);
+    aim_bone(shin, shin_dir, plane, child_of, children, transforms);
+    Some(())
+}
+
+/// Points a bone down `along`, keeping its twist in the plane, and carries
+/// everything under it with the change.
+fn aim_bone(
+    bone: Entity,
+    along: Vec3,
+    plane: Vec3,
+    child_of: &Query<&ChildOf>,
+    children: &Query<&Children>,
+    transforms: &mut Query<(&mut Transform, &mut GlobalTransform)>,
+) {
+    if along.length_squared() < 1e-6 {
+        return;
+    }
+    // Mixamo legs run down -Y out of the joint.
+    let wanted = Quat::from_mat3(&Mat3::from_cols(
+        plane.cross(along).normalize_or_zero(),
+        -along,
+        plane,
+    ));
+    let Ok((_, global)) = transforms.get(bone) else { return };
+    let here = global.translation();
+    let parent_inverse = child_of
+        .get(bone)
+        .ok()
+        .and_then(|p| transforms.get(p.0).ok())
+        .map(|(_, g)| g.rotation().inverse())
+        .unwrap_or(Quat::IDENTITY);
+    if let Ok((mut local, mut global)) = transforms.get_mut(bone) {
+        local.rotation = parent_inverse * wanted;
+        *global = GlobalTransform::from(
+            Transform::from_translation(here).with_rotation(wanted).with_scale(local.scale),
+        );
+    }
+    let carried = transforms.get(bone).map(|(_, g)| *g).unwrap_or_default();
+    repropagate(bone, carried, children, transforms);
+}
+
+/// Rebuilds the global transforms under a bone that was just turned.
+fn repropagate(
+    bone: Entity,
+    bone_global: GlobalTransform,
+    children: &Query<&Children>,
+    transforms: &mut Query<(&mut Transform, &mut GlobalTransform)>,
+) {
+    let Ok(kids) = children.get(bone) else { return };
+    for kid in kids {
+        let Ok((local, _)) = transforms.get(*kid) else { continue };
+        let next = bone_global * *local;
+        if let Ok((_, mut global)) = transforms.get_mut(*kid) {
+            *global = next;
+        }
+        repropagate(*kid, next, children, transforms);
+    }
+}
+
+/// Gives every zombie somewhere to remember its feet.
+pub(crate) fn attach_foot_pins(
+    mut commands: Commands,
+    zombies: Query<Entity, (With<Zombie>, Without<ZombieFootPins>)>,
+) {
+    for entity in &zombies {
+        commands.entity(entity).try_insert(ZombieFootPins::default());
+    }
+}

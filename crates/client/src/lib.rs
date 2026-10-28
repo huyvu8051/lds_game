@@ -1292,6 +1292,8 @@ impl Plugin for GamePlugin {
             aim_zombie_heads,
             apply_bone_flinch,
             lean_zombie_into_turn,
+            attach_foot_pins,
+            pin_zombie_feet,
             hold_finger_grip,
         )
             .after(AnimationSystems)
