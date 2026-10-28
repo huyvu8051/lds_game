@@ -932,6 +932,7 @@ impl Plugin for GamePlugin {
         .add_observer(drop_loot_on_kill)
         .add_observer(on_smoke_started)
         .add_observer(on_flash_started)
+        .add_observer(shake_on_explosion)
         .add_observer(on_corpse_hit)
         .add_observer(on_game_state_event)
         .add_plugins(F9DebugPlugin)

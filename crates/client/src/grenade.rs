@@ -503,3 +503,60 @@ pub(crate) fn advance_throw_pose(
     pose.wind += (target - pose.wind) * (rate * dt).min(1.0);
     pose.follow = (pose.follow - dt).max(0.0);
 }
+
+/// How far a blast is felt, and how hard at the centre.
+///
+/// Further than it throws anybody: the shake is what a near miss feels like,
+/// and a near miss is the common case.
+const SHAKE_RANGE: f32 = 22.0;
+
+/// The blow a blast lands on the camera.
+///
+/// Built as a ShockKick and handed to the same FireShock a rifle uses, so
+/// there is one ring-down in the game rather than two that have to be kept
+/// looking alike. Slower and heavier than any weapon's: the frequencies sit
+/// at the bottom of what 60fps can carry without aliasing, and the decay is
+/// long enough that the shake outlasts the sound.
+fn blast_kick(strength: f32) -> weapon::ShockKick {
+    weapon::ShockKick {
+        view_pitch_deg: 3.4 * strength,
+        view_yaw_deg: 2.6 * strength,
+        // Roll carries the most, as it does for gunfire: it costs no aim,
+        // because it does not move where the barrel points.
+        view_roll_deg: 5.2 * strength,
+        gun_pitch_deg: 7.0 * strength,
+        gun_yaw_deg: 5.5 * strength,
+        gun_roll_deg: 9.0 * strength,
+        gun_shift_m: 0.05 * strength,
+        freq_pitch: 7.4,
+        freq_yaw: 5.9,
+        freq_roll: 4.3,
+        decay: 1.9,
+    }
+}
+
+/// Shakes the view when something goes off nearby.
+///
+/// Hung off Explosion rather than off the grenade, so anything that ever
+/// explodes shakes the camera without having to remember to.
+pub(crate) fn shake_on_explosion(
+    trigger: On<crate::explosion::Explosion>,
+    time: Res<Time>,
+    mut shock: ResMut<crate::movement_combat::FireShock>,
+    camera: Query<&GlobalTransform, With<FpsCamera>>,
+) {
+    let crate::explosion::Explosion { at, .. } = *trigger.event();
+    let Ok(eye) = camera.single() else { return };
+    let distance = eye.translation().distance(at);
+    if distance >= SHAKE_RANGE {
+        return;
+    }
+    // Falls off with the square, the way the energy does. Linear falloff
+    // makes a blast across the street feel like one at your feet.
+    let near = 1.0 - distance / SHAKE_RANGE;
+    let strength = near * near;
+    if strength < 0.02 {
+        return;
+    }
+    shock.strike(blast_kick(strength), time.elapsed_secs());
+}
