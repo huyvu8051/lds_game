@@ -54,10 +54,6 @@ fn eased(from: Vec3, to: Vec3, t: f32) -> Vec3 {
 /// RELOAD_POUCH_FROM_EYE.
 const SPRINT_FREE_HAND_FROM_EYE: Vec3 = Vec3::new(-0.26, -0.40, -0.26);
 
-/// Where the elevation turret sits relative to the sight socket: up off the
-/// tube and back towards the shooter, which is where the hand has to go.
-const SCOPE_TURRET_OFFSET: Vec3 = Vec3::new(0.0, 0.045, 0.055);
-
 pub(crate) fn drive_reload_hand(
     active: Res<ActiveWeapon>,
     gun: Query<&Gun>,
@@ -65,8 +61,6 @@ pub(crate) fn drive_reload_hand(
     fore: Query<&GlobalTransform, With<ForeGripSocket>>,
     magazine: Query<&GlobalTransform, With<ViewmodelMagazine>>,
     mut target: Query<&mut Transform, With<ReloadHandTarget>>,
-    zoom: Res<crate::weapon::ScopeZoom>,
-    scope: Query<&GlobalTransform, With<AimSocket>>,
 ) {
     let (Ok(gun), Ok(eye), Ok(mut target), Ok(fore)) =
         (gun.single(), camera.single(), target.single_mut(), fore.single())
@@ -98,23 +92,6 @@ pub(crate) fn drive_reload_hand(
     } else {
         eased(magwell, home.translation, span(RELOAD_HAND_BACK_AT_MAG, 1.0))
     };
-    // Working the scope's turret takes the hand off the fore grip and up to
-    // the glass. Blended in over whatever the reload was doing rather than
-    // replacing it, so a dial turned mid-reload does not teleport the hand.
-    if zoom.adjusting() {
-        if let Ok(scope) = scope.single() {
-            let at = scope.reparented_to(eye);
-            // Behind and above the sight socket: the turret sits on top of
-            // the tube, not on its centreline.
-            let turret = at.translation + at.rotation * SCOPE_TURRET_OFFSET;
-            let reach = (zoom.adjusting / crate::weapon::SCOPE_ADJUST_SECONDS).clamp(0.0, 1.0);
-            // Eased both ways, so the hand arrives and leaves rather than
-            // snapping to the turret and snapping back.
-            let eased = ops::sin(reach * std::f32::consts::PI).powf(0.6);
-            target.translation = target.translation.lerp(turret, eased);
-        }
-    }
-
     // Running with a sidearm takes the free hand off the weapon altogether,
     // and it has to be somewhere: blended off the reload path rather than
     // replacing it, so a reload begun mid-sprint still wins.

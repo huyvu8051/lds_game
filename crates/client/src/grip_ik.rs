@@ -335,7 +335,6 @@ pub(crate) fn solve_grip_ik(
     reload_target: Query<Entity, With<ReloadHandTarget>>,
     gun: Query<&Gun>,
     active: Res<ActiveWeapon>,
-    zoom: Res<crate::weapon::ScopeZoom>,
     right_pole: Query<Entity, With<RightPoleTarget>>,
     left_pole: Query<Entity, With<LeftPoleTarget>>,
     child_of: Query<&ChildOf>,
@@ -359,14 +358,10 @@ pub(crate) fn solve_grip_ik(
     // target for as long as that lasts -- and so does a sprint with a weapon
     // that is run in one hand, which is the same situation by a different
     // road: the hand is not on the gun and has to be told where it is.
-    let off_the_weapon = zoom.adjusting()
-        || gun
-            .single()
-            .map(|g| {
-                g.reload_remaining > 0.0
-                    || (active.def().sprint_one_handed && g.sprint_blend > 0.05)
-            })
-            .unwrap_or(false);
+    let off_the_weapon = gun
+        .single()
+        .map(|g| g.reload_remaining > 0.0 || (active.def().sprint_one_handed && g.sprint_blend > 0.05))
+        .unwrap_or(false);
     let left_target = reload_target.single().ok().filter(|_| off_the_weapon).unwrap_or(fore);
     let _unreached = bones.left_arm.zip(bones.left_fore_arm).zip(bones.left_hand).and_then(
         |((arm, fore_arm), hand)| {
