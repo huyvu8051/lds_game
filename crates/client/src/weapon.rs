@@ -820,6 +820,16 @@ pub(crate) fn switch_weapon(
     gun.base_offset = def.rest_offset;
     gun.ammo = def.magazine;
     gun.reload_remaining = 0.0;
+    // A sidearm comes out at the ready rather than level. It is short enough
+    // that holding it out buys no sight picture, and one carried straight
+    // with nothing to point at reads as a threat the player is not making.
+    //
+    // Armed rather than forced, so everything that already puts a weapon
+    // back to rest still does -- breaking into a run most of all, which a
+    // standing flag would have overridden.
+    if crate::inventory::is_sidearm(wanted) {
+        gun.ready_armed = true;
+    }
 
     for entity in &mesh_parts {
         commands.entity(entity).despawn();
