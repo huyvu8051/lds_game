@@ -2,6 +2,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::*;
+use shared::GameLayer;
 
 pub(crate) const DEATH_PUSH_SPEED: f32 = 2.2;
 const SETTLE_SPEED: f32 = 0.35;
@@ -217,6 +218,13 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                     RigidBody::Dynamic,
                     Collider::capsule(link.radius, length),
                     ColliderDensity(BONE_DENSITY),
+                    // Off the layer the player's capsule cast reads, so a body
+                    // settling underfoot stops shoving whoever dropped it.
+                    // Still filtered against Corpse, because JointCollisionDisabled
+                    // only covers bones that share a joint -- an arm and the
+                    // opposite leg keep each other out, and that is what stops
+                    // the corpse folding through itself.
+                    CollisionLayers::new(GameLayer::Corpse, [GameLayer::Default, GameLayer::Corpse]),
                     Transform::from_translation(centre).with_rotation(facing),
                     LinearVelocity(velocity),
                     AngularVelocity(spin),

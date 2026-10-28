@@ -7,11 +7,16 @@ use serde::{Deserialize, Serialize};
 /// but never an obstacle. Without a layer of its own a casing ejected close to
 /// the chest lands inside the player's own capsule, and the character
 /// controller slides the player off it — one shove per shot.
+///
+/// Corpses need the same exemption but not the same rule: a ragdoll is a
+/// dozen capsules that have to keep colliding with each other, or the body
+/// folds through itself, so it filters against its own layer as well.
 #[derive(PhysicsLayer, Clone, Copy, Debug, Default)]
 pub enum GameLayer {
     #[default]
     Default,
     Debris,
+    Corpse,
 }
 
 #[derive(Component)]

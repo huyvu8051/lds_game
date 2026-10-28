@@ -301,7 +301,10 @@ fn throw_part(commands: &mut Commands, gore: &GoreAssets, part: ZombiePart, from
         // the character controller reads it as a wall and slides the player
         // off -- the same shove a spent casing used to give, from something
         // much bigger. The map is still Default, so it lands as before.
-        CollisionLayers::new(GameLayer::Debris, [GameLayer::Default]),
+        //
+        // Corpse rather than Debris so parts still stack on each other and on
+        // the body they came off; Debris would have quietly dropped both.
+        CollisionLayers::new(GameLayer::Corpse, [GameLayer::Default, GameLayer::Corpse]),
         SweptCcd::default(),
         LinearVelocity(along * GORE_THROW_SPEED + scatter * GORE_THROW_SPEED * 0.4 + Vec3::Y * 1.2),
         AngularVelocity(scatter * GORE_SPIN),
