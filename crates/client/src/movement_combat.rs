@@ -743,7 +743,7 @@ pub(crate) fn shoot(
         ResMut<Assets<MuzzleFlashMaterial>>,
         ResMut<FireShock>,
     ),
-    (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, mut fire_mode): (
+    (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, mut fire_mode, swap): (
         Res<Autopilot>,
         Res<AutopilotIntent>,
         Res<LocalPlayerMoving>,
@@ -758,6 +758,7 @@ pub(crate) fn shoot(
         // Riding in with the flags rather than taking a parameter of its
         // own: Bevy caps a system at sixteen and this one was already there.
         ResMut<weapon::FireModeSelection>,
+        Res<crate::WeaponSwap>,
     ),
 ) {
     *cooldown = (*cooldown - time.delta_secs()).max(0.0);
@@ -786,7 +787,9 @@ pub(crate) fn shoot(
             fire_mode.burst_left > 0
         }
     };
-    let firing = always_fire() || if autopilot.0 { intent.fire } else { by_hand };
+    // Nothing leaves a barrel that is halfway out of frame.
+    let firing =
+        !swap.busy() && (always_fire() || if autopilot.0 { intent.fire } else { by_hand });
     if !firing || *cooldown > 0.0 {
         return;
     }

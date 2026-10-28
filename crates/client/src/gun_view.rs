@@ -325,7 +325,7 @@ pub(crate) fn gun_view_animation(
     mut query: Query<(&mut Transform, &GlobalTransform, &mut Gun), Without<FpsCamera>>,
     aim: Query<&GlobalTransform, (With<AimSocket>, Without<Gun>, Without<FpsCamera>)>,
     local: LocalPlayerState,
-    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose): (
+    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose, swap): (
         Res<ActiveWeapon>,
         Res<WalkCycle>,
         Res<crate::movement_combat::FireShock>,
@@ -334,6 +334,7 @@ pub(crate) fn gun_view_animation(
         // one has been at the cap since the wall probe went in.
         ResMut<Inventory>,
         Res<grenade::ThrowPose>,
+        Res<crate::WeaponSwap>,
     ),
 ) {
     // Taken, not read: the single consumer clearing it is what lets each
@@ -877,6 +878,10 @@ pub(crate) fn gun_view_animation(
         // weapon's own pose so the whole thing travels -- a throw moves the
         // rifle out of the way, it does not cant it in place.
         let (throw_offset, throw_pitch, throw_yaw) = throw_pose.pose();
+        // The weapon leaving the hand and the next one arriving. Outside
+        // everything else, because a holstered weapon is not a posed one --
+        // it is on its way out of frame and nothing else about it matters.
+        let (swap_offset, swap_pitch, swap_roll) = swap.pose();
 
         let (shock_pitch, shock_yaw, shock_roll) = shock.gun_angles();
         let swapped_x = base_pos.x * (1.0 - 2.0 * gun.shoulder_blend);
@@ -896,12 +901,14 @@ pub(crate) fn gun_view_animation(
             // about a point. Reusing the angles keeps the two in phase.
             + Vec3::new(shock_yaw, shock_pitch, shock_roll)
                 * shock.gun_shift()
-            + throw_offset;
+            + throw_offset
+            + swap_offset;
 
         // Outermost, so the whole weapon rattles in view rather than each
         // part twisting about its own pivot. Several times what the eye gets:
         // this is the thing the round was fired out of.
-        transform.rotation = Quat::from_euler(EulerRot::YXZ, throw_yaw, throw_pitch, 0.0)
+        transform.rotation = Quat::from_euler(EulerRot::YXZ, 0.0, swap_pitch, swap_roll)
+            * Quat::from_euler(EulerRot::YXZ, throw_yaw, throw_pitch, 0.0)
             * Quat::from_euler(EulerRot::YXZ, shock_yaw, shock_pitch, shock_roll)
             * outer
             * sway

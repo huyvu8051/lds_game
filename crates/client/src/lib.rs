@@ -36,6 +36,7 @@ mod inventory;
 mod zombie_locomotion;
 mod inventory_screen;
 mod grenade;
+mod weapon_swap;
 mod loadout_hud;
 use weapon::*;
 use items::*;
@@ -43,6 +44,7 @@ use inventory::*;
 use zombie_locomotion::*;
 use inventory_screen::*;
 use grenade::*;
+use weapon_swap::*;
 use loadout_hud::*;
 mod dismember;
 use dismember::*;
@@ -1042,6 +1044,7 @@ impl Plugin for GamePlugin {
         .init_resource::<Cooking>()
         .init_resource::<Flashed>()
         .init_resource::<ThrowPose>()
+        .init_resource::<WeaponSwap>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, (spawn_pole_targets, init_pickup_assets, init_grenade_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
@@ -1251,7 +1254,7 @@ impl Plugin for GamePlugin {
                     (
                     test_blast_key.run_if(debug_keys_allowed),
                     select_weapon_slot,
-                    switch_weapon,
+                    (begin_weapon_swap, advance_weapon_swap, switch_weapon).chain(),
                     use_consumable_key,
                     advance_use_cooldown,
                     advance_boost,
