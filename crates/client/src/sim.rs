@@ -339,6 +339,7 @@ fn steer_around_obstacles(
 fn move_zombies(
     time: Res<Time>,
     freeze: Res<FreezeZombiesServer>,
+    walk: Res<crate::ZombieWalk>,
     mut zombies: Query<
         (
             Entity,
@@ -561,7 +562,11 @@ fn move_zombies(
             // Quick on the spot and wide at speed. One rate for both served
             // neither: stood still it took a second to come about, and at a
             // run it pivoted like a turret.
-            let rate = zombie_turn_rate_deg(horizontal_velocity.length(), zombie_speed_for(*pose));
+            let rate = if walk.turn_rate {
+                zombie_turn_rate_deg(horizontal_velocity.length(), zombie_speed_for(*pose))
+            } else {
+                shared::ZOMBIE_TURN_RATE_FLAT_DEG
+            };
             turn_towards(&mut transform.rotation, target_rotation, rate.to_radians() * time.delta_secs());
         }
         // Signed, about Y, and smoothed: the lean rides this and a lean that

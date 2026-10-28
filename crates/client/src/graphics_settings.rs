@@ -28,6 +28,29 @@ impl Default for WeaponSpawnEnabled {
     }
 }
 
+/// The four things bending a zombie's walk clip, each on its own switch so
+/// they can be told apart. They do not compose like the corpse stages -- any
+/// of them is meaningful on its own, and the point of the switches is to see
+/// which one is doing what.
+#[derive(Resource)]
+pub(crate) struct ZombieWalk {
+    /// Turn quickly standing, wide at a run. Off falls back to one rate for
+    /// every speed.
+    pub(crate) turn_rate: bool,
+    /// Bank the body into the turn.
+    pub(crate) lean: bool,
+    /// Let the hips point along the path while the torso comes round.
+    pub(crate) hips: bool,
+    /// Pin the planted foot instead of sliding it.
+    pub(crate) feet: bool,
+}
+
+impl Default for ZombieWalk {
+    fn default() -> Self {
+        Self { turn_rate: true, lean: true, hips: true, feet: true }
+    }
+}
+
 /// The five stages a body goes through between being shot and being gone,
 /// each on its own switch.
 ///

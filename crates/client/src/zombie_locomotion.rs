@@ -38,6 +38,7 @@ const CHEST_RECOVER_FRACTION: f32 = 0.45;
 /// hitbox cylinder is cast against, and a leaning hitbox is a different thing
 /// to shoot at.
 pub(crate) fn lean_zombie_into_turn(
+    walk: Res<crate::ZombieWalk>,
     zombies: Query<(&Transform, &ZombieMotion, &ZombieHitboxBones), With<Zombie>>,
     child_of: Query<&ChildOf>,
     mut transforms: Query<&mut Transform, Without<Zombie>>,
@@ -50,12 +51,12 @@ pub(crate) fn lean_zombie_into_turn(
             continue;
         };
         // Into the turn, so a body swinging left drops its left side.
-        let lean = (-motion.turn_rate * LEAN_DEG_PER_RAD_SEC)
-            .clamp(-LEAN_MAX_DEG, LEAN_MAX_DEG)
-            .to_radians();
+        let lean = if !walk.lean { 0.0 } else { -motion.turn_rate * LEAN_DEG_PER_RAD_SEC }
+        .clamp(-LEAN_MAX_DEG, LEAN_MAX_DEG)
+        .to_radians();
         // How far the path has got ahead of the body. Zero once the turn is
         // over, which is what makes this free in a straight line.
-        let lead = if motion.horizontal_velocity.length_squared() > 1e-4 {
+        let lead = if walk.hips && motion.horizontal_velocity.length_squared() > 1e-4 {
             let facing = (root.rotation * Vec3::NEG_Z).xz();
             let going = -motion.horizontal_velocity.xz().normalize_or_zero();
             let gap = (facing.x * going.y - facing.y * going.x).atan2(facing.dot(going));
@@ -99,24 +100,17 @@ pub(crate) struct ZombieFootPins {
 /// them, which is the whole of why a turn slides. Pinning the foot and
 /// bending the leg to reach it is the direct answer: the foot stops moving
 /// because the foot is told not to move.
-/// Off with NO_FOOT_PIN=1.
-///
-/// Of the four things done to the walk this is the only one that can look
-/// badly wrong rather than merely wrong: the others nudge a bone by a few
-/// degrees, this one decides where a leg must reach and bends it there. The
-/// plant test leans on LEG_SPAN_GUESS, which is a guess.
-fn foot_pinning_enabled() -> bool {
-    static CACHED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *CACHED.get_or_init(|| std::env::var("NO_FOOT_PIN").is_err())
-}
-
 pub(crate) fn pin_zombie_feet(
+    walk: Res<crate::ZombieWalk>,
     mut zombies: Query<(&ZombieHitboxBones, &mut ZombieFootPins), With<Zombie>>,
     children: Query<&Children>,
     child_of: Query<&ChildOf>,
     mut transforms: Query<(&mut Transform, &mut GlobalTransform)>,
 ) {
-    if !foot_pinning_enabled() {
+    // Of the four things bending this walk it is the only one that can look
+    // badly wrong rather than merely wrong: the others nudge a bone a few
+    // degrees, this decides where a leg must reach and bends it there.
+    if !walk.feet {
         return;
     }
     for (bones, mut pins) in &mut zombies {

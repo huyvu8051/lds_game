@@ -1024,6 +1024,7 @@ impl Plugin for GamePlugin {
         .init_resource::<Boost>()
         .init_resource::<CorpseStages>()
         .init_resource::<WeaponSpawnEnabled>()
+        .init_resource::<ZombieWalk>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, (spawn_pole_targets, init_pickup_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
@@ -1111,6 +1112,8 @@ impl Plugin for GamePlugin {
                         update_corpse_stage_buttons,
                         weapon_spawn_buttons,
                         update_weapon_spawn_buttons,
+                        zombie_walk_buttons,
+                        update_zombie_walk_buttons,
                     ),
                     update_bars,
                     update_weapon_slots,

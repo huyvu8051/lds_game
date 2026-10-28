@@ -36,6 +36,7 @@ pub(crate) struct PersistedSettings {
     pub(crate) corpse_dissolve: Option<bool>,
     pub(crate) corpse_remove: Option<bool>,
     pub(crate) weapon_spawn: Option<Vec<bool>>,
+    pub(crate) zombie_walk: Option<Vec<bool>>,
     pub(crate) damage_multiplier: Option<f32>,
     pub(crate) noclip: Option<bool>,
     pub(crate) god_mode: Option<bool>,
@@ -165,6 +166,18 @@ fn apply_settings_to_world(world: &mut World, settings: &PersistedSettings) {
     apply!(sensitivity_scale, SensitivityScale);
     apply!(gyro_enabled, GyroEnabled);
     apply!(gyro_sensitivity, GyroSensitivity);
+    if let (Some(saved), Some(walk)) =
+        (&settings.zombie_walk, world.get_resource_mut::<ZombieWalk>())
+    {
+        // Through the smart pointer once, so the four field borrows below can
+        // be taken apart.
+        let walk = walk.into_inner();
+        let mut it = saved.iter();
+        for slot in [&mut walk.turn_rate, &mut walk.lean, &mut walk.hips, &mut walk.feet] {
+            let Some(on) = it.next() else { break };
+            *slot = *on;
+        }
+    }
     // Length-checked rather than trusted: a saved file from a build with a
     // different number of weapons would otherwise index off the end.
     if let (Some(saved), Some(mut allowed)) =
@@ -275,6 +288,7 @@ pub(crate) fn persist_settings_on_change(world: &mut World) {
         || changed!(GyroInvert)
         || changed!(CorpseStages)
         || changed!(WeaponSpawnEnabled)
+        || changed!(ZombieWalk)
         || changed!(GyroSensitivity)
         || changed!(BulletHolesEnabled)
         || changed!(BloodEnabled)
@@ -344,6 +358,9 @@ fn read_settings_from_world(world: &World) -> PersistedSettings {
         corpse_dissolve: world.get_resource::<CorpseStages>().map(|r| r.dissolve),
         corpse_remove: world.get_resource::<CorpseStages>().map(|r| r.remove),
         weapon_spawn: world.get_resource::<WeaponSpawnEnabled>().map(|r| r.0.to_vec()),
+        zombie_walk: world
+            .get_resource::<ZombieWalk>()
+            .map(|r| vec![r.turn_rate, r.lean, r.hips, r.feet]),
         damage_multiplier: world.get_resource::<DamageMultiplierUi>().map(|r| r.0),
         noclip: world.get_resource::<Noclip>().map(|r| r.0),
         god_mode: world.get_resource::<GodMode>().map(|r| r.0),

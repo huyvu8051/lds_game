@@ -415,6 +415,30 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     spawn_cheat_toggle_button(row, "Remove", CorpseStageButton(CorpseStage::Remove));
                 });
                 page.spawn((
+                    Text::new("Zombie walk"),
+                    TextFont {
+                        font_size: FontSize::Px(16.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+                // Four separate things bending one walk clip. Separate
+                // switches because the point is telling them apart: with all
+                // four on it is hard to say which is doing what.
+                page.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(6.0),
+                    flex_wrap: FlexWrap::Wrap,
+                    row_gap: Val::Px(4.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    spawn_cheat_toggle_button(row, "Turn rate", ZombieWalkButton(0));
+                    spawn_cheat_toggle_button(row, "Lean", ZombieWalkButton(1));
+                    spawn_cheat_toggle_button(row, "Hips", ZombieWalkButton(2));
+                    spawn_cheat_toggle_button(row, "Feet", ZombieWalkButton(3));
+                });
+                page.spawn((
                     Text::new("Weapons"),
                     TextFont {
                         font_size: FontSize::Px(16.0),
@@ -774,6 +798,47 @@ pub(crate) struct CheatGodModeButton;
 pub(crate) struct CheatFreezeButton;
 #[derive(Component)]
 pub(crate) struct CheatGunButton;
+
+#[derive(Component)]
+pub(crate) struct ZombieWalkButton(pub(crate) usize);
+
+fn zombie_walk_flag(walk: &mut ZombieWalk, which: usize) -> &mut bool {
+    match which {
+        0 => &mut walk.turn_rate,
+        1 => &mut walk.lean,
+        2 => &mut walk.hips,
+        _ => &mut walk.feet,
+    }
+}
+
+pub(crate) fn zombie_walk_buttons(
+    mut walk: ResMut<ZombieWalk>,
+    buttons: Query<(&Interaction, &ZombieWalkButton), Changed<Interaction>>,
+) {
+    for (interaction, button) in &buttons {
+        if *interaction == Interaction::Pressed {
+            let flag = zombie_walk_flag(&mut walk, button.0);
+            *flag = !*flag;
+        }
+    }
+}
+
+pub(crate) fn update_zombie_walk_buttons(
+    mut walk: ResMut<ZombieWalk>,
+    mut buttons: Query<(&ZombieWalkButton, &mut BackgroundColor)>,
+) {
+    if !walk.is_changed() {
+        return;
+    }
+    for (button, mut background) in &mut buttons {
+        let on = *zombie_walk_flag(&mut walk, button.0);
+        *background = BackgroundColor(if on {
+            Color::srgba(0.3, 1.0, 0.4, 0.5)
+        } else {
+            Color::srgba(1.0, 1.0, 1.0, 0.2)
+        });
+    }
+}
 
 #[derive(Component)]
 pub(crate) struct WeaponSpawnButton(pub(crate) usize);

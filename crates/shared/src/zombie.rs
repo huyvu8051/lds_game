@@ -476,6 +476,9 @@ pub const KNOCKBACK_DECAY_RATE: f32 = 6.0;
 /// still took a second to come about, and one at a sprint pivoted on the
 /// spot like a turret. Something with weight turns quickly when it has none
 /// to carry and swings wide when it does.
+/// The one rate that used to serve every speed, kept for the switch that
+/// turns the scaling off.
+pub const ZOMBIE_TURN_RATE_FLAT_DEG: f32 = 180.0;
 pub const ZOMBIE_TURN_RATE_STANDING_DEG: f32 = 400.0;
 pub const ZOMBIE_TURN_RATE_RUNNING_DEG: f32 = 130.0;
 
