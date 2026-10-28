@@ -70,3 +70,6 @@ crates/client/assets/props/car_minivan/mesh/car_minivan.glb
 
 # Local pre-import backup of the old car .glb files, not source.
 crates/client/assets/props/_old_cars_backup_*/
+
+# Raw weapon downloads waiting to be normalised into assets/models/.
+/incoming/
