@@ -1033,6 +1033,7 @@ impl Plugin for GamePlugin {
         .init_resource::<Equipment>()
         .init_resource::<Attachments>()
         .init_resource::<ThrowableSelection>()
+        .init_resource::<weapon::FireModeSelection>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, (spawn_pole_targets, init_pickup_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
@@ -1184,8 +1185,10 @@ impl Plugin for GamePlugin {
                     gun_view_animation,
                     shoot,
                     reload_gun,
-                    suggest_auto_lean,
-                    apply_lean_input,
+                    // Grouped to stay inside the twenty the outer tuple
+                    // takes; chained inside, because the suggestion has to
+                    // be made before it is applied.
+                    (suggest_auto_lean, apply_lean_input).chain(),
                     apply_view_recoil,
                     apply_aim_zoom,
                     apply_aim_dof,
@@ -1244,9 +1247,9 @@ impl Plugin for GamePlugin {
                     use_consumable_key,
                     advance_use_cooldown,
                     advance_boost,
-                    advance_pickups,
-                    throw_selected,
-                    advance_thrown,
+                    // Grouped only to stay inside the twenty this tuple
+                    // takes; nothing here is ordered against anything.
+                    (advance_pickups, throw_selected, advance_thrown, cycle_fire_mode),
                     collect_pickups,
                     forget_gone_zombies.run_if(ui_tick()),
                     update_gore,

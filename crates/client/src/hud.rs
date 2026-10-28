@@ -275,23 +275,40 @@ pub(crate) fn update_floating_damage_texts(
 
 
 pub(crate) fn spawn_ammo_ui(commands: &mut Commands) {
-    commands.spawn((
-        Text::new(String::new()),
-        TextFont {
-            font_size: FontSize::Px(24.0),
-            ..default()
-        },
-        TextColor(Color::WHITE),
-        Node {
-            position_type: PositionType::Absolute,
-            right: Val::Px(16.0),
-            bottom: Val::Px(16.0),
-            ..default()
-        },
-        GlobalZIndex(STATIC_UI_Z_INDEX),
-        AmmoUi,
-        NativeUiRoot,
-    ));
+    // A full-width container with the text pushed to its end, rather than
+    // the text anchored by `right` itself. Anchoring that way cannot place a
+    // node until its own width is measured, and UI layout does not run every
+    // frame -- so the readout walked off the screen whenever it grew, which
+    // adding the fire mode to it made permanent.
+    //
+    // The container does the pushing because justify_content aligns a node's
+    // children; a Text node given it aligns nothing and stays where it was.
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                bottom: Val::Px(16.0),
+                width: Val::Percent(100.0),
+                justify_content: JustifyContent::End,
+                // The same 72 the kill feed needed. The UI's idea of the
+                // screen is wider than what gets drawn, so anything pushed
+                // to the far edge loses its tail; this is the margin that
+                // was measured to be enough.
+                padding: UiRect::right(Val::Px(72.0)),
+                ..default()
+            },
+            GlobalZIndex(STATIC_UI_Z_INDEX),
+            NativeUiRoot,
+        ))
+        .with_children(|row| {
+            row.spawn((
+                Text::new(String::new()),
+                TextFont { font_size: FontSize::Px(24.0), ..default() },
+                TextColor(Color::WHITE),
+                AmmoUi,
+            ));
+        });
 }
 
 
@@ -589,6 +606,7 @@ pub(crate) fn update_radar_ui(
 
 pub(crate) fn update_ammo_ui(
     inventory: Res<Inventory>,
+    fire_mode: Res<weapon::FireModeSelection>,
     gun: Query<&Gun, Changed<Gun>>,
     mut text: Query<&mut Text, With<AmmoUi>>,
     active: Res<ActiveWeapon>,
@@ -605,7 +623,16 @@ pub(crate) fn update_ammo_ui(
         // Magazine over reserve, the way a battle royale reads it: the
         // second number is what is left to reload with, not how big the
         // magazine is -- which the first number already implies.
-        format!("{} / {}", gun.ammo, inventory.count(active.def().ammo))
+        // The mode rides with the count, which is where a shooter looks
+        // when it matters. Left off entirely for a weapon that offers one:
+        // a bolt rifle saying SINGLE is telling nobody anything.
+        let def = active.def();
+        let reserve = inventory.count(def.ammo);
+        if def.fire_modes.len() > 1 {
+            format!("{}  {} / {}", fire_mode.mode(def).label(), gun.ammo, reserve)
+        } else {
+            format!("{} / {}", gun.ammo, reserve)
+        }
     };
 }
 
@@ -766,5 +793,28 @@ pub(crate) fn toggle_debug_flags(
 
     if keys.just_pressed(KeyCode::KeyI) {
         autopilot.0 = !autopilot.0;
+    }
+}
+
+/// B walks the weapon's modes. PUBG's key, and the only one not already
+/// spoken for by a debug toggle -- and those are dev-only anyway.
+pub(crate) fn cycle_fire_mode(
+    keys: Res<ButtonInput<KeyCode>>,
+    active: Res<ActiveWeapon>,
+    mut fire_mode: ResMut<weapon::FireModeSelection>,
+    mut gun: Query<&mut Gun>,
+) {
+    if !keys.just_pressed(KeyCode::KeyB) {
+        return;
+    }
+    let def = active.def();
+    if def.fire_modes.len() < 2 {
+        return;
+    }
+    fire_mode.next(def);
+    // Touched so the ammo readout, which only rebuilds on a changed Gun,
+    // picks the new mode up. Cheaper than making it rebuild every frame.
+    if let Ok(mut gun) = gun.single_mut() {
+        gun.set_changed();
     }
 }

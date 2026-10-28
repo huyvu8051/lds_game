@@ -7,6 +7,47 @@ use crate::*;
 /// These are gathered in one place because every one of them is tuned against
 /// a particular mesh: swap the mesh and all of them are wrong together. They
 /// were global constants while there was only ever one gun.
+/// How the trigger behaves. A bolt rifle has one, a carbine has three.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum FireMode {
+    Single,
+    Burst,
+    Auto,
+}
+
+impl FireMode {
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            FireMode::Single => "SINGLE",
+            FireMode::Burst => "BURST",
+            FireMode::Auto => "AUTO",
+        }
+    }
+}
+
+/// Rounds a burst sends.
+pub(crate) const BURST_ROUNDS: u32 = 3;
+
+/// Which mode the weapon in hand is on. One index rather than one per
+/// weapon: a switch that remembers each gun separately is a nicety nobody
+/// asked for, and the index is clamped to whatever the weapon offers.
+#[derive(Resource, Default)]
+pub(crate) struct FireModeSelection {
+    pub(crate) index: usize,
+    pub(crate) burst_left: u32,
+}
+
+impl FireModeSelection {
+    pub(crate) fn mode(&self, def: &WeaponDef) -> FireMode {
+        def.fire_modes[self.index.min(def.fire_modes.len() - 1)]
+    }
+
+    pub(crate) fn next(&mut self, def: &WeaponDef) {
+        self.index = (self.index + 1) % def.fire_modes.len();
+        self.burst_left = 0;
+    }
+}
+
 pub(crate) struct WeaponDef {
     pub(crate) name: &'static str,
     pub(crate) mesh_path: &'static str,
@@ -102,6 +143,9 @@ pub(crate) reticle: ReticleKind,
     pub(crate) damage_scale: f32,
     pub(crate) fire_rate: f32,
     pub(crate) magazine: u32,
+/// The fire modes it offers, in the order the switch walks them. First is
+/// what it starts on.
+pub(crate) fire_modes: &'static [FireMode],
 /// The calibre it feeds on, which is what the reserve count beside the
 /// magazine is counting and what a reload draws from.
 pub(crate) ammo: crate::ItemKind,
@@ -340,6 +384,7 @@ static AK47: WeaponDef = WeaponDef {
     damage_scale: 1.0,
     fire_rate: 0.12,
     magazine: 50,
+    fire_modes: &[FireMode::Auto, FireMode::Single],
     ammo: crate::ItemKind::Ammo762,
     // 7.62: slower, heavier, looser at the top of a burst. Every axis above
     // the M4's.
@@ -421,6 +466,7 @@ static M4A1: WeaponDef = WeaponDef {
     damage_scale: 0.85,
     fire_rate: 0.105,
     magazine: 45,
+    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
     ammo: crate::ItemKind::Ammo556,
     // 5.56: about two thirds the AK's kick, settling faster. Cut by more than
     // a flat ratio because it also fires faster, and matching per shot would
@@ -507,6 +553,7 @@ static M24: WeaponDef = WeaponDef {
     damage_scale: 3.2,
     fire_rate: 1.3,
     magazine: 5,
+    fire_modes: &[FireMode::Single],
     ammo: crate::ItemKind::Ammo762,
     recoil: Recoil {
         strike_speed: 28.0,
@@ -600,6 +647,7 @@ static UMP45: WeaponDef = WeaponDef {
     damage_scale: 0.80,
     fire_rate: 0.10,
     magazine: 35,
+    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
     ammo: crate::ItemKind::Ammo45,
     // .45 ACP is a heavy, slow round, but the UMP's bolt is built to swallow
     // it: more kick per shot than the M4 and less climb over a burst, because
@@ -684,6 +732,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     // Semi-automatic: the ceiling is the trigger finger, not the action.
     fire_rate: 0.26,
     magazine: 7,
+    fire_modes: &[FireMode::Single],
     ammo: crate::ItemKind::Ammo45,
     // The hardest kick here, and the slowest recovery. strike_speed below the
     // M24's because this is not braced against anything -- the blow pushes

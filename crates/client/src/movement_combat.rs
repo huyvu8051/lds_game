@@ -743,7 +743,7 @@ pub(crate) fn shoot(
         ResMut<Assets<MuzzleFlashMaterial>>,
         ResMut<FireShock>,
     ),
-    (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings): (
+    (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, mut fire_mode): (
         Res<Autopilot>,
         Res<AutopilotIntent>,
         Res<LocalPlayerMoving>,
@@ -755,6 +755,9 @@ pub(crate) fn shoot(
         Res<PortSmokeEnabled>,
         Res<MuzzleFlashEnabled>,
         Res<ShellCasingsEnabled>,
+        // Riding in with the flags rather than taking a parameter of its
+        // own: Bevy caps a system at sixteen and this one was already there.
+        ResMut<weapon::FireModeSelection>,
     ),
 ) {
     *cooldown = (*cooldown - time.delta_secs()).max(0.0);
@@ -766,12 +769,24 @@ pub(crate) fn shoot(
         return;
     };
 
-    let firing = always_fire()
-        || if autopilot.0 {
-            intent.fire
-        } else {
-            (cursor.grab_mode != CursorGrabMode::None && mouse.pressed(MouseButton::Left)) || touch_firing.0
-        };
+    // The mode shapes the player's trigger only. The autopilot and
+    // ALWAYS_FIRE are holding it down on purpose, and a single-shot rule
+    // applied to either would make both measure something else.
+    let aimed = cursor.grab_mode != CursorGrabMode::None;
+    let held = (aimed && mouse.pressed(MouseButton::Left)) || touch_firing.0;
+    let pulled = aimed && mouse.just_pressed(MouseButton::Left);
+    let mode = fire_mode.mode(active.def());
+    let by_hand = match mode {
+        weapon::FireMode::Auto => held,
+        weapon::FireMode::Single => pulled,
+        weapon::FireMode::Burst => {
+            if pulled {
+                fire_mode.burst_left = weapon::BURST_ROUNDS;
+            }
+            fire_mode.burst_left > 0
+        }
+    };
+    let firing = always_fire() || if autopilot.0 { intent.fire } else { by_hand };
     if !firing || *cooldown > 0.0 {
         return;
     }
@@ -798,6 +813,9 @@ pub(crate) fn shoot(
 
     *cooldown = active.def().fire_rate;
     gun.ammo -= 1;
+    if mode == weapon::FireMode::Burst {
+        fire_mode.burst_left = fire_mode.burst_left.saturating_sub(1);
+    }
     gun.recoil_target = 1.0;
 
     gun.recoil_jitter = Vec2::new(shot_jitter(&mut gun.recoil_rng), shot_jitter(&mut gun.recoil_rng));

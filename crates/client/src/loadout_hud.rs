@@ -14,7 +14,9 @@ const PANEL_BOTTOM: f32 = 16.0;
 const BAR_WIDTH: f32 = 360.0;
 const HEALTH_BAR_HEIGHT: f32 = 12.0;
 const BOOST_BAR_HEIGHT: f32 = 5.0;
-const SLOT_WIDTH: f32 = 112.0;
+/// Wide enough for the longest weapon name. "DESERT EAGLE" overflowed 112
+/// and the throwable cell beside it was what the overflow landed on.
+const SLOT_WIDTH: f32 = 132.0;
 const SLOT_HEIGHT: f32 = 26.0;
 const ITEM_BUTTON: f32 = 44.0;
 
@@ -189,6 +191,11 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
                                     column_gap: Val::Px(5.0),
+                                    // Clipped rather than allowed to spill:
+                                    // a name too long for its cell should
+                                    // lose its own tail, not cover the cell
+                                    // next door.
+                                    overflow: Overflow::clip(),
                                     ..default()
                                 },
                                 BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
