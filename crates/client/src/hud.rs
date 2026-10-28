@@ -713,6 +713,7 @@ pub(crate) fn update_crosshair(
     local_moving: Res<LocalPlayerMoving>,
     local_sprinting: Res<LocalPlayerSprinting>,
     active: Res<ActiveWeapon>,
+    keep_in_ads: Res<CrosshairInAds>,
 ) {
     let Ok(recoil) = camera.single() else {
         return;
@@ -721,7 +722,7 @@ pub(crate) fn update_crosshair(
     let aiming = cursor.single().is_ok_and(|cursor| is_aiming(cursor, &aim_held, touch_aiming.0));
 
     if let Ok(mut root) = root.single_mut() {
-        root.display = if aiming { Display::None } else { Display::Flex };
+        root.display = if aiming && !keep_in_ads.0 { Display::None } else { Display::Flex };
     }
 
     let spread = current_bullet_spread(

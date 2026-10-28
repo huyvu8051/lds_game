@@ -37,6 +37,7 @@ pub(crate) struct PersistedSettings {
     pub(crate) corpse_remove: Option<bool>,
     pub(crate) weapon_spawn: Option<Vec<bool>>,
     pub(crate) zombie_walk: Option<Vec<bool>>,
+    pub(crate) crosshair_in_ads: Option<bool>,
     pub(crate) damage_multiplier: Option<f32>,
     pub(crate) noclip: Option<bool>,
     pub(crate) god_mode: Option<bool>,
@@ -166,6 +167,7 @@ fn apply_settings_to_world(world: &mut World, settings: &PersistedSettings) {
     apply!(sensitivity_scale, SensitivityScale);
     apply!(gyro_enabled, GyroEnabled);
     apply!(gyro_sensitivity, GyroSensitivity);
+    apply!(crosshair_in_ads, CrosshairInAds);
     if let (Some(saved), Some(walk)) =
         (&settings.zombie_walk, world.get_resource_mut::<ZombieWalk>())
     {
@@ -289,6 +291,7 @@ pub(crate) fn persist_settings_on_change(world: &mut World) {
         || changed!(CorpseStages)
         || changed!(WeaponSpawnEnabled)
         || changed!(ZombieWalk)
+        || changed!(CrosshairInAds)
         || changed!(GyroSensitivity)
         || changed!(BulletHolesEnabled)
         || changed!(BloodEnabled)
@@ -358,6 +361,7 @@ fn read_settings_from_world(world: &World) -> PersistedSettings {
         corpse_dissolve: world.get_resource::<CorpseStages>().map(|r| r.dissolve),
         corpse_remove: world.get_resource::<CorpseStages>().map(|r| r.remove),
         weapon_spawn: world.get_resource::<WeaponSpawnEnabled>().map(|r| r.0.to_vec()),
+        crosshair_in_ads: world.get_resource::<CrosshairInAds>().map(|r| r.0),
         zombie_walk: world
             .get_resource::<ZombieWalk>()
             .map(|r| vec![r.turn_rate, r.lean, r.hips, r.feet]),

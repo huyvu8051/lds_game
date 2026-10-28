@@ -414,6 +414,14 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     spawn_cheat_toggle_button(row, "Dissolve", CorpseStageButton(CorpseStage::Dissolve));
                     spawn_cheat_toggle_button(row, "Remove", CorpseStageButton(CorpseStage::Remove));
                 });
+                page.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(6.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    spawn_cheat_toggle_button(row, "Crosshair in ADS", CrosshairInAdsButton);
+                });
                 page.spawn((
                     Text::new("Zombie walk"),
                     TextFont {
@@ -798,6 +806,29 @@ pub(crate) struct CheatGodModeButton;
 pub(crate) struct CheatFreezeButton;
 #[derive(Component)]
 pub(crate) struct CheatGunButton;
+
+#[derive(Component)]
+pub(crate) struct CrosshairInAdsButton;
+
+pub(crate) fn crosshair_in_ads_button(
+    mut keep: ResMut<CrosshairInAds>,
+    buttons: Query<&Interaction, (With<CrosshairInAdsButton>, Changed<Interaction>)>,
+    mut colours: Query<&mut BackgroundColor, With<CrosshairInAdsButton>>,
+) {
+    if tapped(&buttons) {
+        keep.0 = !keep.0;
+    }
+    if !keep.is_changed() {
+        return;
+    }
+    for mut background in &mut colours {
+        *background = BackgroundColor(if keep.0 {
+            Color::srgba(0.3, 1.0, 0.4, 0.5)
+        } else {
+            Color::srgba(1.0, 1.0, 1.0, 0.2)
+        });
+    }
+}
 
 #[derive(Component)]
 pub(crate) struct ZombieWalkButton(pub(crate) usize);

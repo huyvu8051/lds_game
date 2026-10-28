@@ -28,6 +28,15 @@ impl Default for WeaponSpawnEnabled {
     }
 }
 
+/// Whether the default crosshair stays up while the sights are.
+///
+/// Off ships, because a crosshair over a sight picture is two aiming marks
+/// disagreeing. On is for watching recoil: the crosshair sits where the
+/// weapon is pointed before the view catches up, so the climb is readable
+/// as a number of pixels rather than as a feeling.
+#[derive(Resource, Default)]
+pub(crate) struct CrosshairInAds(pub(crate) bool);
+
 /// The four things bending a zombie's walk clip, each on its own switch so
 /// they can be told apart. They do not compose like the corpse stages -- any
 /// of them is meaningful on its own, and the point of the switches is to see
