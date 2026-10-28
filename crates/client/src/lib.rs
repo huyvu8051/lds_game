@@ -33,10 +33,12 @@ pub mod cadisplaylink;
 mod weapon;
 mod inventory;
 mod zombie_locomotion;
+mod inventory_screen;
 mod loadout_hud;
 use weapon::*;
 use inventory::*;
 use zombie_locomotion::*;
+use inventory_screen::*;
 use loadout_hud::*;
 mod dismember;
 use dismember::*;
@@ -1025,6 +1027,7 @@ impl Plugin for GamePlugin {
         .init_resource::<CorpseStages>()
         .init_resource::<WeaponSpawnEnabled>()
         .init_resource::<ZombieWalk>()
+        .init_resource::<InventoryScreenOpen>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, (spawn_pole_targets, init_pickup_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
@@ -1114,6 +1117,10 @@ impl Plugin for GamePlugin {
                         update_weapon_spawn_buttons,
                         zombie_walk_buttons,
                         update_zombie_walk_buttons,
+                        toggle_inventory_screen,
+                        update_inventory_screen,
+                        rebuild_inventory_screen,
+                        inventory_screen_rows,
                     ),
                     update_bars,
                     update_weapon_slots,

@@ -236,10 +236,22 @@ pub(crate) fn grab_cursor(
     mut cursor: Query<&mut CursorOptions, With<PrimaryWindow>>,
     pending: Res<MapSelectionPending>,
     menu: Res<SettingsMenuVisible>,
+    bag: Res<crate::InventoryScreenOpen>,
+    mut bag_was_open: Local<bool>,
 ) {
     let Ok(mut cursor) = cursor.single_mut() else {
         return;
     };
+
+    // The backpack screen is clicked, so opening it has to hand the pointer
+    // back and closing it has to take it again. Tracked against its own last
+    // value rather than is_changed(), which is also true on the frame the
+    // resource is first inserted and would unlock the cursor at startup.
+    if bag.0 != *bag_was_open {
+        *bag_was_open = bag.0;
+        cursor.grab_mode = if bag.0 { CursorGrabMode::None } else { CursorGrabMode::Locked };
+        cursor.visible = bag.0;
+    }
 
     if keys.just_pressed(KeyCode::Backquote) {
         if cursor.grab_mode == CursorGrabMode::None {
@@ -255,6 +267,7 @@ pub(crate) fn grab_cursor(
         && cursor.grab_mode == CursorGrabMode::None
         && !pending.0
         && !menu.0
+        && !bag.0
     {
         cursor.grab_mode = CursorGrabMode::Locked;
         cursor.visible = false;

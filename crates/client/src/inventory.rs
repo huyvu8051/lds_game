@@ -105,6 +105,16 @@ impl Loadout {
         self.primary.iter().any(|s| *s == Some(weapon)) || self.sidearm == Some(weapon)
     }
 
+    /// Empties a slot. Used by the backpack screen, which is the only place
+    /// a weapon can be put down without another taking its place.
+    pub(crate) fn clear(&mut self, slot: Slot) {
+        self.set(slot, None);
+        if self.active == slot {
+            // Something has to be in hand, so fall to whatever is left.
+            self.active = Slot::ALL.into_iter().find(|s| self.get(*s).is_some()).unwrap_or(slot);
+        }
+    }
+
     /// Takes a weapon in, and hands back whatever had to come out for it.
     pub(crate) fn take(&mut self, weapon: WeaponId) -> Option<WeaponId> {
         let slot = self.slot_for(weapon);
@@ -433,6 +443,28 @@ pub(crate) fn drop_loot_on_kill(
         spawn_pickup(&mut commands, &assets, PickupKind::Consumable(kind), at);
     }
 }
+
+/// Puts a weapon on the ground, a short step from wherever the player is.
+pub(crate) fn drop_weapon(
+    commands: &mut Commands,
+    assets: &PickupAssets,
+    weapon: WeaponId,
+    at: Vec3,
+) {
+    spawn_pickup(commands, assets, PickupKind::Weapon(weapon), at + DROP_AHEAD);
+}
+
+pub(crate) fn drop_consumable(
+    commands: &mut Commands,
+    assets: &PickupAssets,
+    kind: ConsumableKind,
+    at: Vec3,
+) {
+    spawn_pickup(commands, assets, PickupKind::Consumable(kind), at + DROP_AHEAD);
+}
+
+/// Far enough out that the pickup radius does not take it straight back.
+const DROP_AHEAD: Vec3 = Vec3::new(0.0, -0.4, 0.0);
 
 /// Turns the dropped things over and takes back the ones nobody collected.
 pub(crate) fn advance_pickups(

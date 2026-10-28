@@ -1630,6 +1630,39 @@ pub(crate) fn update_auto_maintain_button_color(auto_maintain: Res<AutoMaintainU
     }
 }
 
+/// The bag, beside the gear. A phone has no Tab key, and the screen it opens
+/// is the one place a weapon can be put down on purpose.
+pub(crate) fn spawn_inventory_toggle_button(commands: &mut Commands) {
+    commands
+        .spawn((
+            Node {
+                width: Val::Px(40.0),
+                height: Val::Px(40.0),
+                position_type: PositionType::Absolute,
+                right: Val::Px(64.0),
+                top: Val::Px(16.0),
+                border: UiRect::all(Val::Px(2.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                border_radius: BorderRadius::all(Val::Px(20.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.3)),
+            TouchButtonBaseColor(Color::srgba(1.0, 1.0, 1.0, 0.3)),
+            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.6)),
+            Button,
+            Interaction::default(),
+            GlobalZIndex(STATIC_UI_Z_INDEX),
+            crate::inventory_screen::InventoryToggleButton,
+            NativeUiRoot,
+            children![(
+                Text::new("BAG".to_string()),
+                TextFont { font_size: FontSize::Px(11.0), ..default() },
+                TextColor(Color::WHITE),
+            )],
+        ));
+}
+
 pub(crate) fn spawn_settings_toggle_button(commands: &mut Commands) {
     commands
         .spawn((
