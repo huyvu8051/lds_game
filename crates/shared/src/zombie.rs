@@ -18,6 +18,10 @@ pub struct ZombieMotion {
     /// direction instantly reads as a sprite being dragged; one that has to
     /// lean into a turn reads as something with weight.
     pub horizontal_velocity: Vec3,
+    /// Radians a second it is turning, signed, smoothed. Read by the parts
+    /// that make a turn look like one -- the lean, and how far the hips are
+    /// allowed to lead the body.
+    pub turn_rate: f32,
 }
 
 #[derive(Component, Default)]
@@ -466,7 +470,24 @@ pub const ZOMBIE_ACCEL: f32 = 5.0;
 pub const ZOMBIE_FRICTION: f32 = 4.0;
 pub const KNOCKBACK_DECAY_RATE: f32 = 6.0;
 
-pub const ZOMBIE_TURN_RATE_DEG: f32 = 180.0;
+/// How fast it can turn, standing still and at a full run.
+///
+/// One number for both was a compromise that served neither: a zombie stood
+/// still took a second to come about, and one at a sprint pivoted on the
+/// spot like a turret. Something with weight turns quickly when it has none
+/// to carry and swings wide when it does.
+pub const ZOMBIE_TURN_RATE_STANDING_DEG: f32 = 400.0;
+pub const ZOMBIE_TURN_RATE_RUNNING_DEG: f32 = 130.0;
+
+/// How fast the smoothed turn rate catches up with the real one. The lean
+/// rides this, and a lean that snaps is worse than no lean.
+pub const ZOMBIE_TURN_SMOOTHING: f32 = 7.0;
+
+pub fn zombie_turn_rate_deg(speed: f32, top_speed: f32) -> f32 {
+    let t = (speed / top_speed.max(0.001)).clamp(0.0, 1.0);
+    ZOMBIE_TURN_RATE_STANDING_DEG
+        + (ZOMBIE_TURN_RATE_RUNNING_DEG - ZOMBIE_TURN_RATE_STANDING_DEG) * t
+}
 
 #[derive(Event, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct SpawnMoreZombies;

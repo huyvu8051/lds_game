@@ -17,7 +17,7 @@ use shared::{
     PLAYER_THREAT_DECAY_RATE, ZOMBIE_LOAD_BALANCE_PENALTY, zombie_kind_for_phase, ZOMBIE_KIND_WEIGHTS,
     ZOMBIE_MOVE_RADIUS, ZOMBIE_OUTER_HEIGHT, ZOMBIE_RETARGET_INTERVAL, ZOMBIE_SEPARATION_RADIUS,
     ZOMBIE_SEPARATION_STRENGTH, ZOMBIE_STOP_DISTANCE, ZOMBIE_THREAT_DISTANCE_BONUS,
-    ZOMBIE_TURN_RATE_DEG,
+    zombie_turn_rate_deg, ZOMBIE_TURN_SMOOTHING,
 };
 
 
@@ -292,6 +292,17 @@ fn chase_action_system(mut commands: Commands, mut query: Query<(&Actor, &mut Ac
     }
 }
 
+/// How far one rotation is from another about Y, signed, wrapped to half a
+/// turn either way.
+fn signed_yaw_between(from: Quat, to: Quat) -> f32 {
+    let f = (from * Vec3::NEG_Z).xz();
+    let t = (to * Vec3::NEG_Z).xz();
+    if f.length_squared() < 1e-8 || t.length_squared() < 1e-8 {
+        return 0.0;
+    }
+    (f.x * t.y - f.y * t.x).atan2(f.dot(t))
+}
+
 fn turn_towards(rotation: &mut Quat, target: Quat, max_angle: f32) {
     let angle = rotation.angle_between(target);
     if angle <= max_angle || angle <= f32::EPSILON {
@@ -544,10 +555,21 @@ fn move_zombies(
             || stepped_up.is_some_and(|step| step.ground_normal.y > shared::ground_normal_min_y());
         motion.vertical_velocity = if motion.grounded { motion.vertical_velocity.min(0.0) } else { motion.vertical_velocity };
 
+        let before = transform.rotation;
         if horizontal_velocity != Vec3::ZERO {
             let target_rotation = Transform::default().looking_to(-horizontal_velocity, Vec3::Y).rotation;
-            turn_towards(&mut transform.rotation, target_rotation, ZOMBIE_TURN_RATE_DEG.to_radians() * time.delta_secs());
+            // Quick on the spot and wide at speed. One rate for both served
+            // neither: stood still it took a second to come about, and at a
+            // run it pivoted like a turret.
+            let rate = zombie_turn_rate_deg(horizontal_velocity.length(), zombie_speed_for(*pose));
+            turn_towards(&mut transform.rotation, target_rotation, rate.to_radians() * time.delta_secs());
         }
+        // Signed, about Y, and smoothed: the lean rides this and a lean that
+        // snaps is worse than no lean at all.
+        let turned = signed_yaw_between(before, transform.rotation);
+        let instant = if time.delta_secs() > 0.0 { turned / time.delta_secs() } else { 0.0 };
+        let catch_up = (ZOMBIE_TURN_SMOOTHING * time.delta_secs()).min(1.0);
+        motion.turn_rate += (instant - motion.turn_rate) * catch_up;
 
         motion.moving = horizontal_velocity != Vec3::ZERO;
     }
