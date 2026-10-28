@@ -826,8 +826,12 @@ pub(crate) fn switch_weapon(
     for entity in &mesh_parts {
         commands.entity(entity).despawn();
     }
+    // The gun's own sockets are glTF nodes inside the mesh, so the loop above
+    // already took them with their root. What is left here is the debug rig,
+    // which hangs off the camera instead -- hence try_, for the ones that are
+    // normally gone by now.
     for entity in &sockets {
-        commands.entity(entity).despawn();
+        commands.entity(entity).try_despawn();
     }
     spawn_gun_mesh_parts(&mut commands, &asset_server, &mut materials, gun_entity, def.mesh_path);
     debug!("[weapon] switched to {}", def.name);
