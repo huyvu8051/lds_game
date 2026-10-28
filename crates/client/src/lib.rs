@@ -1264,6 +1264,7 @@ impl Plugin for GamePlugin {
                     // takes; nothing here is ordered against anything.
                     (
                         advance_pickups,
+                inventory::update_pickup_labels,
                         cycle_fire_mode,
                         cook_and_throw,
                         advance_grenades,

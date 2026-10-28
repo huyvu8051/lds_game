@@ -411,7 +411,11 @@ pub(crate) fn inventory_screen_rows(
     player: Query<&Transform, With<Player>>,
     pickups: Query<(&inventory::Pickup, &Transform)>,
     rows: Query<(&Interaction, &RowAction), Changed<Interaction>>,
+    eye: Query<&GlobalTransform, With<FpsCamera>>,
 ) {
+    // Where the player is looking, so a drop leaves in front of them rather
+    // than straight down between their feet.
+    let facing = eye.single().map(|e| e.forward().as_vec3()).unwrap_or(Vec3::NEG_Z);
     let mut used = false;
     for (interaction, action) in &rows {
         if *interaction != Interaction::Pressed {
@@ -428,7 +432,7 @@ pub(crate) fn inventory_screen_rows(
                         &mut request,
                         assets.as_deref(),
                         weapon,
-                        player.single().ok().map(|at| at.translation),
+                        player.single().ok().map(|at| (at.translation, facing)),
                     ),
                 }
                 commands.entity(entity).try_despawn();
@@ -480,7 +484,7 @@ pub(crate) fn inventory_screen_rows(
                 let kind = ALL_ITEMS[index.min(ALL_ITEMS.len() - 1)];
                 if inventory.take_one(kind) {
                     if let (Some(assets), Ok(at)) = (assets.as_ref(), player.single()) {
-                        inventory::drop_item(&mut commands, assets, kind, at.translation);
+                        inventory::drop_item(&mut commands, assets, kind, at.translation, facing);
                     }
                 }
             }
@@ -491,7 +495,7 @@ pub(crate) fn inventory_screen_rows(
                 let Some(weapon) = loadout.get(slot) else { continue };
                 loadout.clear(slot);
                 if let (Some(assets), Ok(at)) = (assets.as_ref(), player.single()) {
-                    inventory::drop_weapon(&mut commands, assets, weapon, at.translation);
+                    inventory::drop_weapon(&mut commands, assets, weapon, at.translation, facing);
                 }
             }
         }

@@ -10,6 +10,7 @@
 use bevy::prelude::*;
 
 use crate::*;
+use shared::GameLayer;
 
 /// Which of the three the weapon is held in.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -514,13 +515,34 @@ pub(crate) enum PickupKind {
 pub(crate) struct Pickup {
     pub(crate) kind: PickupKind,
     remaining: f32,
+    armed_in: f32,
 }
+
+/// The name floating over a dropped thing, one per pickup, made and unmade
+/// with it -- the same arrangement the grenade fuse readout uses.
+#[derive(Component)]
+pub(crate) struct PickupLabel(pub(crate) Entity);
 
 const PICKUP_LIFETIME: f32 = 45.0;
 const PICKUP_RADIUS: f32 = 1.8;
-const PICKUP_SIZE: f32 = 0.22;
-const PICKUP_SPIN_PER_SEC: f32 = 1.4;
-const PICKUP_HOVER: f32 = 0.35;
+/// Small enough to read as a dropped thing rather than a crate, now that it
+/// lies on the floor instead of hanging at waist height with a spin on it.
+const PICKUP_SIZE: f32 = 0.12;
+/// Light. It is a box with a name over it, and the only thing its mass
+/// decides is how far it skitters when it lands.
+const PICKUP_DENSITY: f32 = 120.0;
+/// How hard a drop is thrown clear.
+const PICKUP_TOSS_SPEED: f32 = 4.5;
+const PICKUP_TOSS_LIFT: f32 = 2.2;
+/// A dropped thing cannot be collected until this runs out.
+///
+/// Throwing it clear is most of the answer, but not all of it: drop facing a
+/// wall and it comes straight back to your feet, and the pickup radius is
+/// 1.8m of standing still. Without this, dropping a gun you are holding
+/// swaps it back in before your finger leaves the button.
+const PICKUP_ARM_SECONDS: f32 = 1.4;
+/// Past this the name is clutter rather than information.
+const PICKUP_LABEL_RANGE: f32 = 14.0;
 /// How much of what dies leaves something behind.
 const WEAPON_DROP_CHANCE: f32 = 0.12;
 const CONSUMABLE_DROP_CHANCE: f32 = 0.45;
@@ -558,7 +580,13 @@ pub(crate) fn init_pickup_assets(
     });
 }
 
-fn spawn_pickup(commands: &mut Commands, assets: &PickupAssets, kind: PickupKind, at: Vec3) {
+fn spawn_pickup(
+    commands: &mut Commands,
+    assets: &PickupAssets,
+    kind: PickupKind,
+    at: Vec3,
+    toss: Vec3,
+) {
     let material = match kind {
         PickupKind::Weapon(_) => assets.weapon_material.clone(),
         PickupKind::Item(k) => assets.material_for(k),
@@ -567,9 +595,31 @@ fn spawn_pickup(commands: &mut Commands, assets: &PickupAssets, kind: PickupKind
         Name::new("Pickup"),
         Mesh3d(assets.mesh.clone()),
         MeshMaterial3d(material),
-        Transform::from_translation(at + Vec3::Y * PICKUP_HOVER),
-        Pickup { kind, remaining: PICKUP_LIFETIME },
+        Transform::from_translation(at),
+        // Thrown and then dropped, rather than parked in the air. Debris, so
+        // the player's capsule cast never sees it -- a box that lands at your
+        // feet on the Default layer is a box you get shoved off.
+        (
+            RigidBody::Dynamic,
+            Collider::cuboid(PICKUP_SIZE, PICKUP_SIZE, PICKUP_SIZE),
+            ColliderDensity(PICKUP_DENSITY),
+            Restitution::new(0.1),
+            Friction::new(0.9),
+            LinearDamping(0.4),
+            AngularDamping(2.5),
+            CollisionLayers::new(GameLayer::Debris, [GameLayer::Default]),
+            LinearVelocity(toss),
+            AngularVelocity(Vec3::new(3.0, 2.0, 4.0)),
+            SweptCcd::default(),
+        ),
+        Pickup { kind, remaining: PICKUP_LIFETIME, armed_in: PICKUP_ARM_SECONDS },
     ));
+}
+
+/// Forward and up, off whatever is doing the throwing.
+fn toss_from(facing: Vec3) -> Vec3 {
+    let flat = Vec3::new(facing.x, 0.0, facing.z).normalize_or_zero();
+    flat * PICKUP_TOSS_SPEED + Vec3::Y * PICKUP_TOSS_LIFT
 }
 
 /// A deterministic dribble of randomness from the clock, which is all a drop
@@ -612,14 +662,20 @@ pub(crate) fn drop_loot_on_kill(
             .collect();
         if !pool.is_empty() {
             let weapon = pool[(roll(seed, 2.0) * pool.len() as f32) as usize % pool.len()];
-            spawn_pickup(&mut commands, &assets, PickupKind::Weapon(weapon), at);
+            spawn_pickup(&mut commands, &assets, PickupKind::Weapon(weapon), at, scatter(seed, 5.0));
             return;
         }
     }
     if roll(seed, 3.0) < CONSUMABLE_DROP_CHANCE {
         let kind = ALL_ITEMS[(roll(seed, 4.0) * ALL_ITEMS.len() as f32) as usize % ALL_ITEMS.len()];
-        spawn_pickup(&mut commands, &assets, PickupKind::Item(kind), at);
+        spawn_pickup(&mut commands, &assets, PickupKind::Item(kind), at, scatter(seed, 6.0));
     }
+}
+
+/// A corpse's loot is not thrown at anybody, it just falls off -- enough
+/// sideways that two drops from one body do not land inside each other.
+fn scatter(seed: f32, salt: f32) -> Vec3 {
+    Vec3::new(roll(seed, salt) - 0.5, 0.6, roll(seed, salt + 1.0) - 0.5) * 2.0
 }
 
 /// Takes a weapon into the loadout and puts it in the hand.
@@ -639,12 +695,13 @@ pub(crate) fn pick_up_weapon(
     request: &mut weapon::WeaponSwitchRequest,
     assets: Option<&PickupAssets>,
     weapon: WeaponId,
-    drop_displaced_at: Option<Vec3>,
+    drop_displaced: Option<(Vec3, Vec3)>,
 ) {
     let displaced = loadout.take(weapon);
     request.0 = Some(weapon);
-    if let (Some(displaced), Some(assets), Some(at)) = (displaced, assets, drop_displaced_at) {
-        drop_weapon(commands, assets, displaced, at);
+    if let (Some(displaced), Some(assets), Some((at, facing))) = (displaced, assets, drop_displaced)
+    {
+        drop_weapon(commands, assets, displaced, at, facing);
     }
 }
 
@@ -654,31 +711,39 @@ pub(crate) fn drop_weapon(
     assets: &PickupAssets,
     weapon: WeaponId,
     at: Vec3,
+    facing: Vec3,
 ) {
-    spawn_pickup(commands, assets, PickupKind::Weapon(weapon), at + DROP_AHEAD);
+    spawn_pickup(commands, assets, PickupKind::Weapon(weapon), at + DROP_FROM, toss_from(facing));
 }
 
-pub(crate) fn drop_item(commands: &mut Commands, assets: &PickupAssets, kind: ItemKind, at: Vec3) {
-    spawn_pickup(commands, assets, PickupKind::Item(kind), at + DROP_AHEAD);
+pub(crate) fn drop_item(
+    commands: &mut Commands,
+    assets: &PickupAssets,
+    kind: ItemKind,
+    at: Vec3,
+    facing: Vec3,
+) {
+    spawn_pickup(commands, assets, PickupKind::Item(kind), at + DROP_FROM, toss_from(facing));
 }
 
-/// Far enough out that the pickup radius does not take it straight back.
-const DROP_AHEAD: Vec3 = Vec3::new(0.0, -0.4, 0.0);
+/// Leaves the hand rather than the navel. The throw is what carries it clear
+/// now; this only decides where it starts.
+const DROP_FROM: Vec3 = Vec3::new(0.0, 0.3, 0.0);
 
 /// Turns the dropped things over and takes back the ones nobody collected.
 pub(crate) fn advance_pickups(
     mut commands: Commands,
     time: Res<Time>,
-    mut pickups: Query<(Entity, &mut Pickup, &mut Transform)>,
+    mut pickups: Query<(Entity, &mut Pickup)>,
 ) {
     let dt = time.delta_secs();
-    for (entity, mut pickup, mut transform) in &mut pickups {
+    for (entity, mut pickup) in &mut pickups {
         pickup.remaining -= dt;
         if pickup.remaining <= 0.0 {
             commands.entity(entity).try_despawn();
             continue;
         }
-        transform.rotate_y(PICKUP_SPIN_PER_SEC * dt);
+        pickup.armed_in = (pickup.armed_in - dt).max(0.0);
     }
 }
 
@@ -698,6 +763,9 @@ pub(crate) fn collect_pickups(
 ) {
     let Ok(player) = player.single() else { return };
     for (entity, pickup, transform) in &pickups {
+        if pickup.armed_in > 0.0 {
+            continue;
+        }
         if player.translation.distance_squared(transform.translation) > PICKUP_RADIUS * PICKUP_RADIUS
         {
             continue;
@@ -710,9 +778,68 @@ pub(crate) fn collect_pickups(
                 &mut request,
                 assets.as_deref(),
                 weapon,
-                Some(transform.translation),
+                // Thrown on past the one being picked up, so the swap does
+                // not leave both of them inside the same radius.
+                Some((transform.translation, transform.translation - player.translation)),
             ),
         }
         commands.entity(entity).try_despawn();
     }
 }
+
+/// The name over a dropped thing.
+///
+/// Same shape as the grenade's fuse readout: a UI node per pickup, parked at
+/// the projection of the box and hidden when it is behind the camera. A
+/// coloured cube says there is something there; this says what.
+pub(crate) fn update_pickup_labels(
+    mut commands: Commands,
+    camera: Query<(&Camera, &GlobalTransform), With<FpsCamera>>,
+    pickups: Query<(Entity, &Pickup, &GlobalTransform)>,
+    mut labels: Query<(Entity, &PickupLabel, &mut Node, &mut Text, &mut TextColor)>,
+) {
+    let Ok((camera, eye)) = camera.single() else { return };
+
+    for (entity, ..) in &pickups {
+        if !labels.iter().any(|(_, label, ..)| label.0 == entity) {
+            commands.spawn((
+                Text::new(String::new()),
+                TextFont { font_size: FontSize::Px(13.0), ..default() },
+                TextColor(Color::WHITE),
+                Node { position_type: PositionType::Absolute, display: Display::None, ..default() },
+                GlobalZIndex(STATIC_UI_Z_INDEX),
+                PickupLabel(entity),
+                NativeUiRoot,
+            ));
+        }
+    }
+
+    for (label_entity, label, mut node, mut text, mut colour) in &mut labels {
+        let Ok((_, pickup, global)) = pickups.get(label.0) else {
+            commands.entity(label_entity).try_despawn();
+            continue;
+        };
+        let at = global.translation();
+        if eye.translation().distance(at) > PICKUP_LABEL_RANGE {
+            node.display = Display::None;
+            continue;
+        }
+        let (name, tint) = match pickup.kind {
+            PickupKind::Weapon(weapon) => (weapon.def().name, Color::srgb(0.45, 0.75, 1.0)),
+            PickupKind::Item(kind) => (kind.label(), kind.colour()),
+        };
+        text.0 = name.to_string();
+        *colour = TextColor(tint);
+        // Above the box rather than on it, so the name is not sitting in the
+        // colour it is meant to be read against.
+        match camera.world_to_viewport(eye, at + Vec3::Y * 0.28) {
+            Ok(screen) => {
+                node.display = Display::Flex;
+                node.left = Val::Px(screen.x);
+                node.top = Val::Px(screen.y);
+            }
+            Err(_) => node.display = Display::None,
+        }
+    }
+}
+
