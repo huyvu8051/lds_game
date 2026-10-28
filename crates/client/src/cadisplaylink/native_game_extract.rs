@@ -323,6 +323,7 @@ pub fn extract_render_snapshot(
             position: transform.translation().to_array(),
             color: [c.red, c.green, c.blue],
             range: light.range,
+            casts_shadows: light.shadow_maps_enabled,
         }
     });
 

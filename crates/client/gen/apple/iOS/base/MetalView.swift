@@ -16,7 +16,14 @@ class MetalView: UIView {
     override func awakeFromNib() {
         super.awakeFromNib()
         configLayer()
-        self.layer.backgroundColor = UIColor.clear.cgColor
+        // Opaque, not clear. A clear background told the compositor this layer
+        // might have something showing through it, so backboardd had to blend
+        // the whole drawable every frame rather than copy it. The Metal clear
+        // colour covers every pixel at full alpha, so there is nothing behind
+        // it to see. The renderer sets CAMetalLayer.isOpaque to match.
+        self.isOpaque = true
+        self.layer.isOpaque = true
+        self.layer.backgroundColor = UIColor.black.cgColor
         // UIView.isMultipleTouchEnabled defaults to false — UIKit then only
         // ever tracks ONE touch at a time for this view, silently dropping
         // every other simultaneous touch before touchesBegan ever sees it.
