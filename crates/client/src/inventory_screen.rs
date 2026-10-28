@@ -24,10 +24,6 @@ use crate::*;
 /// something to reach for rather than only what is underfoot.
 const GROUND_REACH: f32 = 6.0;
 
-/// Slots the pack holds. There is no weight model, so capacity is counted in
-/// items -- the number means something even if it is not kilograms.
-const PACK_CAPACITY: u32 = 12;
-
 #[derive(Resource)]
 pub(crate) struct InventoryScreenOpen(pub(crate) bool);
 
@@ -65,6 +61,10 @@ pub(crate) enum RowAction {
     Equip(inventory::Slot),
     /// Throw out what is in this slot.
     Unequip(inventory::Slot),
+    /// Take off what is worn here.
+    Unwear(WearSlot),
+    /// Take out what is fitted in this socket.
+    Unfit(inventory::Slot, AttachSlot),
 }
 
 fn heading(text: &str) -> impl Bundle {
@@ -165,12 +165,17 @@ pub(crate) fn update_inventory_screen(
     node.display = if open.0 { Display::Flex } else { Display::None };
 }
 
-fn row(
+/// A row, and optionally a small button at its end for throwing the thing
+/// away. Nested inside the row rather than given a line of its own, because
+/// a list where every item takes two lines is twice as long for one verb
+/// nobody uses often.
+fn row_with_drop(
     parent: &mut ChildSpawnerCommands<'_>,
     label: String,
     note: String,
     colour: Color,
     action: RowAction,
+    drop: Option<RowAction>,
 ) {
     parent
         .spawn((
@@ -194,12 +199,49 @@ fn row(
                 TextFont { font_size: FontSize::Px(12.0), ..default() },
                 TextColor(colour),
             ));
-            r.spawn((
-                Text::new(note),
-                TextFont { font_size: FontSize::Px(11.0), ..default() },
-                TextColor(Color::srgba(1.0, 1.0, 1.0, 0.45)),
-            ));
+            r.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(6.0),
+                align_items: AlignItems::Center,
+                ..default()
+            })
+            .with_children(|end| {
+                end.spawn((
+                    Text::new(note),
+                    TextFont { font_size: FontSize::Px(11.0), ..default() },
+                    TextColor(Color::srgba(1.0, 1.0, 1.0, 0.45)),
+                ));
+                if let Some(drop) = drop {
+                    end.spawn((
+                        Node {
+                            padding: UiRect::axes(Val::Px(5.0), Val::Px(1.0)),
+                            border: UiRect::all(Val::Px(1.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.6, 0.15, 0.15, 0.5)),
+                        BorderColor::all(Color::srgba(1.0, 0.5, 0.5, 0.3)),
+                        Button,
+                        Interaction::default(),
+                        drop,
+                        children![(
+                            Text::new("x".to_string()),
+                            TextFont { font_size: FontSize::Px(11.0), ..default() },
+                            TextColor(Color::srgba(1.0, 0.8, 0.8, 0.9)),
+                        )],
+                    ));
+                }
+            });
         });
+}
+
+fn row(
+    parent: &mut ChildSpawnerCommands<'_>,
+    label: String,
+    note: String,
+    colour: Color,
+    action: RowAction,
+) {
+    row_with_drop(parent, label, note, colour, action, None);
 }
 
 /// Rebuilds the three columns from scratch while the screen is open.
@@ -213,6 +255,8 @@ pub(crate) fn rebuild_inventory_screen(
     open: Res<InventoryScreenOpen>,
     loadout: Res<Loadout>,
     inventory: Res<Inventory>,
+    equipment: Res<Equipment>,
+    attachments: Res<Attachments>,
     player: Query<&Transform, With<Player>>,
     pickups: Query<(Entity, &inventory::Pickup, &Transform)>,
     ground: Query<Entity, With<GroundColumn>>,
@@ -251,7 +295,7 @@ pub(crate) fn rebuild_inventory_screen(
                 inventory::PickupKind::Weapon(w) => {
                     (w.def().name.to_string(), Color::srgb(0.6, 0.85, 1.0))
                 }
-                inventory::PickupKind::Consumable(k) => (k.label().to_string(), k.colour()),
+                inventory::PickupKind::Item(k) => (k.label().to_string(), k.colour()),
             };
             row(col, label, format!("{distance:.1}m"), colour, RowAction::Take(entity));
         }
@@ -259,17 +303,50 @@ pub(crate) fn rebuild_inventory_screen(
 
     commands.entity(pack).with_children(|col| {
         col.spawn(heading("PACK"));
-        for (i, kind) in ConsumableKind::ALL.into_iter().enumerate() {
-            let held = inventory.count(kind);
-            if held == 0 {
+        // Grouped the way the pack groups them, so a list of fifty is read
+        // as six short ones. A heading with nothing under it is left out.
+        for category in Category::ALL {
+            let held: Vec<ItemKind> = ALL_ITEMS
+                .into_iter()
+                .filter(|k| k.category() == category && inventory.count(*k) > 0)
+                .collect();
+            if held.is_empty() {
                 continue;
             }
-            row(col, kind.label().to_string(), format!("x{held}  USE"), kind.colour(), RowAction::Use(i));
-            row(col, String::new(), "drop one".to_string(), Color::srgba(1.0, 1.0, 1.0, 0.3), RowAction::Drop(i));
+            col.spawn((
+                Text::new(category.label().to_string()),
+                TextFont { font_size: FontSize::Px(11.0), ..default() },
+                TextColor(category.colour()),
+                Node { margin: UiRect::top(Val::Px(4.0)), ..default() },
+            ));
+            for kind in held {
+                let note = match (kind.wear_slot(), kind.attach_slot()) {
+                    (Some(_), _) => "wear".to_string(),
+                    (_, Some(_)) => "fit".to_string(),
+                    _ => format!("x{}", inventory.count(kind)),
+                };
+                row_with_drop(
+                    col,
+                    kind.label().to_string(),
+                    note,
+                    kind.colour(),
+                    RowAction::Use(kind.index()),
+                    Some(RowAction::Drop(kind.index())),
+                );
+            }
         }
     });
 
     commands.entity(gear).with_children(|col| {
+        col.spawn(heading("WORN"));
+        for slot in WearSlot::ALL {
+            let (note, colour) = match equipment.level(slot) {
+                Some(level) => (format!("Lv{level}"), Category::Armour.colour()),
+                None => ("empty".to_string(), Color::srgba(1.0, 1.0, 1.0, 0.3)),
+            };
+            row(col, slot.label().to_string(), note, colour, RowAction::Unwear(slot));
+        }
+
         col.spawn(heading("CARRIED"));
         for slot in inventory::Slot::ALL {
             match loadout.get(slot) {
@@ -283,6 +360,22 @@ pub(crate) fn rebuild_inventory_screen(
                         RowAction::Equip(slot),
                     );
                     row(col, String::new(), "drop".to_string(), Color::srgba(1.0, 1.0, 1.0, 0.3), RowAction::Unequip(slot));
+                    // The five sockets, listed under the weapon they belong
+                    // to. Empty ones are shown: the socket existing is what
+                    // makes an attachment on the ground worth stopping for.
+                    for socket in AttachSlot::ALL {
+                        let (note, colour) = match attachments.get(slot, socket) {
+                            Some(item) => (item.label().to_string(), item.colour()),
+                            None => ("--".to_string(), Color::srgba(1.0, 1.0, 1.0, 0.25)),
+                        };
+                        row(
+                            col,
+                            format!("  {}", socket.label()),
+                            note,
+                            colour,
+                            RowAction::Unfit(slot, socket),
+                        );
+                    }
                 }
                 None => {
                     row(
@@ -298,8 +391,7 @@ pub(crate) fn rebuild_inventory_screen(
     });
 
     if let Ok(mut text) = capacity.single_mut() {
-        let carried: u32 = ConsumableKind::ALL.iter().map(|k| inventory.count(*k)).sum();
-        text.0 = format!("PACK  {carried} / {PACK_CAPACITY}");
+        text.0 = format!("PACK  {:.0} / {:.0}", inventory.carried(), equipment.capacity());
     }
 }
 
@@ -308,6 +400,8 @@ pub(crate) fn inventory_screen_rows(
     mut commands: Commands,
     mut loadout: ResMut<Loadout>,
     mut inventory: ResMut<Inventory>,
+    mut equipment: ResMut<Equipment>,
+    mut attachments: ResMut<Attachments>,
     mut request: ResMut<weapon::WeaponSwitchRequest>,
     boost: ResMut<Boost>,
     assets: Option<Res<inventory::PickupAssets>>,
@@ -325,7 +419,7 @@ pub(crate) fn inventory_screen_rows(
             RowAction::Take(entity) => {
                 let Ok((pickup, _)) = pickups.get(entity) else { continue };
                 match pickup.kind {
-                    inventory::PickupKind::Consumable(kind) => inventory.add(kind, 1),
+                    inventory::PickupKind::Item(kind) => inventory.add(kind, 1),
                     inventory::PickupKind::Weapon(weapon) => {
                         let displaced = loadout.take(weapon);
                         request.0 = Some(weapon);
@@ -339,15 +433,53 @@ pub(crate) fn inventory_screen_rows(
                 commands.entity(entity).try_despawn();
             }
             RowAction::Use(index) => {
-                inventory.selected = index;
-                used = true;
+                let kind = ALL_ITEMS[index.min(ALL_ITEMS.len() - 1)];
+                if let Some((slot, level)) = kind.wear_slot() {
+                    // What comes off goes back in the pack, so swapping a
+                    // helmet for a better one does not throw the old away.
+                    if inventory.take_one(kind) {
+                        if let Some(old) = equipment.level(slot) {
+                            if let Some(previous) = ALL_ITEMS
+                                .into_iter()
+                                .find(|k| k.wear_slot() == Some((slot, old)))
+                            {
+                                inventory.add(previous, 1);
+                            }
+                        }
+                        equipment.set(slot, Some(level));
+                    }
+                } else if let Some(socket) = kind.attach_slot() {
+                    let slot = loadout.active;
+                    if loadout.get(slot).is_some() && inventory.take_one(kind) {
+                        if let Some(previous) = attachments.get(slot, socket) {
+                            inventory.add(previous, 1);
+                        }
+                        attachments.set(slot, socket, Some(kind));
+                    }
+                } else if let Some(i) = inventory::HEAL_ITEMS.iter().position(|k| *k == kind) {
+                    inventory.selected = i;
+                    used = true;
+                }
+            }
+            RowAction::Unwear(slot) => {
+                let Some(level) = equipment.level(slot) else { continue };
+                if let Some(kind) =
+                    ALL_ITEMS.into_iter().find(|k| k.wear_slot() == Some((slot, level)))
+                {
+                    inventory.add(kind, 1);
+                }
+                equipment.set(slot, None);
+            }
+            RowAction::Unfit(slot, socket) => {
+                let Some(kind) = attachments.get(slot, socket) else { continue };
+                inventory.add(kind, 1);
+                attachments.set(slot, socket, None);
             }
             RowAction::Drop(index) => {
-                let kind = ConsumableKind::ALL[index.min(2)];
-                if inventory.count(kind) > 0 {
-                    inventory.counts[index] -= 1;
+                let kind = ALL_ITEMS[index.min(ALL_ITEMS.len() - 1)];
+                if inventory.take_one(kind) {
                     if let (Some(assets), Ok(at)) = (assets.as_ref(), player.single()) {
-                        inventory::drop_consumable(&mut commands, assets, kind, at.translation);
+                        inventory::drop_item(&mut commands, assets, kind, at.translation);
                     }
                 }
             }

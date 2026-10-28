@@ -31,11 +31,13 @@ use shared::{
 pub mod cadisplaylink;
 
 mod weapon;
+mod items;
 mod inventory;
 mod zombie_locomotion;
 mod inventory_screen;
 mod loadout_hud;
 use weapon::*;
+use items::*;
 use inventory::*;
 use zombie_locomotion::*;
 use inventory_screen::*;
@@ -1028,6 +1030,8 @@ impl Plugin for GamePlugin {
         .init_resource::<WeaponSpawnEnabled>()
         .init_resource::<ZombieWalk>()
         .init_resource::<InventoryScreenOpen>()
+        .init_resource::<Equipment>()
+        .init_resource::<Attachments>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, (spawn_pole_targets, init_pickup_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)

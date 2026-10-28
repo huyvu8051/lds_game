@@ -176,10 +176,10 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
                     ItemList,
                 ))
                 .with_children(|list| {
-                    for (i, kind) in inventory::ConsumableKind::ALL.into_iter().enumerate() {
+                    for (i, kind) in inventory::HEAL_ITEMS.into_iter().enumerate() {
                         list.spawn((
                             Node {
-                                width: Val::Px(118.0),
+                                width: Val::Px(140.0),
                                 height: Val::Px(24.0),
                                 border: UiRect::all(Val::Px(1.0)),
                                 align_items: AlignItems::Center,
@@ -313,10 +313,13 @@ pub(crate) fn update_item_ui(
     }
     let kind = inventory.selected_kind();
     if let Ok(mut text) = use_label.single_mut() {
-        text.0 = format!("{} {}", kind.short(), inventory.count(kind));
+        // Three letters, because the slot is forty-four pixels wide and
+        // "Adrenaline Syringe" is not going in it.
+        let short: String = kind.label().chars().filter(|c| c.is_alphanumeric()).take(3).collect();
+        text.0 = format!("{} {}", short.to_uppercase(), inventory.count(kind));
     }
     for (label, mut colour) in &mut choice_labels {
-        let this = ConsumableKind::ALL[label.0];
+        let this = inventory::HEAL_ITEMS[label.0.min(inventory::HEAL_ITEMS.len() - 1)];
         // An item you have none of is still listed, just plainly: the slot
         // existing is information, and hiding it would make the list jump
         // about as things are spent.

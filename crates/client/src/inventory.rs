@@ -125,57 +125,50 @@ impl Loadout {
     }
 }
 
-/// The things in the pack, and what each of them does.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub(crate) enum ConsumableKind {
-    Bandage,
-    FirstAid,
-    EnergyDrink,
-}
-
-impl ConsumableKind {
-    pub(crate) const ALL: [ConsumableKind; 3] =
-        [ConsumableKind::Bandage, ConsumableKind::FirstAid, ConsumableKind::EnergyDrink];
-
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            ConsumableKind::Bandage => "BANDAGE",
-            ConsumableKind::FirstAid => "FIRST AID",
-            ConsumableKind::EnergyDrink => "ENERGY",
-        }
-    }
-
-    /// Short enough for the slot the selected item sits in.
-    pub(crate) fn short(self) -> &'static str {
-        match self {
-            ConsumableKind::Bandage => "BND",
-            ConsumableKind::FirstAid => "AID",
-            ConsumableKind::EnergyDrink => "NRG",
-        }
-    }
-
-    pub(crate) fn colour(self) -> Color {
-        match self {
-            ConsumableKind::Bandage => Color::srgb(0.95, 0.95, 0.9),
-            ConsumableKind::FirstAid => Color::srgb(0.95, 0.3, 0.3),
-            ConsumableKind::EnergyDrink => Color::srgb(1.0, 0.8, 0.2),
-        }
-    }
-}
+/// The items the heal selector cycles: everything that mends or boosts.
+/// A view over the item list rather than a list of its own, so adding a
+/// medicine to items.rs puts it in the selector without a second edit.
+pub(crate) const HEAL_ITEMS: [ItemKind; 6] = [
+    ItemKind::Bandage,
+    ItemKind::FirstAidKit,
+    ItemKind::MedKit,
+    ItemKind::EnergyDrink,
+    ItemKind::Painkiller,
+    ItemKind::AdrenalineSyringe,
+];
 
 /// Bandages stop short of full, the way they do in the games this is taken
 /// from: they are for getting off the floor, not for being ready again.
-const BANDAGE_HEAL: f32 = 25.0;
+/// PUBG's own ceilings and amounts.
 const BANDAGE_CEILING: f32 = 75.0;
-const FIRST_AID_TO: f32 = 100.0;
-const ENERGY_BOOST: f32 = 40.0;
 
 /// Long enough that using one is a decision rather than a key to hold down.
 const USE_COOLDOWN: f32 = 1.2;
 
+/// What a medicine does. Health to a ceiling, or boost.
+enum Effect {
+    HealTo { add: f32, ceiling: f32 },
+    Boost(f32),
+    Nothing,
+}
+
+fn effect_of(kind: ItemKind) -> Effect {
+    match kind {
+        ItemKind::Bandage => Effect::HealTo { add: 25.0, ceiling: BANDAGE_CEILING },
+        ItemKind::FirstAidKit => Effect::HealTo { add: 100.0, ceiling: BANDAGE_CEILING },
+        ItemKind::MedKit => Effect::HealTo { add: 100.0, ceiling: PLAYER_MAX_HEALTH },
+        ItemKind::EnergyDrink => Effect::Boost(40.0),
+        ItemKind::Painkiller => Effect::Boost(60.0),
+        ItemKind::AdrenalineSyringe => Effect::Boost(100.0),
+        _ => Effect::Nothing,
+    }
+}
+
 #[derive(Resource)]
 pub(crate) struct Inventory {
-    pub(crate) counts: [u32; 3],
+    /// One count per entry in ALL_ITEMS.
+    pub(crate) counts: Vec<u32>,
+    /// Which of HEAL_ITEMS the bottom-right button spends.
     pub(crate) selected: usize,
     pub(crate) expanded: bool,
     cooldown: f32,
@@ -183,25 +176,108 @@ pub(crate) struct Inventory {
 
 impl Default for Inventory {
     fn default() -> Self {
-        Self { counts: [3, 1, 2], selected: 0, expanded: false, cooldown: 0.0 }
+        let mut inventory =
+            Self { counts: vec![0; ALL_ITEMS.len()], selected: 0, expanded: false, cooldown: 0.0 };
+        // Enough to start with, so the pack is not an empty list the first
+        // time anybody opens it -- and under the 100 a player with no
+        // backpack can carry, so the first thing the screen shows is not an
+        // over-capacity warning.
+        for (kind, n) in [
+            (ItemKind::Bandage, 3),
+            (ItemKind::FirstAidKit, 1),
+            (ItemKind::EnergyDrink, 2),
+            (ItemKind::Ammo762, 60),
+            (ItemKind::Ammo45, 30),
+        ] {
+            inventory.add(kind, n);
+        }
+        inventory
     }
 }
 
 impl Inventory {
-    pub(crate) fn count(&self, kind: ConsumableKind) -> u32 {
-        self.counts[Self::index(kind)]
+    pub(crate) fn count(&self, kind: ItemKind) -> u32 {
+        self.counts.get(kind.index()).copied().unwrap_or(0)
     }
 
-    fn index(kind: ConsumableKind) -> usize {
-        ConsumableKind::ALL.iter().position(|k| *k == kind).unwrap_or(0)
+    pub(crate) fn selected_kind(&self) -> ItemKind {
+        HEAL_ITEMS[self.selected.min(HEAL_ITEMS.len() - 1)]
     }
 
-    pub(crate) fn selected_kind(&self) -> ConsumableKind {
-        ConsumableKind::ALL[self.selected.min(2)]
+    pub(crate) fn add(&mut self, kind: ItemKind, n: u32) {
+        if let Some(slot) = self.counts.get_mut(kind.index()) {
+            *slot += n;
+        }
     }
 
-    pub(crate) fn add(&mut self, kind: ConsumableKind, n: u32) {
-        self.counts[Self::index(kind)] += n;
+    pub(crate) fn take_one(&mut self, kind: ItemKind) -> bool {
+        match self.counts.get_mut(kind.index()) {
+            Some(slot) if *slot > 0 => {
+                *slot -= 1;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// What the pack is carrying, in PUBG's capacity units.
+    pub(crate) fn carried(&self) -> f32 {
+        ALL_ITEMS.iter().map(|k| self.count(*k) as f32 * k.capacity()).sum()
+    }
+}
+
+/// What is being worn. Armour turns damage away; the backpack sets capacity.
+#[derive(Resource, Default)]
+pub(crate) struct Equipment {
+    pub(crate) helmet: Option<u8>,
+    pub(crate) vest: Option<u8>,
+    pub(crate) backpack: Option<u8>,
+}
+
+impl Equipment {
+    pub(crate) fn level(&self, slot: WearSlot) -> Option<u8> {
+        match slot {
+            WearSlot::Helmet => self.helmet,
+            WearSlot::Vest => self.vest,
+            WearSlot::Backpack => self.backpack,
+        }
+    }
+
+    pub(crate) fn set(&mut self, slot: WearSlot, level: Option<u8>) {
+        match slot {
+            WearSlot::Helmet => self.helmet = level,
+            WearSlot::Vest => self.vest = level,
+            WearSlot::Backpack => self.backpack = level,
+        }
+    }
+
+    pub(crate) fn capacity(&self) -> f32 {
+        backpack_capacity(self.backpack.unwrap_or(0))
+    }
+}
+
+/// What is bolted to each weapon, one set of five sockets per slot.
+#[derive(Resource, Default)]
+pub(crate) struct Attachments {
+    pub(crate) fitted: [[Option<ItemKind>; 5]; 3],
+}
+
+impl Attachments {
+    fn slot_index(slot: Slot) -> usize {
+        match slot {
+            Slot::Primary(i) => i.min(1),
+            Slot::Sidearm => 2,
+        }
+    }
+
+    pub(crate) fn get(&self, slot: Slot, socket: AttachSlot) -> Option<ItemKind> {
+        self.fitted[Self::slot_index(slot)][AttachSlot::ALL.iter().position(|s| *s == socket)?]
+    }
+
+    pub(crate) fn set(&mut self, slot: Slot, socket: AttachSlot, item: Option<ItemKind>) {
+        if let Some(i) = AttachSlot::ALL.iter().position(|s| *s == socket) {
+            self.fitted[Self::slot_index(slot)][i] = item;
+        }
     }
 }
 
@@ -249,36 +325,35 @@ pub(crate) fn use_selected_consumable(
         return false;
     }
     let kind = inventory.selected_kind();
-    let index = Inventory::index(kind);
-    if inventory.counts[index] == 0 {
+    if inventory.count(kind) == 0 {
         return false;
     }
     let Ok(mut health) = player.single_mut() else { return false };
-    let before = (health.0, boost.0);
-    match kind {
-        ConsumableKind::Bandage => {
-            if health.0 >= BANDAGE_CEILING {
-                return false;
+    // Refused rather than wasted when it would do nothing: spending a med kit
+    // at full health is the mistake the ceiling check exists to prevent.
+    let spent = match effect_of(kind) {
+        Effect::HealTo { add, ceiling } => {
+            if health.0 >= ceiling {
+                false
+            } else {
+                health.0 = (health.0 + add).min(ceiling);
+                true
             }
-            health.0 = (health.0 + BANDAGE_HEAL).min(BANDAGE_CEILING);
         }
-        ConsumableKind::FirstAid => {
-            if health.0 >= FIRST_AID_TO {
-                return false;
-            }
-            health.0 = FIRST_AID_TO;
-        }
-        ConsumableKind::EnergyDrink => {
+        Effect::Boost(amount) => {
             if boost.0 >= BOOST_MAX {
-                return false;
+                false
+            } else {
+                boost.0 = (boost.0 + amount).min(BOOST_MAX);
+                true
             }
-            boost.0 = (boost.0 + ENERGY_BOOST).min(BOOST_MAX);
         }
-    }
-    if (health.0, boost.0) == before {
+        Effect::Nothing => false,
+    };
+    if !spent {
         return false;
     }
-    inventory.counts[index] -= 1;
+    inventory.take_one(kind);
     inventory.cooldown = USE_COOLDOWN;
     true
 }
@@ -334,7 +409,7 @@ pub(crate) fn equip_slot(
 #[derive(Clone, Copy)]
 pub(crate) enum PickupKind {
     Weapon(WeaponId),
-    Consumable(ConsumableKind),
+    Item(ItemKind),
 }
 
 #[derive(Component)]
@@ -355,8 +430,16 @@ const CONSUMABLE_DROP_CHANCE: f32 = 0.45;
 #[derive(Resource)]
 pub(crate) struct PickupAssets {
     mesh: Handle<Mesh>,
+    /// One per entry in ALL_ITEMS, so a thing on the ground is its own
+    /// colour before anybody is near enough to read its name.
     materials: Vec<Handle<StandardMaterial>>,
     weapon_material: Handle<StandardMaterial>,
+}
+
+impl PickupAssets {
+    fn material_for(&self, kind: ItemKind) -> Handle<StandardMaterial> {
+        self.materials[kind.index().min(self.materials.len() - 1)].clone()
+    }
 }
 
 pub(crate) fn init_pickup_assets(
@@ -372,7 +455,7 @@ pub(crate) fn init_pickup_assets(
     };
     commands.insert_resource(PickupAssets {
         mesh: meshes.add(Cuboid::new(PICKUP_SIZE, PICKUP_SIZE, PICKUP_SIZE)),
-        materials: ConsumableKind::ALL.iter().map(|k| materials.add(lit(k.colour()))).collect(),
+        materials: ALL_ITEMS.iter().map(|k| materials.add(lit(k.colour()))).collect(),
         weapon_material: materials.add(lit(Color::srgb(0.45, 0.75, 1.0))),
     });
 }
@@ -380,9 +463,7 @@ pub(crate) fn init_pickup_assets(
 fn spawn_pickup(commands: &mut Commands, assets: &PickupAssets, kind: PickupKind, at: Vec3) {
     let material = match kind {
         PickupKind::Weapon(_) => assets.weapon_material.clone(),
-        PickupKind::Consumable(k) => {
-            assets.materials[ConsumableKind::ALL.iter().position(|c| *c == k).unwrap_or(0)].clone()
-        }
+        PickupKind::Item(k) => assets.material_for(k),
     };
     commands.spawn((
         Name::new("Pickup"),
@@ -438,9 +519,8 @@ pub(crate) fn drop_loot_on_kill(
         }
     }
     if roll(seed, 3.0) < CONSUMABLE_DROP_CHANCE {
-        let kinds = ConsumableKind::ALL;
-        let kind = kinds[(roll(seed, 4.0) * kinds.len() as f32) as usize % kinds.len()];
-        spawn_pickup(&mut commands, &assets, PickupKind::Consumable(kind), at);
+        let kind = ALL_ITEMS[(roll(seed, 4.0) * ALL_ITEMS.len() as f32) as usize % ALL_ITEMS.len()];
+        spawn_pickup(&mut commands, &assets, PickupKind::Item(kind), at);
     }
 }
 
@@ -454,13 +534,8 @@ pub(crate) fn drop_weapon(
     spawn_pickup(commands, assets, PickupKind::Weapon(weapon), at + DROP_AHEAD);
 }
 
-pub(crate) fn drop_consumable(
-    commands: &mut Commands,
-    assets: &PickupAssets,
-    kind: ConsumableKind,
-    at: Vec3,
-) {
-    spawn_pickup(commands, assets, PickupKind::Consumable(kind), at + DROP_AHEAD);
+pub(crate) fn drop_item(commands: &mut Commands, assets: &PickupAssets, kind: ItemKind, at: Vec3) {
+    spawn_pickup(commands, assets, PickupKind::Item(kind), at + DROP_AHEAD);
 }
 
 /// Far enough out that the pickup radius does not take it straight back.
@@ -504,7 +579,7 @@ pub(crate) fn collect_pickups(
             continue;
         }
         match pickup.kind {
-            PickupKind::Consumable(kind) => inventory.add(kind, 1),
+            PickupKind::Item(kind) => inventory.add(kind, 1),
             PickupKind::Weapon(weapon) => {
                 // What came out goes back on the ground, so a swap is
                 // reversible by walking back two steps.

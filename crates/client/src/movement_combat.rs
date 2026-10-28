@@ -197,6 +197,7 @@ pub(crate) fn zombies_damage_player(
     game_over: Res<GameOver>,
     freeze: Res<FreezeZombies>,
     god_mode: Res<GodMode>,
+    equipment: Res<crate::Equipment>,
 
     mut zombies: Query<(&Transform, &mut ZombieAttackTimer), With<Zombie>>,
     mut player: Query<(&Transform, &mut Health), With<Player>>,
@@ -223,7 +224,11 @@ pub(crate) fn zombies_damage_player(
         }
         attack_timer.0 -= dt;
         if attack_timer.0 <= 0.0 {
-            health.0 -= ZOMBIE_ATTACK_DAMAGE;
+            // A vest turns part of the bite away. PUBG's own figures: 30,
+            // 40 and 55 per cent by level. The helmet is not consulted
+            // because nothing here aims for a head.
+            let through = 1.0 - crate::armour_reduction(equipment.vest.unwrap_or(0));
+            health.0 -= ZOMBIE_ATTACK_DAMAGE * through;
             hit_flash.0 = 1.0;
             attack_timer.0 = ZOMBIE_ATTACK_INTERVAL;
         }
