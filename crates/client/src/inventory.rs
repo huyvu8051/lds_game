@@ -41,6 +41,10 @@ pub(crate) struct Loadout {
     pub(crate) primary: [Option<WeaponId>; 2],
     pub(crate) sidearm: Option<WeaponId>,
     pub(crate) active: Slot,
+    /// The long-gun slot last held. Remembered because a sidearm is a
+    /// detour: coming back off it should go where you were, not to slot one
+    /// every time.
+    last_primary: usize,
 }
 
 impl Default for Loadout {
@@ -55,6 +59,7 @@ impl Default for Loadout {
             primary: [Some(WeaponId::Ak47), None],
             sidearm: Some(WeaponId::Deagle),
             active: Slot::Primary(0),
+            last_primary: 0,
         };
         if let Some(wanted) = std::env::var("WEAPON")
             .ok()
@@ -101,6 +106,41 @@ impl Loadout {
         }
     }
 
+    /// Moves the hand, remembering the long-gun slot on the way past.
+    pub(crate) fn hold(&mut self, slot: Slot) {
+        if let Slot::Primary(i) = slot {
+            self.last_primary = i.min(1);
+        }
+        self.active = slot;
+    }
+
+    /// Which slot a weapon handed over by the settings menu belongs in.
+    ///
+    /// Not slot_for's rules: that one is for finding a weapon on the ground
+    /// somewhere to live, and will fill an empty slot rather than the one in
+    /// your hands. This replaces what is held, which is what pressing a
+    /// weapon's name on a menu reads as -- except that a sidearm cannot go
+    /// in a back slot, nor a long gun on the hip, so either of those moves
+    /// the hand as well.
+    pub(crate) fn hand_slot_for(&self, weapon: WeaponId) -> Slot {
+        if is_sidearm(weapon) {
+            return Slot::Sidearm;
+        }
+        match self.active {
+            Slot::Primary(i) => Slot::Primary(i),
+            // Coming off the sidearm goes back to the long gun you left.
+            Slot::Sidearm => Slot::Primary(self.last_primary),
+        }
+    }
+
+    /// Puts a weapon straight into the hand, in whichever slot it belongs.
+    pub(crate) fn put_in_hand(&mut self, weapon: WeaponId) -> Slot {
+        let slot = self.hand_slot_for(weapon);
+        self.set(slot, Some(weapon));
+        self.hold(slot);
+        slot
+    }
+
     pub(crate) fn holds(&self, weapon: WeaponId) -> bool {
         self.primary.iter().any(|s| *s == Some(weapon)) || self.sidearm == Some(weapon)
     }
@@ -111,7 +151,9 @@ impl Loadout {
         self.set(slot, None);
         if self.active == slot {
             // Something has to be in hand, so fall to whatever is left.
-            self.active = Slot::ALL.into_iter().find(|s| self.get(*s).is_some()).unwrap_or(slot);
+            let fallback =
+                Slot::ALL.into_iter().find(|s| self.get(*s).is_some()).unwrap_or(slot);
+            self.hold(fallback);
         }
     }
 
@@ -120,7 +162,7 @@ impl Loadout {
         let slot = self.slot_for(weapon);
         let displaced = self.get(slot);
         self.set(slot, Some(weapon));
-        self.active = slot;
+        self.hold(slot);
         displaced
     }
 }
@@ -471,7 +513,7 @@ pub(crate) fn equip_slot(
     slot: Slot,
 ) {
     let Some(weapon) = loadout.get(slot) else { return };
-    loadout.active = slot;
+    loadout.hold(slot);
     request.0 = Some(weapon);
 }
 

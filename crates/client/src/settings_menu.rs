@@ -966,7 +966,11 @@ pub(crate) fn give_weapon_buttons(
         if *interaction != Interaction::Pressed {
             continue;
         }
-        loadout.take(button.0);
+        // Replaces what is in the hand rather than filling an empty slot:
+        // pressing a weapon's name on a menu means "give me this one now".
+        // A sidearm still goes to the hip and a long gun still goes to a
+        // back slot, so either of those moves the hand too.
+        loadout.put_in_hand(button.0);
         request.0 = Some(button.0);
     }
 }
