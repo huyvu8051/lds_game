@@ -310,6 +310,8 @@ pub(crate) enum WeaponId {
     Groza,
     Vector,
     Mp5k,
+    Sks,
+    P1911,
 }
 
 #[derive(Resource)]
@@ -335,7 +337,7 @@ impl ActiveWeapon {
 }
 
 impl WeaponId {
-    pub(crate) const ALL: [WeaponId; 17] = [
+    pub(crate) const ALL: [WeaponId; 19] = [
         WeaponId::Ak47,
         WeaponId::M4a1,
         WeaponId::M24,
@@ -353,6 +355,8 @@ impl WeaponId {
         WeaponId::Groza,
         WeaponId::Vector,
         WeaponId::Mp5k,
+        WeaponId::Sks,
+        WeaponId::P1911,
     ];
 
     pub(crate) fn index(self) -> usize {
@@ -374,6 +378,8 @@ impl WeaponId {
             WeaponId::Groza => 14,
             WeaponId::Vector => 15,
             WeaponId::Mp5k => 16,
+            WeaponId::Sks => 17,
+            WeaponId::P1911 => 18,
         }
     }
 
@@ -396,6 +402,8 @@ impl WeaponId {
             WeaponId::Groza => &GROZA,
             WeaponId::Vector => &VECTOR,
             WeaponId::Mp5k => &MP5K,
+            WeaponId::Sks => &SKS,
+            WeaponId::P1911 => &P1911,
         }
     }
 
@@ -1462,6 +1470,151 @@ static MP5K: WeaponDef = WeaponDef {
             freq_yaw: 12.0,
             freq_roll: 14.0,
             decay: 26.0,
+        },
+    },
+};
+
+/// The first marksman rifle that is not a bolt gun: 7.62, semi only, and it
+/// hits harder than anything automatic.
+///
+/// It arrived 1059mm long against the real rifle's 1021 and needed a 3.6%
+/// trim; the barrel at the muzzle then measures 15.9mm, which is right.
+/// Socket_Aim sits at the back of its rail at the front post's height --
+/// 43.5mm over the bore, and the rail is empty.
+static SKS: WeaponDef = WeaponDef {
+    name: "SKS",
+    mesh_path: "models/sks/mesh/sks.glb",
+    rest_offset: Vec3::new(0.160, -0.0840, -0.6400),
+    ready_offset: Vec3::new(0.071, -0.1540, -0.5500),
+    ads_eye_relief: 0.12,
+    // Long and nose-heavy: slower onto the eye than any of the rifles.
+    ads_speed: AdsSpeed { from_ready: 9.0, from_rest: 5.5 },
+    hold_ads_fraction: 0.180,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0135, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.028,
+    ads_settle_miss_deg: 0.6,
+    // A marksman's field: narrower than the rifles, wider than the M24.
+    aim_fov_multiplier: 0.55,
+    autopilot_ads_min_distance: 2.0,
+    autopilot_engage_range: 30.0,
+    autopilot_sprint_approach_distance: 24.0,
+    autopilot_sprint_pathing_distance: 16.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/sks_fire.wav", reload: "audio/weapons/sks_reload.wav" },
+    reload_duration: 2.9,
+    // A longer barrel than the AK's, and one shot at a time to use it.
+    damage_scale: 1.15,
+    fire_rate: 0.14,
+    magazine: 20,
+    fire_modes: &[FireMode::Single],
+    ammo: crate::ItemKind::Ammo762,
+    // Heavy per shot, but semi only: there is always time for the sight to
+    // come back before the next one.
+    recoil: Recoil {
+        strike_speed: 52.0,
+        view: ViewKick {
+            climb_per_shot: 0.0150,
+            climb_max: 0.075,
+            wander_per_shot: 0.0048,
+            shove_per_shot: 0.030,
+            shove_max: 0.050,
+            recover_speed: 8.0,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.155,
+            lift: 0.0,
+            pitch_deg: 1.20,
+            roll_deg: 0.55,
+            yaw_deg: 0.45,
+            settle_speed: 9.5,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.105,
+            view_yaw_deg: 0.072,
+            view_roll_deg: 0.175,
+            gun_pitch_deg: 0.40,
+            gun_yaw_deg: 0.26,
+            gun_roll_deg: 0.50,
+            gun_shift_m: 0.0014,
+            freq_pitch: 11.0,
+            freq_yaw: 8.0,
+            freq_roll: 9.5,
+            decay: 24.0,
+        },
+    },
+};
+
+/// A second sidearm, and a far more ordinary one than the Deagle: .45, ten
+/// rounds, and a trigger you can actually run.
+///
+/// Its muzzle slice is the whole front of the slide rather than the barrel,
+/// so the bore is set to the middle of it -- about 1.5mm low against where a
+/// real 1911's bore sits, which is nothing at arm's length.
+static P1911: WeaponDef = WeaponDef {
+    name: "P1911",
+    mesh_path: "models/p1911/mesh/p1911.glb",
+    // A pistol comes to the middle of the chest, not the right shoulder.
+    rest_offset: Vec3::new(0.095, -0.0292, -0.3160),
+    ready_offset: Vec3::new(0.045, -0.1292, -0.2260),
+    ads_eye_relief: 0.14,
+    ads_speed: AdsSpeed { from_ready: 21.0, from_rest: 13.0 },
+    hold_ads_fraction: 0.520,
+    sprint_carry: SprintCarry { offset: Vec3::new(0.03, 0.06, 0.12), yaw_deg: 12.0, pitch_deg: 60.0, roll_deg: 8.0 },
+    ads_settle_miss_m: 0.007,
+    ads_settle_miss_deg: 1.6,
+    aim_fov_multiplier: 0.90,
+    autopilot_ads_min_distance: 2.0,
+    autopilot_engage_range: 16.0,
+    autopilot_sprint_approach_distance: 9.0,
+    autopilot_sprint_pathing_distance: 6.0,
+    sprint_one_handed: true,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/p1911_fire.wav", reload: "audio/weapons/p1911_reload.wav" },
+    reload_duration: 2.0,
+    // Half the Deagle's, which is the trade: a third again as many rounds and
+    // nearly twice the rate.
+    damage_scale: 1.05,
+    fire_rate: 0.14,
+    magazine: 10,
+    fire_modes: &[FireMode::Single],
+    ammo: crate::ItemKind::Ammo45,
+    // A pistol with nothing braced behind it, but a quarter of the Deagle's
+    // round: it moves in the hands and comes back before the finger does.
+    recoil: Recoil {
+        strike_speed: 50.0,
+        view: ViewKick {
+            climb_per_shot: 0.0115,
+            climb_max: 0.060,
+            wander_per_shot: 0.0060,
+            shove_per_shot: 0.024,
+            shove_max: 0.044,
+            recover_speed: 9.5,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.100,
+            lift: 0.0,
+            pitch_deg: 1.60,
+            roll_deg: 0.50,
+            yaw_deg: 0.40,
+            settle_speed: 13.0,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.090,
+            view_yaw_deg: 0.058,
+            view_roll_deg: 0.140,
+            gun_pitch_deg: 0.42,
+            gun_yaw_deg: 0.24,
+            gun_roll_deg: 0.40,
+            gun_shift_m: 0.0012,
+            freq_pitch: 14.0,
+            freq_yaw: 10.0,
+            freq_roll: 12.0,
+            decay: 27.0,
         },
     },
 };
