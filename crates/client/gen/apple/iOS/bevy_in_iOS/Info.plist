@@ -22,6 +22,12 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Lets the app write its own .gputrace from inside the process, which is
+	     what src/gpu_capture.rs's GFX_CAPTURE=<n> does. Without this key
+	     MTLCaptureManager refuses the GpuTraceDocument destination, so that
+	     path could never run on a device. -->
+	<key>MetalCaptureEnabled</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
