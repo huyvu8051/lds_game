@@ -309,6 +309,7 @@ pub(crate) enum WeaponId {
     Mk47Mutant,
     Groza,
     Vector,
+    Mp5k,
 }
 
 #[derive(Resource)]
@@ -334,7 +335,7 @@ impl ActiveWeapon {
 }
 
 impl WeaponId {
-    pub(crate) const ALL: [WeaponId; 16] = [
+    pub(crate) const ALL: [WeaponId; 17] = [
         WeaponId::Ak47,
         WeaponId::M4a1,
         WeaponId::M24,
@@ -351,6 +352,7 @@ impl WeaponId {
         WeaponId::Mk47Mutant,
         WeaponId::Groza,
         WeaponId::Vector,
+        WeaponId::Mp5k,
     ];
 
     pub(crate) fn index(self) -> usize {
@@ -371,6 +373,7 @@ impl WeaponId {
             WeaponId::Mk47Mutant => 13,
             WeaponId::Groza => 14,
             WeaponId::Vector => 15,
+            WeaponId::Mp5k => 16,
         }
     }
 
@@ -392,6 +395,7 @@ impl WeaponId {
             WeaponId::Mk47Mutant => &MK47_MUTANT,
             WeaponId::Groza => &GROZA,
             WeaponId::Vector => &VECTOR,
+            WeaponId::Mp5k => &MP5K,
         }
     }
 
@@ -1385,6 +1389,78 @@ static VECTOR: WeaponDef = WeaponDef {
             freq_pitch: 17.0,
             freq_yaw: 13.0,
             freq_roll: 15.0,
+            decay: 26.0,
+        },
+    },
+};
+
+/// 9mm at 900 rounds a minute. Eight named parts, so the magazine only
+/// needed renaming, and its charging handle sits on -X, which is how the
+/// left side of a real one is -- the mesh is not mirrored.
+///
+/// Its muzzle slice catches the hooded front sight as well as the barrel, so
+/// the bore is the lower of the two clusters in it rather than the middle of
+/// both. Socket_Aim is the notch in the rear drum, 84.3mm over that bore.
+static MP5K: WeaponDef = WeaponDef {
+    name: "MP5K",
+    mesh_path: "models/mp5k/mesh/mp5k.glb",
+    rest_offset: Vec3::new(0.160, -0.1248, -0.5200),
+    ready_offset: Vec3::new(0.071, -0.1948, -0.4300),
+    ads_eye_relief: 0.11,
+    ads_speed: AdsSpeed { from_ready: 17.0, from_rest: 10.0 },
+    hold_ads_fraction: 0.320,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0543, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.013,
+    ads_settle_miss_deg: 1.3,
+    aim_fov_multiplier: 0.80,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 17.0,
+    autopilot_sprint_approach_distance: 11.0,
+    autopilot_sprint_pathing_distance: 7.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/mp5k_fire.wav", reload: "audio/weapons/mp5k_reload.wav" },
+    reload_duration: 2.0,
+    // 9mm against the UMP's .45: lighter per shot, and more of them.
+    damage_scale: 0.70,
+    // 900rpm real against the UMP's 600.
+    fire_rate: 0.067,
+    magazine: 40,
+    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    ammo: crate::ItemKind::Ammo9mm,
+    // A roller-delayed action and a light round: the steadiest thing in the
+    // game to hold on target, which is most of why the real one is famous.
+    recoil: Recoil {
+        strike_speed: 56.0,
+        view: ViewKick {
+            climb_per_shot: 0.0048,
+            climb_max: 0.050,
+            wander_per_shot: 0.0036,
+            shove_per_shot: 0.0075,
+            shove_max: 0.030,
+            recover_speed: 8.8,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.090,
+            lift: 0.0,
+            pitch_deg: 0.14,
+            roll_deg: 0.42,
+            yaw_deg: 0.34,
+            settle_speed: 18.0,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.036,
+            view_yaw_deg: 0.032,
+            view_roll_deg: 0.072,
+            gun_pitch_deg: 0.150,
+            gun_yaw_deg: 0.115,
+            gun_roll_deg: 0.220,
+            gun_shift_m: 0.0005,
+            freq_pitch: 16.0,
+            freq_yaw: 12.0,
+            freq_roll: 14.0,
             decay: 26.0,
         },
     },
