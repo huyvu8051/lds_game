@@ -441,6 +441,7 @@ pub(crate) fn apply_lean_input(
 pub(crate) fn apply_aim_zoom(
     time: Res<Time>,
     active: Res<ActiveWeapon>,
+    zoom: Res<weapon::ScopeZoom>,
     pose: Res<WeaponPose>,
     mut camera: Query<&mut Projection, With<FpsCamera>>,
 ) {
@@ -453,7 +454,7 @@ pub(crate) fn apply_aim_zoom(
     // whatever rate this weapon raises, rather than on a second clock of its
     // own that happened to be close.
     let def = active.def();
-    let magnified = BASE_FOV * def.aim_fov_multiplier;
+    let magnified = BASE_FOV * zoom.multiplier(def);
 
     let Ok(mut projection) = camera.single_mut() else {
         return;
@@ -1074,3 +1075,67 @@ pub(crate) fn reload_gun(
     ));
 }
 
+
+/// Turns the scope's dial.
+///
+/// On the wheel, which is where a scope's magnification lives in every game
+/// that has one, and only while the sights are up -- the dial is on the
+/// scope, and reaching for it with the rifle at the hip is not a thing
+/// anybody does.
+///
+/// The steps are discrete. A scope has notches, not a slider, which is the
+/// whole reason the number on the side of it means anything.
+pub(crate) fn adjust_scope_zoom(
+    time: Res<Time>,
+    active: Res<ActiveWeapon>,
+    pose: Res<WeaponPose>,
+    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
+    mut zoom: ResMut<weapon::ScopeZoom>,
+    mut shock: ResMut<FireShock>,
+) {
+    zoom.adjusting = (zoom.adjusting - time.delta_secs()).max(0.0);
+
+    let def = active.def();
+    let sighted = pose.sighted > SCOPED_RETICLE_SIGHTED;
+    if !def.scoped || def.zoom_steps.len() < 2 || !sighted {
+        wheel.clear();
+        return;
+    }
+    let mut turned = 0i32;
+    for event in wheel.read() {
+        turned += if event.y > 0.0 { 1 } else if event.y < 0.0 { -1 } else { 0 };
+    }
+    if turned == 0 {
+        return;
+    }
+    let last = def.zoom_steps.len() as i32 - 1;
+    // Clamped rather than wrapped: a dial that rolls from twelve times back
+    // to four in one notch is a dial nobody can use without looking.
+    let next = (zoom.step as i32 + turned).clamp(0, last) as usize;
+    if next == zoom.step {
+        return;
+    }
+    zoom.step = next;
+    zoom.adjusting = weapon::SCOPE_ADJUST_SECONDS;
+    // The rifle moves when a hand comes off the fore grip to work the
+    // turret. Small -- this is a thumb and a finger, not a recoil.
+    shock.strike(scope_turn_kick(), time.elapsed_secs());
+}
+
+/// What turning the dial does to the weapon. A twist about the bore and a
+/// nudge off line, because that is where the force goes in.
+fn scope_turn_kick() -> weapon::ShockKick {
+    weapon::ShockKick {
+        view_pitch_deg: 0.25,
+        view_yaw_deg: 0.18,
+        view_roll_deg: 0.30,
+        gun_pitch_deg: 1.1,
+        gun_yaw_deg: 0.9,
+        gun_roll_deg: 1.8,
+        gun_shift_m: 0.006,
+        freq_pitch: 11.0,
+        freq_yaw: 9.0,
+        freq_roll: 7.5,
+        decay: 7.0,
+    }
+}

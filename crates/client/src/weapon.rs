@@ -87,6 +87,9 @@ pub(crate) struct WeaponDef {
     /// around the glass on a weapon that has any -- so the better the scope,
     /// the less this has to do.
     pub(crate) aim_fov_multiplier: f32,
+/// The magnifications a scope can be turned to, as multipliers on
+/// aim_fov_multiplier. One entry means a fixed scope and no dial.
+pub(crate) zoom_steps: &'static [f32],
     /// How far out the autopilot bothers raising the sights. A scope earns its
     /// slower handling at range; irons do not, so they engage from the hip for
     /// longer.
@@ -365,6 +368,7 @@ static AK47: WeaponDef = WeaponDef {
     // sight picture now, and a narrower field than this leaves nothing round
     // the target to read.
     aim_fov_multiplier: 0.525,
+    zoom_steps: &[1.0, 0.55],
     autopilot_ads_min_distance: 1.0,
     autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 22.0,
@@ -452,6 +456,7 @@ static M4A1: WeaponDef = WeaponDef {
     ads_settle_miss_m: 0.014,
     ads_settle_miss_deg: 1.2,
     aim_fov_multiplier: 0.75,
+    zoom_steps: &[1.0],
     autopilot_ads_min_distance: 1.0,
     autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 14.0,
@@ -538,6 +543,7 @@ static M24: WeaponDef = WeaponDef {
     // 12x, down from the optic camera's 24. Still the longest reach of the
     // five, and still what this weapon is for.
     aim_fov_multiplier: 0.425,
+    zoom_steps: &[1.0, 0.55, 0.36],
     autopilot_ads_min_distance: 3.0,
     autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 55.0,
@@ -628,6 +634,7 @@ static UMP45: WeaponDef = WeaponDef {
     ads_settle_miss_m: 0.010,
     ads_settle_miss_deg: 1.4,
     aim_fov_multiplier: 0.80,
+    zoom_steps: &[1.0],
     // A submachine gun has no business reaching: it engages close, closes
     // faster than anything else here, and gives up early.
     autopilot_ads_min_distance: 1.0,
@@ -716,6 +723,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     ads_settle_miss_m: 0.008,
     ads_settle_miss_deg: 1.8,
     aim_fov_multiplier: 0.90,
+    zoom_steps: &[1.0],
     autopilot_ads_min_distance: 2.0,
     autopilot_engage_range: 18.0,
     autopilot_sprint_approach_distance: 10.0,
@@ -821,4 +829,29 @@ pub(crate) fn switch_weapon(
     }
     spawn_gun_mesh_parts(&mut commands, &asset_server, &mut materials, gun_entity, def.mesh_path);
     debug!("[weapon] switched to {}", def.name);
+}
+
+/// Which notch the scope dial is on, and how long the hand is still on it.
+///
+/// One index rather than one per weapon, clamped to what the weapon offers:
+/// a dial that remembers each scope separately is a nicety nobody asked for,
+/// and the clamp means a weapon with no dial simply has nothing to clamp to.
+#[derive(Resource, Default)]
+pub(crate) struct ScopeZoom {
+    pub(crate) step: usize,
+    /// Seconds left of the hand being up at the turret.
+    pub(crate) adjusting: f32,
+}
+
+/// How long the left hand stays on the dial after a turn.
+pub(crate) const SCOPE_ADJUST_SECONDS: f32 = 0.45;
+
+impl ScopeZoom {
+    pub(crate) fn multiplier(&self, def: &WeaponDef) -> f32 {
+        def.aim_fov_multiplier * def.zoom_steps[self.step.min(def.zoom_steps.len() - 1)]
+    }
+
+    pub(crate) fn adjusting(&self) -> bool {
+        self.adjusting > 0.0
+    }
 }

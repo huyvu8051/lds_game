@@ -1045,6 +1045,7 @@ impl Plugin for GamePlugin {
         .init_resource::<Flashed>()
         .init_resource::<ThrowPose>()
         .init_resource::<WeaponSwap>()
+        .init_resource::<weapon::ScopeZoom>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
         .add_systems(Startup, (spawn_pole_targets, init_pickup_assets, init_grenade_assets))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
@@ -1201,7 +1202,7 @@ impl Plugin for GamePlugin {
                     // be made before it is applied.
                     (suggest_auto_lean, apply_lean_input).chain(),
                     apply_view_recoil,
-                    apply_aim_zoom,
+                    (adjust_scope_zoom, apply_aim_zoom).chain(),
                     apply_aim_dof,
                     send_player_input.run_if(map::world_ready),
                     sync_camera_to_player,
