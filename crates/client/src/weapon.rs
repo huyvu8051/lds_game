@@ -304,6 +304,9 @@ pub(crate) enum WeaponId {
     G36c,
     Qbz95,
     AugA3,
+    BerylM762,
+    Ace32,
+    Mk47Mutant,
 }
 
 #[derive(Resource)]
@@ -329,7 +332,7 @@ impl ActiveWeapon {
 }
 
 impl WeaponId {
-    pub(crate) const ALL: [WeaponId; 11] = [
+    pub(crate) const ALL: [WeaponId; 14] = [
         WeaponId::Ak47,
         WeaponId::M4a1,
         WeaponId::M24,
@@ -341,6 +344,9 @@ impl WeaponId {
         WeaponId::G36c,
         WeaponId::Qbz95,
         WeaponId::AugA3,
+        WeaponId::BerylM762,
+        WeaponId::Ace32,
+        WeaponId::Mk47Mutant,
     ];
 
     pub(crate) fn index(self) -> usize {
@@ -356,6 +362,9 @@ impl WeaponId {
             WeaponId::G36c => 8,
             WeaponId::Qbz95 => 9,
             WeaponId::AugA3 => 10,
+            WeaponId::BerylM762 => 11,
+            WeaponId::Ace32 => 12,
+            WeaponId::Mk47Mutant => 13,
         }
     }
 
@@ -372,6 +381,9 @@ impl WeaponId {
             WeaponId::G36c => &G36C,
             WeaponId::Qbz95 => &QBZ95,
             WeaponId::AugA3 => &AUG_A3,
+            WeaponId::BerylM762 => &BERYL_M762,
+            WeaponId::Ace32 => &ACE32,
+            WeaponId::Mk47Mutant => &MK47_MUTANT,
         }
     }
 
@@ -1004,6 +1016,219 @@ static AUG_A3: WeaponDef = WeaponDef {
             freq_yaw: 10.0,
             freq_roll: 12.0,
             decay: 24.0,
+        },
+    },
+};
+
+/// 7.62, and the first thing in the game to stand beside the AK at that
+/// calibre. It arrived already muzzle-forward, Z-up and 940mm long against
+/// the real rifle's 943, so only its origin moved.
+///
+/// Its front post stands 48.1mm over the bore, which is the AK's own sight
+/// height, and there is no rear sight on the rail -- so Socket_Aim sits at
+/// the back of the rail at the post's height, where a sight would clamp on.
+static BERYL_M762: WeaponDef = WeaponDef {
+    name: "Beryl M762",
+    mesh_path: "models/beryl_m762/mesh/beryl_m762.glb",
+    rest_offset: Vec3::new(0.160, -0.0886, -0.7835),
+    ready_offset: Vec3::new(0.071, -0.1586, -0.6935),
+    ads_eye_relief: 0.12,
+    // Heavier than any of the 5.56s and it comes up like it.
+    ads_speed: AdsSpeed { from_ready: 11.0, from_rest: 6.5 },
+    hold_ads_fraction: 0.230,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0181, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.024,
+    ads_settle_miss_deg: 0.8,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 22.0,
+    autopilot_sprint_approach_distance: 16.0,
+    autopilot_sprint_pathing_distance: 10.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/beryl_m762_fire.wav", reload: "audio/weapons/beryl_m762_reload.wav" },
+    reload_duration: 2.3,
+    damage_scale: 1.0,
+    // 700rpm real against the AK's 600, so a shade quicker than the AK's
+    // 0.12 here.
+    fire_rate: 0.103,
+    magazine: 45,
+    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    ammo: crate::ItemKind::Ammo762,
+    // The AK's round out of a lighter rifle fired faster: the same step, a
+    // higher ceiling, and less time between shots to give any of it back.
+    recoil: Recoil {
+        strike_speed: 62.0,
+        view: ViewKick {
+            climb_per_shot: 0.0115,
+            climb_max: 0.098,
+            wander_per_shot: 0.0064,
+            shove_per_shot: 0.031,
+            shove_max: 0.062,
+            recover_speed: 6.4,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.145,
+            lift: 0.0,
+            pitch_deg: 1.05,
+            roll_deg: 0.64,
+            yaw_deg: 0.53,
+            settle_speed: 10.5,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.094,
+            view_yaw_deg: 0.073,
+            view_roll_deg: 0.176,
+            gun_pitch_deg: 0.36,
+            gun_yaw_deg: 0.27,
+            gun_roll_deg: 0.50,
+            gun_shift_m: 0.0012,
+            freq_pitch: 12.5,
+            freq_yaw: 9.0,
+            freq_roll: 10.5,
+            decay: 25.0,
+        },
+    },
+};
+
+/// 7.62 on an AR frame: the AK's round with a rail, a telescoping stock and
+/// a trigger you can actually feel. The download has no textures and came
+/// with a backdrop sphere and a stray empty twenty metres off.
+///
+/// Its folding rear aperture sits 54.3mm over the bore.
+static ACE32: WeaponDef = WeaponDef {
+    name: "ACE32",
+    mesh_path: "models/ace32/mesh/ace32.glb",
+    rest_offset: Vec3::new(0.160, -0.0948, -0.6985),
+    ready_offset: Vec3::new(0.071, -0.1648, -0.6085),
+    ads_eye_relief: 0.115,
+    ads_speed: AdsSpeed { from_ready: 12.5, from_rest: 7.2 },
+    hold_ads_fraction: 0.250,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0243, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.022,
+    ads_settle_miss_deg: 0.9,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 22.0,
+    autopilot_sprint_approach_distance: 15.0,
+    autopilot_sprint_pathing_distance: 10.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/ace32_fire.wav", reload: "audio/weapons/ace32_reload.wav" },
+    reload_duration: 2.2,
+    damage_scale: 1.0,
+    // 650rpm real against the AK's 600.
+    fire_rate: 0.111,
+    magazine: 45,
+    fire_modes: &[FireMode::Auto, FireMode::Single],
+    ammo: crate::ItemKind::Ammo762,
+    // The AK's round through a stock that lines up with the bore, so less of
+    // it turns into pitch and the rifle settles sooner.
+    recoil: Recoil {
+        strike_speed: 63.0,
+        view: ViewKick {
+            climb_per_shot: 0.0100,
+            climb_max: 0.086,
+            wander_per_shot: 0.0056,
+            shove_per_shot: 0.028,
+            shove_max: 0.056,
+            recover_speed: 7.0,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.135,
+            lift: 0.0,
+            pitch_deg: 0.80,
+            roll_deg: 0.58,
+            yaw_deg: 0.48,
+            settle_speed: 11.5,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.082,
+            view_yaw_deg: 0.066,
+            view_roll_deg: 0.160,
+            gun_pitch_deg: 0.32,
+            gun_yaw_deg: 0.24,
+            gun_roll_deg: 0.45,
+            gun_shift_m: 0.0011,
+            freq_pitch: 12.5,
+            freq_yaw: 9.0,
+            freq_roll: 10.5,
+            decay: 25.0,
+        },
+    },
+};
+
+/// 7.62 with no full auto: two rounds or one, out of a twenty-round
+/// magazine. The heaviest hit of the automatic rifles and the least of them
+/// you get to spend at once.
+///
+/// A red dot is part of the mesh; Socket_Aim is the middle of its window,
+/// 73mm over the bore.
+static MK47_MUTANT: WeaponDef = WeaponDef {
+    name: "MK47 Mutant",
+    mesh_path: "models/mk47_mutant/mesh/mk47_mutant.glb",
+    rest_offset: Vec3::new(0.160, -0.1135, -0.6264),
+    ready_offset: Vec3::new(0.071, -0.1835, -0.5364),
+    ads_eye_relief: 0.115,
+    ads_speed: AdsSpeed { from_ready: 12.0, from_rest: 7.0 },
+    hold_ads_fraction: 0.240,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.043, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.022,
+    ads_settle_miss_deg: 0.9,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 24.0,
+    autopilot_sprint_approach_distance: 16.0,
+    autopilot_sprint_pathing_distance: 10.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    sound: WeaponSound { fire: "audio/weapons/mk47_mutant_fire.wav", reload: "audio/weapons/mk47_mutant_reload.wav" },
+    reload_duration: 2.3,
+    damage_scale: 1.0,
+    // The AK's cyclic rate, which is all it shares with it.
+    fire_rate: 0.12,
+    magazine: 30,
+    // No auto. A burst of two, or one at a time.
+    fire_modes: &[FireMode::Burst, FireMode::Single],
+    ammo: crate::ItemKind::Ammo762,
+    // The AK's kick through an AR stock: it climbs less and shoves more, and
+    // a burst of two ends before any of it stacks.
+    recoil: Recoil {
+        strike_speed: 64.0,
+        view: ViewKick {
+            climb_per_shot: 0.0098,
+            climb_max: 0.082,
+            wander_per_shot: 0.0054,
+            shove_per_shot: 0.032,
+            shove_max: 0.060,
+            recover_speed: 7.4,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.138,
+            lift: 0.0,
+            pitch_deg: 0.72,
+            roll_deg: 0.56,
+            yaw_deg: 0.46,
+            settle_speed: 12.0,
+        },
+        shock: ShockKick {
+            view_pitch_deg: 0.080,
+            view_yaw_deg: 0.064,
+            view_roll_deg: 0.155,
+            gun_pitch_deg: 0.31,
+            gun_yaw_deg: 0.23,
+            gun_roll_deg: 0.44,
+            gun_shift_m: 0.0011,
+            freq_pitch: 12.0,
+            freq_yaw: 9.0,
+            freq_roll: 10.5,
+            decay: 25.0,
         },
     },
 };
