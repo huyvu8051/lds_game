@@ -918,6 +918,7 @@ impl Plugin for GamePlugin {
         .register_type::<PlayerModelPose>()
         .register_type::<ZombiePose>()
         .register_type::<PlayerModelPoseOverride>()
+        .init_resource::<inventory_screen::BagScrollState>()
         .init_resource::<ZombieCountUi>()
         .init_resource::<AutoMaintainUi>()
 
@@ -1269,6 +1270,8 @@ impl Plugin for GamePlugin {
                     (
                         advance_pickups,
                 inventory::update_pickup_labels,
+                inventory_screen::touch_scroll_bag,
+                inventory_screen::wheel_scroll_bag,
                         cycle_fire_mode,
                         cook_and_throw,
                         advance_grenades,

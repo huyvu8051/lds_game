@@ -96,6 +96,132 @@ fn column(marker: impl Component) -> impl Bundle {
     )
 }
 
+/// A column whose contents are not bounded by anything.
+///
+/// The ground list is however much is lying within reach and the pack is
+/// however much has been picked up, so both can outgrow a phone held
+/// sideways. Capped at BAG_SCROLL_HEIGHT and dragged with a thumb.
+fn scrolling_column(marker: impl Component) -> impl Bundle {
+    (
+        Node {
+            width: Val::Px(230.0),
+            max_height: Val::Vh(BAG_SCROLL_HEIGHT_VH),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(3.0),
+            padding: UiRect::all(Val::Px(10.0)),
+            overflow: Overflow::scroll_y(),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
+        ScrollPosition::default(),
+        BagScrollable,
+        marker,
+    )
+}
+
+/// Marks a bag column a thumb may drag.
+#[derive(Component)]
+pub(crate) struct BagScrollable;
+
+const BAG_SCROLL_HEIGHT_VH: f32 = 58.0;
+
+/// Which column a drag caught, and where the finger was last frame.
+#[derive(Resource, Default)]
+pub(crate) struct BagScrollState {
+    touch_id: Option<u64>,
+    target: Option<Entity>,
+    last_pos_y: f32,
+}
+
+/// Drags whichever scrollable column the finger went down in.
+///
+/// Per column rather than per screen: the two that scroll sit side by side,
+/// and a drag that moved both would move the one you were not looking at.
+pub(crate) fn touch_scroll_bag(
+    touches: Res<Touches>,
+    open: Res<InventoryScreenOpen>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    columns: Query<(Entity, &ComputedNode, &UiGlobalTransform), With<BagScrollable>>,
+    mut state: ResMut<BagScrollState>,
+    mut scroll: Query<&mut ScrollPosition>,
+) {
+    if !open.0 {
+        state.touch_id = None;
+        state.target = None;
+        return;
+    }
+    let Ok(window) = windows.single() else { return };
+    let scale = window.scale_factor();
+
+    if state.touch_id.is_some_and(|id| touches.get_pressed(id).is_none()) {
+        state.touch_id = None;
+        state.target = None;
+    }
+    if state.touch_id.is_none() {
+        for touch in touches.iter_just_pressed() {
+            let at = touch.position() * scale;
+            if let Some((entity, ..)) =
+                columns.iter().find(|(_, node, transform)| node.contains_point(**transform, at))
+            {
+                state.touch_id = Some(touch.id());
+                state.target = Some(entity);
+                state.last_pos_y = touch.position().y;
+                break;
+            }
+        }
+    }
+
+    let (Some(touch), Some(target)) =
+        (state.touch_id.and_then(|id| touches.get_pressed(id)), state.target)
+    else {
+        return;
+    };
+    let delta_y = touch.position().y - state.last_pos_y;
+    state.last_pos_y = touch.position().y;
+    if delta_y == 0.0 {
+        return;
+    }
+    if let Ok(mut pos) = scroll.get_mut(target) {
+        pos.y = (pos.y - delta_y).max(0.0);
+    }
+}
+
+/// The wheel, for the same two columns on a desk.
+pub(crate) fn wheel_scroll_bag(
+    open: Res<InventoryScreenOpen>,
+    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    columns: Query<(Entity, &ComputedNode, &UiGlobalTransform), With<BagScrollable>>,
+    mut scroll: Query<&mut ScrollPosition>,
+) {
+    if !open.0 {
+        wheel.clear();
+        return;
+    }
+    let Ok(window) = windows.single() else { return };
+    let Some(cursor) = window.cursor_position() else { return };
+    let at = cursor * window.scale_factor();
+    let Some((entity, ..)) =
+        columns.iter().find(|(_, node, transform)| node.contains_point(**transform, at))
+    else {
+        return;
+    };
+    let mut delta = 0.0;
+    for event in wheel.read() {
+        // Lines on a mouse, pixels on a trackpad.
+        delta += match event.unit {
+            bevy::input::mouse::MouseScrollUnit::Line => event.y * 20.0,
+            bevy::input::mouse::MouseScrollUnit::Pixel => event.y,
+        };
+    }
+    if delta == 0.0 {
+        return;
+    }
+    if let Ok(mut pos) = scroll.get_mut(entity) {
+        pos.y = (pos.y - delta).max(0.0);
+    }
+}
+
 pub(crate) fn spawn_inventory_screen(commands: &mut Commands) {
     commands
         .spawn((
@@ -132,8 +258,8 @@ pub(crate) fn spawn_inventory_screen(commands: &mut Commands) {
                     ..default()
                 })
                 .with_children(|row| {
-                    row.spawn(column(GroundColumn));
-                    row.spawn(column(PackColumn));
+                    row.spawn(scrolling_column(GroundColumn));
+                    row.spawn(scrolling_column(PackColumn));
                     row.spawn(column(GunColumn));
                     row.spawn(column(GearColumn));
                 });
