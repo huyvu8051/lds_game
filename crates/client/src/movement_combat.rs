@@ -463,23 +463,27 @@ pub(crate) fn apply_aim_zoom(
         return;
     };
 
-    // A scope has one magnification, not a range of them.
+    // A scope has one magnification at a time, not a range of them.
     //
-    // Blending the fov across the raise made the number on the side of the
-    // glass a lie for most of the time it was being read: an eight times
-    // scope spent the whole way up at two, then four, then six. Real glass
-    // does not do that, and neither does any game with a scope in it -- the
-    // view is either through it or it is not. So it switches, at the same
-    // point the reticle appears, with no interpolation on either side.
+    // Tracking the fov to the raise made the number on the side of the glass
+    // a lie for most of the time it was being read: an eight times scope
+    // spent the way up at two, then four, then six. Real glass does not do
+    // that -- the view is either through it or it is not.
     //
-    // Iron sights keep the blend. There is almost no magnification in them
-    // to argue about, and the ramp is what makes bringing them up feel like
-    // a movement rather than a cut.
-    if def.scoped {
-        perspective.fov = if pose.sighted > SCOPED_RETICLE_SIGHTED { magnified } else { BASE_FOV };
-        return;
-    }
-    let target_fov = BASE_FOV + (magnified - BASE_FOV) * pose.sighted;
+    // Iron sights do track the raise. There is almost no magnification in
+    // them to argue about, and following the weapon up is what makes
+    // bringing them up read as a movement rather than a cut.
+    //
+    // The target is what is discrete, not the travel to it. A scope has
+    // notches; it does not teleport between them, and neither does the eye
+    // arriving at the glass. So the fov still eases -- it just eases towards
+    // one of a few values rather than towards wherever the raise happens to
+    // be at this instant.
+    let target_fov = if def.scoped {
+        if pose.sighted > SCOPED_RETICLE_SIGHTED { magnified } else { BASE_FOV }
+    } else {
+        BASE_FOV + (magnified - BASE_FOV) * pose.sighted
+    };
     let t = (AIM_ZOOM_SPEED * time.delta_secs()).min(1.0);
     perspective.fov += (target_fov - perspective.fov) * t;
 }
