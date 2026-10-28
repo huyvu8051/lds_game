@@ -19,6 +19,16 @@ use crate::*;
 const HOLSTER_SECONDS: f32 = 0.18;
 const DRAW_SECONDS: f32 = 0.30;
 
+/// What a sidearm is worth in time. It is lighter, it is carried where the
+/// hand already is, and reaching for it is what a player does when the thing
+/// in their hands has run out -- so the whole exchange is quicker, including
+/// putting away the rifle that failed them.
+const SIDEARM_SPEEDUP: f32 = 0.55;
+
+fn is_sidearm(slot: inventory::Slot) -> bool {
+    matches!(slot, inventory::Slot::Sidearm)
+}
+
 /// How far out of frame the weapon goes, and how far it rolls doing it.
 const TRAVEL: f32 = 0.55;
 const TRAVEL_PITCH_DEG: f32 = 52.0;
@@ -37,13 +47,16 @@ pub(crate) struct WeaponSwap {
     elapsed: f32,
     /// Which way the thing in hand is travelling: -1 down, +1 up.
     direction: f32,
+    /// How long this phase runs. Held rather than recomputed, so a slot
+    /// changing mid-swap cannot stretch an animation already under way.
+    duration: f32,
     /// Held back until the hand is empty.
     pending: Option<WeaponId>,
 }
 
 impl Default for WeaponSwap {
     fn default() -> Self {
-        Self { phase: Phase::Idle, elapsed: 0.0, direction: -1.0, pending: None }
+        Self { phase: Phase::Idle, elapsed: 0.0, direction: -1.0, duration: DRAW_SECONDS, pending: None }
     }
 }
 
@@ -62,8 +75,8 @@ impl WeaponSwap {
             Phase::Idle => 0.0,
             // Eased at both ends, so the weapon leaves and arrives without
             // a corner on either.
-            Phase::Holster => smooth(self.elapsed / HOLSTER_SECONDS),
-            Phase::Draw => 1.0 - smooth(self.elapsed / DRAW_SECONDS),
+            Phase::Holster => smooth(self.elapsed / self.duration),
+            Phase::Draw => 1.0 - smooth(self.elapsed / self.duration),
         }
     }
 
@@ -112,16 +125,23 @@ pub(crate) fn begin_weapon_swap(
         return;
     }
     request.0 = None;
+    let from = inventory::Slot::ALL
+        .into_iter()
+        .find(|slot| loadout.get(*slot) == Some(active.0))
+        .unwrap_or(loadout.active);
+    let to = inventory::Slot::ALL
+        .into_iter()
+        .find(|slot| loadout.get(*slot) == Some(wanted))
+        .unwrap_or(loadout.active);
     swap.phase = Phase::Holster;
     swap.elapsed = 0.0;
+    // Shortened by whichever end is the sidearm, including the rifle being
+    // put away to reach for it.
+    swap.duration = HOLSTER_SECONDS
+        * if is_sidearm(from) || is_sidearm(to) { SIDEARM_SPEEDUP } else { 1.0 };
     // Which way out is decided by where the weapon being put away lives,
     // and which way in by where the next one does.
-    swap.direction = direction_of(
-        inventory::Slot::ALL
-            .into_iter()
-            .find(|slot| loadout.get(*slot) == Some(active.0))
-            .unwrap_or(loadout.active),
-    );
+    swap.direction = direction_of(from);
     swap.pending = Some(wanted);
 }
 
@@ -136,23 +156,23 @@ pub(crate) fn advance_weapon_swap(
     }
     swap.elapsed += time.delta_secs();
     match swap.phase {
-        Phase::Holster if swap.elapsed >= HOLSTER_SECONDS => {
+        Phase::Holster if swap.elapsed >= swap.duration => {
             // The hand is empty: now the mesh may change.
             let Some(wanted) = swap.pending.take() else {
                 swap.phase = Phase::Idle;
                 return;
             };
             request.0 = Some(wanted);
+            let to = inventory::Slot::ALL
+                .into_iter()
+                .find(|slot| loadout.get(*slot) == Some(wanted))
+                .unwrap_or(loadout.active);
             swap.phase = Phase::Draw;
             swap.elapsed = 0.0;
-            swap.direction = direction_of(
-                inventory::Slot::ALL
-                    .into_iter()
-                    .find(|slot| loadout.get(*slot) == Some(wanted))
-                    .unwrap_or(loadout.active),
-            );
+            swap.direction = direction_of(to);
+            swap.duration = DRAW_SECONDS * if is_sidearm(to) { SIDEARM_SPEEDUP } else { 1.0 };
         }
-        Phase::Draw if swap.elapsed >= DRAW_SECONDS => {
+        Phase::Draw if swap.elapsed >= swap.duration => {
             swap.phase = Phase::Idle;
             swap.elapsed = 0.0;
         }

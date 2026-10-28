@@ -524,8 +524,19 @@ pub(crate) fn gun_view_animation(
         };
         let wall_ready = gun.wall_near;
 
-        let ready_target =
-            if (gun.ready_armed || wall_ready) && !aiming && !leaning { 1.0 } else { 0.0 };
+        // A sidearm rests at the ready rather than level. It is short
+        // enough that holding it up buys no sight picture, and a pistol
+        // carried out straight with nothing to point it at reads as a
+        // threat the player is not making.
+        let sidearm_rest = inventory::is_sidearm(active.0);
+        let ready_target = if (gun.ready_armed || wall_ready || sidearm_rest)
+            && !aiming
+            && !leaning
+        {
+            1.0
+        } else {
+            0.0
+        };
         let ready_step = (GUN_READY_SPEED * time.delta_secs()).min(1.0);
         gun.ready_blend += (ready_target - gun.ready_blend) * ready_step;
 
