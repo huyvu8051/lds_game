@@ -2,7 +2,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::*;
-use shared::ZombiePart;
+use shared::{GameLayer, ZombiePart};
 
 /// Damage one part soaks up before it comes off, in multiples of a single limb
 /// hit. Torso damage never counts toward it.
@@ -296,6 +296,12 @@ fn throw_part(commands: &mut Commands, gore: &GoreAssets, part: ZombiePart, from
         RigidBody::Dynamic,
         collider,
         ColliderDensity(GORE_DENSITY),
+        // Debris, so the player's capsule cast never sees it. A severed arm
+        // lands at the feet of whoever took it off, and on the Default layer
+        // the character controller reads it as a wall and slides the player
+        // off -- the same shove a spent casing used to give, from something
+        // much bigger. The map is still Default, so it lands as before.
+        CollisionLayers::new(GameLayer::Debris, [GameLayer::Default]),
         SweptCcd::default(),
         LinearVelocity(along * GORE_THROW_SPEED + scatter * GORE_THROW_SPEED * 0.4 + Vec3::Y * 1.2),
         AngularVelocity(scatter * GORE_SPIN),
