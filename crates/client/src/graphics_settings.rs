@@ -20,11 +20,13 @@ impl Default for SensitivityScale {
 /// stops falling off zombies. That is the difference between tuning a drop
 /// table and removing a gun.
 #[derive(Resource)]
-pub(crate) struct WeaponSpawnEnabled(pub(crate) [bool; 5]);
+/// Sized off the weapon table, not a number typed beside it. It was `5`,
+/// and adding a sixth weapon indexed past the end of it on the first frame.
+pub(crate) struct WeaponSpawnEnabled(pub(crate) [bool; WeaponId::ALL.len()]);
 
 impl Default for WeaponSpawnEnabled {
     fn default() -> Self {
-        Self([true; 5])
+        Self([true; WeaponId::ALL.len()])
     }
 }
 

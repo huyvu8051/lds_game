@@ -296,6 +296,7 @@ pub(crate) enum WeaponId {
     M24,
     Ump45,
     Deagle,
+    M416,
 }
 
 #[derive(Resource)]
@@ -321,8 +322,14 @@ impl ActiveWeapon {
 }
 
 impl WeaponId {
-    pub(crate) const ALL: [WeaponId; 5] =
-        [WeaponId::Ak47, WeaponId::M4a1, WeaponId::M24, WeaponId::Ump45, WeaponId::Deagle];
+    pub(crate) const ALL: [WeaponId; 6] = [
+        WeaponId::Ak47,
+        WeaponId::M4a1,
+        WeaponId::M24,
+        WeaponId::Ump45,
+        WeaponId::Deagle,
+        WeaponId::M416,
+    ];
 
     pub(crate) fn index(self) -> usize {
         match self {
@@ -331,6 +338,7 @@ impl WeaponId {
             WeaponId::M24 => 2,
             WeaponId::Ump45 => 3,
             WeaponId::Deagle => 4,
+            WeaponId::M416 => 5,
         }
     }
 
@@ -341,6 +349,7 @@ impl WeaponId {
             WeaponId::M24 => &M24,
             WeaponId::Ump45 => &UMP45,
             WeaponId::Deagle => &DEAGLE,
+            WeaponId::M416 => &M416,
         }
     }
 
@@ -506,6 +515,85 @@ static M4A1: WeaponDef = WeaponDef {
             decay: 22.0,
         },
     },
+};
+
+/// The first of the downloaded rifles, and the one the pipeline was proved
+/// on: 6.7k triangles, 0.1MB of texture after packing, and a magazine that
+/// is already its own mesh, which is what the drop effect needs.
+///
+/// rest_offset and ready_offset are not dialled in. They are M4A1's, moved so
+/// that this rifle's Socket_RearGrip lands exactly where the M4A1's does --
+/// the firing hand is what holds still across a swap, and this one is 142mm
+/// longer, so anchoring anywhere else would have moved the hand instead.
+///
+/// Recoil is the M4A1's unchanged. Same cartridge, near enough the same
+/// weight; inventing different numbers would have been inventing them.
+static M416: WeaponDef = WeaponDef {
+    name: "M416",
+    mesh_path: "models/m416/mesh/m416_glacier.glb",
+    rest_offset: Vec3::new(0.160, -0.1093, -0.7464),
+    ready_offset: Vec3::new(0.071, -0.1793, -0.6564),
+    ads_eye_relief: 0.11,
+    ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
+    hold_ads_fraction: 0.300,
+    sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.031, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
+    ads_settle_miss_m: 0.014,
+    ads_settle_miss_deg: 1.2,
+    aim_fov_multiplier: 0.75,
+    autopilot_ads_min_distance: 1.0,
+    autopilot_engage_range: 22.0,
+    autopilot_sprint_approach_distance: 14.0,
+    autopilot_sprint_pathing_distance: 9.0,
+    sprint_one_handed: false,
+    scoped: false,
+    reticle: ReticleKind::Dot,
+    holo: None,
+    // No M416 audio exists yet, so it borrows the M4A1's. Same calibre, same
+    // action; it is a stand-in rather than a choice.
+    sound: WeaponSound { fire: "audio/weapons/m4a1_fire.wav", reload: "audio/weapons/m4a1_reload.wav" },
+    reload_duration: 1.9,
+    damage_scale: 0.85,
+    // PUBG's numbers for this rifle: 30 rounds, about 700 a minute.
+    fire_rate: 0.086,
+    magazine: 30,
+    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    ammo: crate::ItemKind::Ammo556,
+    recoil: Recoil {
+        strike_speed: 70.0,
+        view: ViewKick {
+            climb_per_shot: 0.0080,
+            climb_max: 0.068,
+            wander_per_shot: 0.0044,
+            shove_per_shot: 0.0095,
+            shove_max: 0.038,
+            recover_speed: 7.4,
+        },
+        weapon: WeaponKick {
+            slide_back: 0.12,
+            lift: 0.0,
+            pitch_deg: 0.2,
+            roll_deg: 0.8,
+            yaw_deg: 0.6,
+            settle_speed: 15.0,
+        },
+        // About two thirds the AK's, pitched higher and gone sooner -- a
+        // lighter round, and a faster cyclic rate that would otherwise pile
+        // one ring-down on the next.
+        shock: ShockKick {
+            view_pitch_deg: 0.06,
+            view_yaw_deg: 0.05,
+            view_roll_deg: 0.11,
+            gun_pitch_deg: 0.23,
+            gun_yaw_deg: 0.17,
+            gun_roll_deg: 0.34,
+            gun_shift_m: 0.0008,
+            freq_pitch: 14.0,
+            freq_yaw: 10.5,
+            freq_roll: 12.5,
+            decay: 22.0,
+        },
+    },
+
 };
 
 /// Standardised in Blender on import, where it arrived 29.8m long down +X with
