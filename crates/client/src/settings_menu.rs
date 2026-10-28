@@ -421,6 +421,7 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                 })
                 .with_children(|row| {
                     spawn_cheat_toggle_button(row, "Crosshair in ADS", CrosshairInAdsButton);
+                    spawn_cheat_toggle_button(row, "Infinite ammo", InfiniteAmmoButton);
                 });
                 page.spawn((
                     Text::new("Zombie walk"),
@@ -808,7 +809,18 @@ pub(crate) struct CheatFreezeButton;
 pub(crate) struct CheatGunButton;
 
 #[derive(Component)]
+pub(crate) struct InfiniteAmmoButton;
+
+#[derive(Component)]
 pub(crate) struct CrosshairInAdsButton;
+
+fn toggle_colour(on: bool) -> BackgroundColor {
+    BackgroundColor(if on {
+        Color::srgba(0.3, 1.0, 0.4, 0.5)
+    } else {
+        Color::srgba(1.0, 1.0, 1.0, 0.2)
+    })
+}
 
 pub(crate) fn crosshair_in_ads_button(
     mut keep: ResMut<CrosshairInAds>,
@@ -822,11 +834,23 @@ pub(crate) fn crosshair_in_ads_button(
         return;
     }
     for mut background in &mut colours {
-        *background = BackgroundColor(if keep.0 {
-            Color::srgba(0.3, 1.0, 0.4, 0.5)
-        } else {
-            Color::srgba(1.0, 1.0, 1.0, 0.2)
-        });
+        *background = toggle_colour(keep.0);
+    }
+}
+
+pub(crate) fn infinite_ammo_button(
+    mut infinite: ResMut<InfiniteAmmo>,
+    buttons: Query<&Interaction, (With<InfiniteAmmoButton>, Changed<Interaction>)>,
+    mut colours: Query<&mut BackgroundColor, With<InfiniteAmmoButton>>,
+) {
+    if tapped(&buttons) {
+        infinite.0 = !infinite.0;
+    }
+    if !infinite.is_changed() {
+        return;
+    }
+    for mut background in &mut colours {
+        *background = toggle_colour(infinite.0);
     }
 }
 

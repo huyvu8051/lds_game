@@ -28,6 +28,14 @@ impl Default for WeaponSpawnEnabled {
     }
 }
 
+/// Neither the magazine nor the pack ever runs down.
+///
+/// Reloads still happen -- the animation, the sound, the hand going for the
+/// magazine are all part of how a weapon reads, and a weapon that never
+/// reloads is a different weapon to measure. What stops is the counting.
+#[derive(Resource, Default)]
+pub(crate) struct InfiniteAmmo(pub(crate) bool);
+
 /// Whether the default crosshair stays up while the sights are.
 ///
 /// Off ships, because a crosshair over a sight picture is two aiming marks

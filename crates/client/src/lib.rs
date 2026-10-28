@@ -1037,6 +1037,7 @@ impl Plugin for GamePlugin {
         .init_resource::<WeaponSpawnEnabled>()
         .init_resource::<ZombieWalk>()
         .init_resource::<CrosshairInAds>()
+        .init_resource::<InfiniteAmmo>()
         .init_resource::<InventoryScreenOpen>()
         .init_resource::<Equipment>()
         .init_resource::<Attachments>()
@@ -1134,7 +1135,7 @@ impl Plugin for GamePlugin {
                         update_corpse_stage_buttons,
                         weapon_spawn_buttons,
                         update_weapon_spawn_buttons,
-                        crosshair_in_ads_button,
+                        (crosshair_in_ads_button, infinite_ammo_button),
                         zombie_walk_buttons,
                         update_zombie_walk_buttons,
                         toggle_inventory_screen,

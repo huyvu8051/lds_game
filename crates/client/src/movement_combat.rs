@@ -767,7 +767,7 @@ pub(crate) fn shoot(
         ResMut<Assets<MuzzleFlashMaterial>>,
         ResMut<FireShock>,
     ),
-    (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, mut fire_mode, swap): (
+    (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, mut fire_mode, swap, infinite_ammo): (
         Res<Autopilot>,
         Res<AutopilotIntent>,
         Res<LocalPlayerMoving>,
@@ -783,6 +783,7 @@ pub(crate) fn shoot(
         // own: Bevy caps a system at sixteen and this one was already there.
         ResMut<weapon::FireModeSelection>,
         Res<crate::WeaponSwap>,
+        Res<crate::InfiniteAmmo>,
     ),
 ) {
     *cooldown = (*cooldown - time.delta_secs()).max(0.0);
@@ -839,7 +840,9 @@ pub(crate) fn shoot(
     }
 
     *cooldown = active.def().fire_rate;
-    gun.ammo -= 1;
+    if !infinite_ammo.0 {
+        gun.ammo -= 1;
+    }
     if mode == weapon::FireMode::Burst {
         fire_mode.burst_left = fire_mode.burst_left.saturating_sub(1);
     }

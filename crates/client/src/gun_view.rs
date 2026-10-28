@@ -325,7 +325,7 @@ pub(crate) fn gun_view_animation(
     mut query: Query<(&mut Transform, &GlobalTransform, &mut Gun), Without<FpsCamera>>,
     aim: Query<&GlobalTransform, (With<AimSocket>, Without<Gun>, Without<FpsCamera>)>,
     local: LocalPlayerState,
-    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose, swap): (
+    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose, swap, infinite_ammo): (
         Res<ActiveWeapon>,
         Res<WalkCycle>,
         Res<crate::movement_combat::FireShock>,
@@ -335,6 +335,7 @@ pub(crate) fn gun_view_animation(
         ResMut<Inventory>,
         Res<grenade::ThrowPose>,
         Res<crate::WeaponSwap>,
+        Res<crate::InfiniteAmmo>,
     ),
 ) {
     // Taken, not read: the single consumer clearing it is what lets each
@@ -435,11 +436,19 @@ pub(crate) fn gun_view_animation(
                 // beside the magazine worth reading.
                 let def = active.def();
                 let wanted = def.magazine - gun.ammo;
-                let had = inventory.count(def.ammo).min(wanted);
-                for _ in 0..had {
-                    inventory.take_one(def.ammo);
+                if infinite_ammo.0 {
+                    // Still a reload, just not a withdrawal. The animation,
+                    // the sound and the hand going for the magazine are part
+                    // of how a weapon reads; a weapon that never reloads is
+                    // a different one to measure.
+                    gun.ammo = def.magazine;
+                } else {
+                    let had = inventory.count(def.ammo).min(wanted);
+                    for _ in 0..had {
+                        inventory.take_one(def.ammo);
+                    }
+                    gun.ammo += had;
                 }
-                gun.ammo += had;
             }
         }
 
