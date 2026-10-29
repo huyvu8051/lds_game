@@ -1223,6 +1223,7 @@ impl Plugin for GamePlugin {
                 restart_button,
                 map_select_button,
                 reset_config_button,
+                settings_persistence::export_settings_button,
                 wire_zombie_scene_animation_targets,
                 wire_zombie_animations.run_if(resource_exists::<ZombieKindAnims>),
                 wire_zombie_hitbox_bones,

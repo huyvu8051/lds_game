@@ -96,6 +96,57 @@ fn read_settings_text() -> Option<String> {
     std::fs::read_to_string(settings_file_path()).ok()
 }
 
+/// Where an export lands, which is not where the settings live.
+///
+/// The settings file sits in Application Support, which no one can reach from
+/// the phone. An export is only worth having if it can be read, so it goes to
+/// Documents -- visible in the Files app, and reachable from a Mac with
+/// `devicectl device copy from`.
+fn export_file_path() -> std::path::PathBuf {
+    #[cfg(target_os = "ios")]
+    {
+        let home = ios_home_directory().unwrap_or_else(|| ".".to_string());
+        std::path::Path::new(&home).join("Documents/bevy_fps_demo_settings_export.ron")
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        std::path::Path::new(&home).join("bevy_fps_demo_settings_export.ron")
+    }
+}
+
+/// Writes every setting as it stands right now to [`export_file_path`].
+///
+/// Reported with `println!` rather than `info!` on purpose: tracing does not
+/// reach stdout on the phone, so a path logged through it cannot be read back
+/// over `devicectl ... --console`, which is the only way to learn where the
+/// file went without opening the Files app.
+pub(crate) fn export_settings_button(world: &mut World) {
+    let tapped = world
+        .query_filtered::<&Interaction, (With<ExportSettingsButton>, Changed<Interaction>)>()
+        .iter(world)
+        .any(|i| *i == Interaction::Pressed);
+    if !tapped {
+        return;
+    }
+    let path = export_file_path();
+    let settings = read_settings_from_world(world);
+    let text = match ron::ser::to_string_pretty(&settings, ron::ser::PrettyConfig::default()) {
+        Ok(text) => text,
+        Err(e) => {
+            println!("[settings] export failed to serialize: {e}");
+            return;
+        }
+    };
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    match std::fs::write(&path, &text) {
+        Ok(()) => println!("[settings] exported {} bytes to {}", text.len(), path.display()),
+        Err(e) => println!("[settings] export failed to write {}: {e}", path.display()),
+    }
+}
+
 fn write_settings_text(text: &str) {
     let path = settings_file_path();
     if let Some(parent) = path.parent() {

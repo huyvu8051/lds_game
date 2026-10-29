@@ -244,6 +244,12 @@ pub(crate) struct MapSelectButton(u8);
 #[derive(Component)]
 pub(crate) struct ResetConfigButton;
 
+/// Writes every setting to a file anyone can fetch. Sits beside Reset Config
+/// because the two are the same kind of thing: one throws the settings away,
+/// the other takes a copy out.
+#[derive(Component)]
+pub(crate) struct ExportSettingsButton;
+
 pub(crate) fn spawn_map_select_ui(commands: &mut Commands) {
     commands
         .spawn((
@@ -338,6 +344,34 @@ pub(crate) fn spawn_map_select_ui(commands: &mut Commands) {
             .with_children(|btn| {
                 btn.spawn((
                     Text::new("Reset Config"),
+                    TextFont {
+                        font_size: FontSize::Px(16.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+            });
+
+            root.spawn((
+                Node {
+                    width: Val::Px(220.0),
+                    height: Val::Px(40.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    border: UiRect::all(Val::Px(2.0)),
+                    border_radius: BorderRadius::all(Val::Px(8.0)),
+                    margin: UiRect::top(Val::Px(8.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.15, 0.3, 0.45, 1.0)),
+                BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.6)),
+                Button,
+                Interaction::default(),
+                ExportSettingsButton,
+            ))
+            .with_children(|btn| {
+                btn.spawn((
+                    Text::new("Export Settings"),
                     TextFont {
                         font_size: FontSize::Px(16.0),
                         ..default()

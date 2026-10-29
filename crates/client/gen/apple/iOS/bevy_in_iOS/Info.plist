@@ -22,6 +22,14 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- So an exported settings file in Documents/ can actually be reached:
+	     the first makes the folder show up in the Files app, the second lets
+	     it be opened in place rather than copied first. Without them the
+	     export writes somewhere only devicectl can see. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<!-- Lets the app write its own .gputrace from inside the process, which is
 	     what src/gpu_capture.rs's GFX_CAPTURE=<n> does. Without this key
 	     MTLCaptureManager refuses the GpuTraceDocument destination, so that
