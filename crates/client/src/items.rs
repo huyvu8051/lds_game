@@ -113,6 +113,9 @@ pub(crate) enum ItemKind {
     Ammo9mm,
     Ammo45,
     Ammo12g,
+    /// The P90's. Nothing else in the game takes it, which is the point of
+    /// carrying one.
+    Ammo57mm,
 
     // Muzzle.
     Suppressor,
@@ -178,12 +181,13 @@ pub(crate) enum ItemKind {
 }
 
 /// Everything, in the order the pack lists it.
-pub(crate) const ALL_ITEMS: [ItemKind; 51] = [
+pub(crate) const ALL_ITEMS: [ItemKind; 52] = [
     ItemKind::Ammo556,
     ItemKind::Ammo762,
     ItemKind::Ammo9mm,
     ItemKind::Ammo45,
     ItemKind::Ammo12g,
+    ItemKind::Ammo57mm,
     ItemKind::Suppressor,
     ItemKind::FlashHider,
     ItemKind::Compensator,
@@ -245,6 +249,7 @@ impl ItemKind {
             Ammo9mm => "9mm",
             Ammo45 => ".45 ACP",
             Ammo12g => "12 Gauge",
+            Ammo57mm => "5.7mm",
             Suppressor => "Suppressor",
             FlashHider => "Flash Hider",
             Compensator => "Compensator",
@@ -297,7 +302,7 @@ impl ItemKind {
     pub(crate) fn category(self) -> Category {
         use ItemKind::*;
         match self {
-            Ammo556 | Ammo762 | Ammo9mm | Ammo45 | Ammo12g => Category::Ammo,
+            Ammo556 | Ammo762 | Ammo9mm | Ammo45 | Ammo12g | Ammo57mm => Category::Ammo,
             Helmet1 | Helmet2 | Helmet3 | Vest1 | Vest2 | Vest3 | Backpack1 | Backpack2
             | Backpack3 => Category::Armour,
             Bandage | FirstAidKit | MedKit => Category::Healing,
@@ -352,6 +357,7 @@ impl ItemKind {
             Ammo9mm => 0.375,
             Ammo45 => 0.4,
             Ammo12g => 1.25,
+            Ammo57mm => 0.3,
             Bandage => 3.0,
             FirstAidKit => 8.0,
             MedKit => 20.0,
