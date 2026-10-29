@@ -73,7 +73,7 @@ impl Group {
     const fn compiled_default(self) -> bool {
         match self {
             Group::Physics => true,
-            Group::Animation => false,
+            Group::Animation => true,
             Group::Zombies => false,
             Group::ZombieAi => false,
             Group::Ui => false,
