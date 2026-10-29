@@ -72,7 +72,7 @@ impl Group {
     /// What this commit builds. One of these flips per commit, lowest first.
     const fn compiled_default(self) -> bool {
         match self {
-            Group::Physics => false,
+            Group::Physics => true,
             Group::Animation => false,
             Group::Zombies => false,
             Group::ZombieAi => false,
