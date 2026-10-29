@@ -78,35 +78,62 @@ pub fn entity_phase(entity: Entity) -> f32 {
     (entity.index().index() as f32 * 0.618_034).fract()
 }
 
-pub fn random_aim_point(bones: &BoneWorldPositions, target: Entity) -> Option<(Vec3, &'static str)> {
-    let mut joints = Vec::new();
-    if let Some(p) = bones.head {
-        joints.push((p, "Head"));
-    }
-    if let Some(p) = bones.belly {
-        for _ in 0..35 {
-            joints.push((p, "Belly"));
-        }
-    }
-    if let Some(p) = bones.chest {
-        for _ in 0..75 {
-            joints.push((p, "Chest"));
-        }
-    }
-    for chain in [&bones.left_arm, &bones.right_arm, &bones.left_leg, &bones.right_leg] {
-        for joint in chain.iter().flatten() {
-            joints.push((*joint, "Limb"));
-        }
-    }
+/// How often each region is picked, relative to a limb joint.
+///
+/// The torso carries the weight: a shot at a standing figure lands on the chest
+/// far more often than on the head, and an aim point drawn uniformly over the
+/// skeleton would put a quarter of them in a hand.
+const HEAD_WEIGHT: usize = 1;
+const BELLY_WEIGHT: usize = 35;
+const CHEST_WEIGHT: usize = 75;
+const LIMB_WEIGHT: usize = 1;
 
-    if joints.is_empty() {
+/// Where to aim on this particular zombie, weighted toward the torso.
+///
+/// Stable for as long as the target keeps the same bones: the seed is the
+/// target's index and nothing else. That is deliberate and load-bearing --
+/// the autopilot calls this every frame, and a point that moved between the
+/// head and a hand at 120Hz would not be an aim, it would be a twitch.
+///
+/// Walks the weights rather than building a list of them. The list version
+/// pushed up to 123 entries into a fresh `Vec` on every call, every frame, to
+/// answer a question whose answer does not change.
+pub fn random_aim_point(bones: &BoneWorldPositions, target: Entity) -> Option<(Vec3, &'static str)> {
+    let limbs = [&bones.left_arm, &bones.right_arm, &bones.left_leg, &bones.right_leg];
+    let limb_joints = limbs.iter().flat_map(|chain| chain.iter().flatten()).count();
+
+    let total = bones.head.is_some() as usize * HEAD_WEIGHT
+        + bones.belly.is_some() as usize * BELLY_WEIGHT
+        + bones.chest.is_some() as usize * CHEST_WEIGHT
+        + limb_joints * LIMB_WEIGHT;
+    if total == 0 {
         return None;
     }
 
     let mut seed = target.index_u32() as usize;
     seed = seed.wrapping_mul(2654435761);
-    let idx = seed % joints.len();
-    Some(joints[idx])
+    let mut idx = seed % total;
+
+    // Same order the list was built in, so the same seed lands on the same
+    // region it always did.
+    for (point, region, weight) in [
+        (bones.head, "Head", HEAD_WEIGHT),
+        (bones.belly, "Belly", BELLY_WEIGHT),
+        (bones.chest, "Chest", CHEST_WEIGHT),
+    ] {
+        let Some(point) = point else { continue };
+        if idx < weight {
+            return Some((point, region));
+        }
+        idx -= weight;
+    }
+    for joint in limbs.iter().flat_map(|chain| chain.iter().flatten()) {
+        if idx < LIMB_WEIGHT {
+            return Some((*joint, "Limb"));
+        }
+        idx -= LIMB_WEIGHT;
+    }
+    None
 }
 
 pub fn zombie_hit_damage_bones(hit_point: Vec3, bones: &BoneWorldPositions) -> f32 {
