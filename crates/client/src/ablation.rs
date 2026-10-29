@@ -77,7 +77,7 @@ impl Group {
             Group::Zombies => true,
             Group::ZombieAi => true,
             Group::Ui => true,
-            Group::Audio => false,
+            Group::Audio => true,
             Group::Core => false,
             Group::Items => false,
             Group::Vfx => false,
