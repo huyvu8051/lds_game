@@ -173,6 +173,29 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
         .unwrap_or_default();
     app.insert_resource(lightmap);
 
+    // EXEC=single runs Update on the single-threaded executor. The block in
+    // lib.rs is one .chain() of ~190 systems, so it is already sequential --
+    // what this drops is the executor's per-completion bookkeeping, not any
+    // real parallelism.
+    match std::env::var("EXEC").as_deref() {
+        Ok("single") => {
+            app.edit_schedule(bevy::app::Update, |s| {
+                s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
+            });
+        }
+        Ok("all") => {
+            use bevy::app::{First, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Last, PostUpdate, PreUpdate, Update};
+            app.edit_schedule(First, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
+            app.edit_schedule(PreUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
+            app.edit_schedule(FixedPreUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
+            app.edit_schedule(FixedUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
+            app.edit_schedule(FixedPostUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
+            app.edit_schedule(Update, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
+            app.edit_schedule(PostUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
+            app.edit_schedule(Last, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
+        }
+        _ => {}
+    }
     app.add_plugins(crate::GamePlugin);
 
     app.world_mut().spawn((
