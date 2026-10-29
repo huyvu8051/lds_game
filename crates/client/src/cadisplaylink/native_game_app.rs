@@ -173,29 +173,54 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
         .unwrap_or_default();
     app.insert_resource(lightmap);
 
-    // EXEC=single runs Update on the single-threaded executor. The block in
-    // lib.rs is one .chain() of ~190 systems, so it is already sequential --
-    // what this drops is the executor's per-completion bookkeeping, not any
-    // real parallelism.
-    match std::env::var("EXEC").as_deref() {
-        Ok("single") => {
-            app.edit_schedule(bevy::app::Update, |s| {
-                s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
-            });
+    // Every main-loop schedule runs on the single-threaded executor on iOS,
+    // and on the multi-threaded one everywhere else. `EXEC` overrides it:
+    // `multi` to put the phone back on the threaded executor for a comparison,
+    // `all` or `single` to take this machine off it.
+    //
+    // There is no parallelism to lose. The Update block in lib.rs is a single
+    // .chain() of ~190 systems, so it was already running in order -- what the
+    // threaded executor was buying was the right to ask whether it could run
+    // them at once, and that question is not free. Each system completion
+    // rescans the access sets, at a cost that scales with systems times the
+    // component-id space, and waking a cold thread costs up to 30us
+    // (bevyengine/bevy#8304; #20421 is the same asymmetry seen from the other
+    // side -- a system skipped by a run condition is still scheduled, still
+    // woken and still reports completion, so skipping one saves nothing while
+    // removing one saves real time).
+    //
+    // Measured on macOS, interleaved, n=30 a side, median of `update`:
+    // 4.38ms threaded, 3.74ms with Update single-threaded, 3.29ms with all of
+    // them. The phone has two performance cores against this machine's ten, so
+    // it is defaulted on there and left off here until someone measures it.
+    let single_threaded = match std::env::var("EXEC").as_deref() {
+        Ok("multi") => false,
+        Ok("single") | Ok("all") => true,
+        _ => cfg!(target_os = "ios"),
+    };
+    if single_threaded {
+        use bevy::app::{
+            First, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Last, PostUpdate, PreUpdate, Update,
+        };
+        macro_rules! single {
+            ($($schedule:expr),* $(,)?) => {
+                $(app.edit_schedule($schedule, |s| {
+                    s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
+                });)*
+            };
         }
-        Ok("all") => {
-            use bevy::app::{First, FixedPostUpdate, FixedPreUpdate, FixedUpdate, Last, PostUpdate, PreUpdate, Update};
-            app.edit_schedule(First, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
-            app.edit_schedule(PreUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
-            app.edit_schedule(FixedPreUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
-            app.edit_schedule(FixedUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
-            app.edit_schedule(FixedPostUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
-            app.edit_schedule(Update, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
-            app.edit_schedule(PostUpdate, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
-            app.edit_schedule(Last, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
-        }
-        _ => {}
+        single!(
+            First,
+            PreUpdate,
+            FixedPreUpdate,
+            FixedUpdate,
+            FixedPostUpdate,
+            Update,
+            PostUpdate,
+            Last,
+        );
     }
+    println!("[config] executor {}", if single_threaded { "single-threaded" } else { "multi-threaded" });
     app.add_plugins(crate::GamePlugin);
 
     app.world_mut().spawn((
