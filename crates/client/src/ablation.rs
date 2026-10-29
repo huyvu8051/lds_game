@@ -80,7 +80,7 @@ impl Group {
             Group::Audio => true,
             Group::Core => true,
             Group::Items => true,
-            Group::Vfx => false,
+            Group::Vfx => true,
         }
     }
 }
