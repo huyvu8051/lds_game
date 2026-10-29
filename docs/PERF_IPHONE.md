@@ -305,6 +305,38 @@ memory.
   Instruments GUI once, saved as a custom template that `xctrace --template`
   can then take by path.
 
+## How it ended
+
+The phone does not get hot any more. Walking laps of the map produces nothing;
+switching the autopilot on and letting it fight warms the phone only after a
+while. That is the owner's hands, over a session, on the final build -- not a
+measurement, and this document should not pretend otherwise. It is also the
+only thermal evidence that exists here, because every trace was recorded with a
+thermoelectric cooler attached and so reads `Nominal` from end to end.
+
+**Which change did it is not known.** Nobody was watching the thermal state
+when it turned, so there is no before-and-after to point at. Four candidates,
+with what each is worth by measurement:
+
+| | measured |
+|---|---|
+| the layer became opaque | compositor fragment 4.101 -> 2.132 ms a frame |
+| the point shadow pass went | 0.551 ms fragment, 0.341 vertex, every frame |
+| the schedules went single-threaded | `update` 3.02 -> 2.65 ms on the phone |
+| the effects are off in the shipped defaults | blood spray, blood stains, screen effects and fog are all `false` in `default_settings_mobile.ron` |
+
+The first two are the larger by far: together about 2.5 ms of GPU fragment time
+a frame, which at 117 fps is roughly 290 ms of GPU work removed from every
+second. The executor is 0.37 ms of CPU. The fourth is not a change at all --
+those effects were already off -- but it belongs on the list, because the
+observation was made with them off and would not transfer to a build that turns
+them on.
+
+Saying more than that would be inventing a cause for an effect nobody measured.
+What would settle it is one run on each side of a fix with no cooler attached,
+long enough to leave `Nominal`, which is the measurement this document has
+wanted from the beginning and still does not have.
+
 ## Measuring again
 
 **A reinstall wipes the app's persisted graphics settings.** Two traces were
