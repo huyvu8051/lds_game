@@ -282,15 +282,24 @@ pub(crate) fn setup_gameplay(
     let scenario = current_scenario();
     let player_spawn = scenario.player_spawn();
 
-    commands.spawn((
+    let map = (
         Name::new(scenario.title()),
         crate::map::MapRoot,
         // The map keeps its CPU meshes: Avian builds every trimesh collider from
         // them, and world_ready is the signal that it has finished.
         WorldAssetRoot(load_gltf_scene(&asset_server, scenario.require_gltf_scene_path(), RenderAssetUsages::default())),
         Transform::IDENTITY,
-        shared::gltf_scene_colliders(),
-    ));
+    );
+    // The collider hierarchy is the expensive half of loading the map and the
+    // only thing Avian simulates when nothing dynamic exists, so it is what the
+    // physics group prices. Leaving it off also leaves track_world_ready's
+    // pending-collider query empty, which is what lets the floor reach
+    // world_ready at all.
+    if crate::ablation::enabled(crate::ablation::Group::Physics) {
+        commands.spawn((map, shared::gltf_scene_colliders()));
+    } else {
+        commands.spawn(map);
+    }
 
     commands.spawn((
         DirectionalLight {

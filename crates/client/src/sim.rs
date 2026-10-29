@@ -25,8 +25,12 @@ pub(crate) struct SimPlugin;
 
 impl Plugin for SimPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(BigBrainPlugin::new(FixedPreUpdate))
-            .insert_resource(crate::current_scenario())
+        // The AI plugin, not the zombies: scoring and acting are what this
+        // group prices, and they are built only when something will use them.
+        if crate::ablation::enabled(crate::ablation::Group::ZombieAi) {
+            app.add_plugins(BigBrainPlugin::new(FixedPreUpdate));
+        }
+        app.insert_resource(crate::current_scenario())
             .init_resource::<GameOver>()
             .init_resource::<FreezeZombiesServer>()
             .init_resource::<DamageMultiplierServer>()
@@ -36,8 +40,20 @@ impl Plugin for SimPlugin {
             .init_resource::<NextZombieSpawnIndex>()
             .init_resource::<ZombieSpawnPoints>()
             .init_resource::<WorldReady>()
-            .add_systems(Startup, load_zombie_spawn_points)
-            .add_systems(Update, (track_world_ready, spawn_initial_zombies.run_if(world_ready)).chain())
+            // track_world_ready is floor work, not zombie work: world_ready()
+            // gates send_player_input, so without it the noclip camera cannot
+            // move and the floor measures nothing.
+            .add_systems(Startup, load_zombie_spawn_points.run_if(crate::ablation::group(crate::ablation::Group::Zombies)))
+            .add_systems(
+                Update,
+                (
+                    track_world_ready,
+                    spawn_initial_zombies
+                        .run_if(world_ready)
+                        .run_if(crate::ablation::group(crate::ablation::Group::Zombies)),
+                )
+                    .chain(),
+            )
             // Scored and acted on at the rate the acting is read at. In
             // PreUpdate this ran at the refresh rate to feed move_zombies,
             // which only looks 64 times a second, so nearly half of every
@@ -48,7 +64,8 @@ impl Plugin for SimPlugin {
                 (
                     chase_action_system.in_set(BigBrainSet::Actions),
                     near_player_scorer.in_set(BigBrainSet::Scorers),
-                ),
+                )
+                    .run_if(crate::ablation::group(crate::ablation::Group::ZombieAi)),
             )
             // move_zombies is the one system here that costs real time -- a
             // swept capsule against the whole map per zombie, every call. In
@@ -60,11 +77,15 @@ impl Plugin for SimPlugin {
             // still holds and the desired velocity read below is this tick's.
             .add_systems(
                 FixedUpdate,
-                move_zombies.after(LandmassSystems::Output).run_if(world_ready),
+                move_zombies
+                    .after(LandmassSystems::Output)
+                    .run_if(world_ready)
+                    .run_if(crate::ablation::group(crate::ablation::Group::ZombieAi)),
             )
             .add_systems(
                 Update,
-                (tick_respawns.run_if(world_ready), decay_player_threat),
+                (tick_respawns.run_if(world_ready), decay_player_threat)
+                    .run_if(crate::ablation::group(crate::ablation::Group::Zombies)),
             )
             .add_observer(spawn_more_zombies)
             .add_observer(on_set_zombie_count)

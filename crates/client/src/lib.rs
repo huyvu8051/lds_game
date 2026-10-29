@@ -29,6 +29,7 @@ use shared::{
 
 #[cfg(target_vendor = "apple")]
 pub mod cadisplaylink;
+mod ablation;
 
 mod weapon;
 mod items;
@@ -932,7 +933,7 @@ impl Plugin for GamePlugin {
         .add_observer(on_corpse_hit)
         .add_observer(on_game_state_event)
         .add_plugins(F9DebugPlugin)
-        .add_plugins(navigation::ClientNavigationPlugin)
+        .add_plugins(navigation::maybe_client_navigation())
         // RENDER_DIAG=1 times every render graph node. On Metal only the CPU
         // side is recorded, which is the side a second camera is expensive on:
         // the graph is walked per view whether that view draws anything or not.
@@ -1161,7 +1162,8 @@ impl Plugin for GamePlugin {
                     .chain(),
             )
                 .chain()
-                .run_if(ui_tick()),
+                .run_if(ui_tick())
+                .run_if(ablation::group(ablation::Group::Ui)),
             (
                 (
                     grab_cursor,
@@ -1213,7 +1215,8 @@ impl Plugin for GamePlugin {
                 (count_local_kills, update_kill_count_ui, update_kill_feed).chain(),
             )
                 .chain()
-                .run_if(in_state(AppState::InGame)),
+                .run_if(in_state(AppState::InGame))
+                .run_if(ablation::group(ablation::Group::Core)),
             (
                 check_game_over,
                 restart_game.run_if(debug_keys_allowed),
@@ -1286,7 +1289,8 @@ impl Plugin for GamePlugin {
                 )
                     .chain(),
             )
-                .chain(),
+                .chain()
+                .run_if(ablation::group(ablation::Group::Items)),
             (
                 place_holo_reticle,
                 (apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
@@ -1320,7 +1324,8 @@ impl Plugin for GamePlugin {
                 update_spark_particles,
                 despawn_blood_stains,
             )
-                .chain(),
+                .chain()
+                .run_if(ablation::group(ablation::Group::Vfx)),
         )
             .chain(),
     );

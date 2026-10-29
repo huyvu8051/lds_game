@@ -29,6 +29,24 @@ pub(crate) fn off_mesh_target_tolerance() -> PointSampleDistance3d {
 #[derive(Resource)]
 pub(crate) struct PlayerArchipelago(pub(crate) Entity);
 
+/// landmass and its baked navmesh, or nothing at all.
+///
+/// Same shape as `render_diagnostics_if_asked` in graphics_settings: a plugin
+/// that builds nothing is the only way to leave one out of a `add_plugins`
+/// chain without restructuring the chain around it.
+pub(crate) fn maybe_client_navigation() -> impl bevy::app::Plugin {
+    #[derive(Default)]
+    struct Maybe;
+    impl bevy::app::Plugin for Maybe {
+        fn build(&self, app: &mut bevy::app::App) {
+            if crate::ablation::enabled(crate::ablation::Group::ZombieAi) {
+                app.add_plugins(ClientNavigationPlugin);
+            }
+        }
+    }
+    Maybe
+}
+
 pub(crate) struct ClientNavigationPlugin;
 
 impl Plugin for ClientNavigationPlugin {

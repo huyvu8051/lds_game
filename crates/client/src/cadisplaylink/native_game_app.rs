@@ -6,6 +6,7 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
     // Before anything spawns: it decides whether mesh and image data survives
     // on the CPU, which metal_renderer needs and bevy_render does not.
     crate::mark_native_renderer_in_use();
+    crate::ablation::log_configuration();
 
     let mut app = App::new();
 
@@ -33,7 +34,15 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
     // SamplePlayer still exist -- the game plays into a graph with no output
     // rather than failing to load its sounds.
     let audio_off = std::env::var("NO_AUDIO").is_ok();
-    if audio_off {
+    if !crate::ablation::enabled(crate::ablation::Group::Audio) {
+        // Nothing at all, not even the silent graph NO_AUDIO leaves behind:
+        // the point of this group is to price the graph too. setup_common
+        // still asks the asset server for every sound, so the asset type has
+        // to exist or the first load aborts the process. Without seedling
+        // there is no loader for them either, so the handles stay pending --
+        // which is the intent, nothing decodes.
+        app.init_asset::<bevy_seedling::sample::AudioSample>();
+    } else if audio_off {
         use bevy::app::PluginGroup;
         app.add_plugins(
             bevy_seedling::SeedlingPlugins
@@ -48,8 +57,12 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
     // Nor under NO_AUDIO: Steam Audio reads resources the cpal backend
     // creates and panics in its first frame without them. Skipping it leaves
     // the desktop build in the same shape the phone is always in.
+    //
+    // The ablation switch is the same gate for the same reason: with seedling
+    // gone there is no Time<Audio>, and Steam Audio's node observer asks for
+    // it the moment a node is inserted.
     #[cfg(not(target_os = "ios"))]
-    if !audio_off {
+    if !audio_off && crate::ablation::enabled(crate::ablation::Group::Audio) {
         app.add_plugins(bevy_steam_audio::SteamAudioPlugin::default());
         app.add_plugins(avian_steam_audio::AvianSteamAudioScenePlugin);
     }
@@ -67,7 +80,9 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
     app.add_plugins(bevy::text::TextPlugin);
 
     app.init_asset::<bevy::image::TextureAtlasLayout>();
-    app.add_plugins(bevy::ui::UiPlugin::default());
+    if crate::ablation::enabled(crate::ablation::Group::Ui) {
+        app.add_plugins(bevy::ui::UiPlugin::default());
+    }
     app.add_plugins(bevy::scene::ScenePlugin);
     app.add_plugins(bevy::world_serialization::WorldSerializationPlugin);
     app.add_plugins(bevy::gltf::GltfPlugin::default());
@@ -75,7 +90,16 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
 
     app.init_asset::<bevy::pbr::StandardMaterial>();
 
-    app.add_plugins(bevy::animation::AnimationPlugin);
+    if crate::ablation::enabled(crate::ablation::Group::Animation) {
+        app.add_plugins(bevy::animation::AnimationPlugin);
+    } else {
+        // Same reason the materials below are registered by hand: the plugin
+        // is what the ablation prices, but setup_common asks for
+        // Assets<AnimationGraph> unconditionally and a missing resource fails
+        // system-param validation, which on this path aborts the process.
+        app.init_asset::<bevy::animation::graph::AnimationGraph>();
+        app.init_asset::<bevy::animation::AnimationClip>();
+    }
 
     app.init_asset::<bevy::audio::AudioSource>();
 
@@ -130,7 +154,9 @@ pub fn build_headless_game_ecs_app(physical_width: u32, physical_height: u32, sc
     // beside PhysicsPlugins in main()'s plugin list for the windowed build and
     // were simply never carried across.
     app.add_plugins(crate::sim::SimPlugin);
-    app.add_plugins(crate::zombie_nav::ZombieNavmeshPlugin);
+    if crate::ablation::enabled(crate::ablation::Group::ZombieAi) {
+        app.add_plugins(crate::zombie_nav::ZombieNavmeshPlugin);
+    }
     // No MaterialPlugin here: iOS draws through its own Metal renderer. The
     // asset collections still have to exist or the systems asking for them
     // panic, which across FFI aborts.
