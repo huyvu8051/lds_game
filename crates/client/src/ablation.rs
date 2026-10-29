@@ -74,7 +74,7 @@ impl Group {
         match self {
             Group::Physics => true,
             Group::Animation => true,
-            Group::Zombies => false,
+            Group::Zombies => true,
             Group::ZombieAi => false,
             Group::Ui => false,
             Group::Audio => false,
