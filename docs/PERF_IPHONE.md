@@ -423,7 +423,7 @@ mỗi lần** — một lần chạy toàn teleport không bao giờ bị nhầm
 Desktop, desert_city, `NO_AUTOPILOT=1`, player đứng yên, xen kẽ 2 lượt, bỏ 6
 giây đầu, trung vị `update`:
 
-| | 20 zombie | 40 zombie |
+| | cột 1 | cột 2 |
 |---|---|---|
 | A — zombie đi bình thường | 3.60 ms | 3.67 ms |
 | B — `FREEZE_ZOMBIES=1` | 3.46 | 3.48 |
@@ -432,8 +432,19 @@ giây đầu, trung vị `update`:
 | freeze gỡ được (A−B) | +0.14 | +0.19 |
 | **còn lại sau freeze** (B−C) | **+0.09** | **+0.13** |
 
-Hai lượt của mỗi ô khớp nhau trong 0.05 ms, nên các hiệu số này là thật chứ
-không phải trôi nhiệt.
+> **Hai cột này lẽ ra là 20 và 40 zombie, và chúng không phải.**
+> `spawn_initial_zombies` chặn ở số điểm spawn được author, tức **12** trên
+> desert_city, nên `ZOMBIE_COUNT=20` và `=40` cho ra **cùng một bầy**. Hai cột
+> là hai lần chạy của cùng một cấu hình.
+>
+> Nên kết luận "gấp đôi bầy chỉ thêm 0.08 ms" đã bị **rút lại**: 0.08 ms đó là
+> nhiễu giữa hai lần chạy giống hệt nhau — một con số hữu ích theo nghĩa khác,
+> nó là sàn nhiễu của rig này. **Chi phí AI theo số zombie vẫn chưa đo được.**
+>
+> Giờ lúc spawn có in ra khi bị chặn, để cái bẫy này không lừa được lần nữa.
+
+Các hiệu số *trong cùng một cột* thì vẫn đứng vững: A, B, C ở đó chạy cùng một
+bầy, hai lượt mỗi ô khớp nhau trong 0.05 ms.
 
 **Trước đây freeze chỉ chặn `move_zombies`.** Nó `return` sớm, nên không ghi
 `AgentTarget3d` nữa — nhưng `near_player_scorer`, `chase_action_system` và
@@ -477,3 +488,25 @@ phải vì nó tiết kiệm được gì.
 
 `FREEZE_AFTER=<giây>` giữ lại: freeze một cảnh đang chạy là thứ cái nút trong
 menu thật sự làm, khác với freeze từ lúc khởi động.
+
+
+### Zombie áp sát player thì còn tìm đường không? Có, và giờ thì không nữa.
+
+`move_zombies` ghi `AgentTarget3d::Point(...)` **vô điều kiện**, trước cả chỗ
+kiểm tra `ZOMBIE_STOP_DISTANCE`. Nên cả một đám vây quanh player — tức toàn bộ
+một trận đánh — vẫn giữ đích và landmass vẫn lái từng con, tới một player cách
+một mét, cho một quãng đường không con nào đang đi. Chỗ kiểm tra khoảng cách
+bên dưới đã quyết định là chúng đứng yên; nó chỉ không báo cho phần navigation.
+
+Giờ con nào đủ gần để dừng đi thì nhả đích. Có trễ hai ngưỡng chứ không phải
+một mốc: con lơ lửng đúng vạch sẽ nhận rồi nhả mỗi tick, còn tốn hơn là cứ giữ.
+Nhả ở `ZOMBIE_STOP_DISTANCE`, và chỉ nhận lại khi ra xa gấp rưỡi.
+
+**Đo được gì: không gì cả.** 12 zombie (10 con đang chase, đã đếm để chắc là
+chúng thật sự áp sát — 10/10 trong vòng stop distance ở cuối lượt đo), xen kẽ
+3 lượt trong cùng một binary: giữ đích 3.45 ms, nhả đích 3.48 ms. Hai dải chồng
+lên nhau.
+
+Giữ lại vì **một con không đi thì không nên giữ chỗ cần đến**, và vì khoản tiết
+kiệm này tỉ lệ với kích thước đám đông — mà đám đông lớn nhất map này dựng được
+qua env là 12, nên nó chưa có cơ hội thể hiện.

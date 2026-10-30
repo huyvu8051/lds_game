@@ -308,7 +308,17 @@ fn spawn_initial_zombies(
         error!("no zombie spawn points authored for this map — spawning nothing");
         return;
     }
+    // Capped by how many places there are to stand. Said out loud, because
+    // asking for forty and silently getting twelve turns a measurement into
+    // a comparison of two identical runs -- which is exactly how a "doubling
+    // the horde costs almost nothing" reading got written down once.
     let count = (target.0 as usize).min(points.0.len());
+    if count < target.0 as usize {
+        println!(
+            "[sim] asked for {} zombies, spawning {count}: that is every authored spawn point on this map",
+            target.0
+        );
+    }
     let spawns: Vec<(Vec3, f32)> = points.0[..count]
         .iter()
         .map(|p| (*p + Vec3::Y * ZOMBIE_REST_HEIGHT, 0.0))
@@ -521,8 +531,27 @@ fn move_zombies(
         let horizontal = Vec3::new(to_target.x, 0.0, to_target.z);
         let distance = horizontal.length();
 
+        // A zombie close enough to stop walking lets go of its destination.
+        //
+        // This used to be written every tick regardless, which meant a crowd
+        // pressed against the player -- the whole of a fight -- kept landmass
+        // pathing for every one of them, to a player a metre away, for a walk
+        // none of them were doing. The stop distance below already decided
+        // they were not moving; it just never told the navigation.
+        //
+        // Hysteresis, not a bare threshold: one hovering on the line would
+        // otherwise acquire and release every tick, which is more work than
+        // simply holding it. It releases at the stop distance and does not
+        // take the destination back until half as far again.
         if let Some(agent_target) = agent_target.as_deref_mut() {
-            *agent_target = AgentTarget3d::Point(target_translation);
+            let holding = matches!(*agent_target, AgentTarget3d::Point(_));
+            if distance <= ZOMBIE_STOP_DISTANCE {
+                if holding {
+                    *agent_target = AgentTarget3d::None;
+                }
+            } else if holding || distance > ZOMBIE_STOP_DISTANCE * 1.5 {
+                *agent_target = AgentTarget3d::Point(target_translation);
+            }
         }
 
         let filter = SpatialQueryFilter::default();
