@@ -17,6 +17,8 @@
 
 use bevy::prelude::*;
 
+use crate::keybinds::Bind;
+
 use crate::*;
 
 /// How far a thing can be and still count as within reach. Wider than the
@@ -283,7 +285,7 @@ pub(crate) fn toggle_inventory_screen(
 ) {
     // B, not Tab. Tab belongs to the touch-UI toggle on the phone, and a
     // key that means two things is a key that means neither.
-    if keys.just_pressed(KeyCode::KeyB) {
+    if Bind::Bag.just_pressed(&keys) {
         open.0 = !open.0;
     }
     // Edge-triggered off the button's own state rather than Changed<>, which

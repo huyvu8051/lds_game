@@ -11,6 +11,8 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+
+use crate::keybinds::Bind;
 use bevy_seedling::prelude as seedling;
 
 use crate::*;
@@ -123,7 +125,7 @@ pub(crate) fn cook_and_throw(
 ) {
     let Some(assets) = assets else { return };
 
-    if keys.just_pressed(KeyCode::KeyG) {
+    if Bind::Grenade.just_pressed(&keys) {
         // The first one carried. There is no selected throwable any more --
         // the HUD gives each its own button, so choosing happens by pressing
         // the one you want, and only the key still needs told which.
@@ -145,7 +147,7 @@ pub(crate) fn cook_and_throw(
     // capping the cook and holding it safely for ever -- removes the only
     // thing that makes cooking a decision.
     let out_of_time = cooking.elapsed >= FUSE_SECONDS;
-    if !keys.just_released(KeyCode::KeyG) && !out_of_time {
+    if !Bind::Grenade.just_released(&keys) && !out_of_time {
         return;
     }
     let Ok(eye) = camera.single() else { return };

@@ -1,5 +1,7 @@
 
 use bevy::prelude::*;
+
+use crate::keybinds::Bind;
 use bevy_seedling::prelude as seedling;
 use crate::*;
 
@@ -258,7 +260,7 @@ pub(crate) fn grab_cursor(
         cursor.visible = bag.0;
     }
 
-    if keys.just_pressed(KeyCode::Backquote) {
+    if Bind::ReleaseCursor.just_pressed(&keys) {
         if cursor.grab_mode == CursorGrabMode::None {
             cursor.grab_mode = CursorGrabMode::Locked;
             cursor.visible = false;
@@ -278,7 +280,7 @@ pub(crate) fn grab_cursor(
         cursor.visible = false;
     }
 
-    if keys.just_pressed(KeyCode::Escape) {
+    if Bind::Quit.just_pressed(&keys) {
         cursor.grab_mode = CursorGrabMode::None;
         cursor.visible = true;
     }
@@ -411,8 +413,8 @@ pub(crate) fn apply_lean_input(
     let target: f32 = if game_over.0 {
         0.0
     } else {
-        let left = keys.pressed(KeyCode::KeyQ) || touch_lean.left;
-        let right = keys.pressed(KeyCode::KeyE) || touch_lean.right;
+        let left = Bind::LeanLeft.pressed(&keys) || touch_lean.left;
+        let right = Bind::LeanRight.pressed(&keys) || touch_lean.right;
         match (left, right) {
             (true, false) => -1.0,
             (false, true) => 1.0,
@@ -504,7 +506,7 @@ pub(crate) fn apply_aim_dof(
 }
 
 pub(crate) fn toggle_noclip(keys: Res<ButtonInput<KeyCode>>, mut noclip: ResMut<Noclip>) {
-    if keys.just_pressed(KeyCode::KeyN) {
+    if Bind::Noclip.just_pressed(&keys) {
         noclip.0 = !noclip.0;
     }
 }
@@ -515,14 +517,14 @@ pub(crate) fn toggle_player_stance(keys: Res<ButtonInput<KeyCode>>, mut player: 
     let Ok(mut stance) = player.single_mut() else {
         return;
     };
-    if keys.just_pressed(KeyCode::KeyC) {
+    if Bind::Crouch.just_pressed(&keys) {
         *stance = if *stance == PlayerStance::Crouching {
             PlayerStance::Standing
         } else {
             PlayerStance::Crouching
         };
     }
-    if keys.just_pressed(KeyCode::KeyX) {
+    if Bind::Prone.just_pressed(&keys) {
         *stance = if *stance == PlayerStance::Prone {
             PlayerStance::Standing
         } else {
@@ -573,18 +575,18 @@ pub(crate) fn send_player_input(
     let (move_axis, sprinting) = if driven.0 {
         (intent.move_axis, intent.sprint)
     } else {
-        let sprinting = (keys.pressed(KeyCode::ShiftLeft) || touch.sprint.0) && stance == PlayerStance::Standing;
+        let sprinting = (Bind::Sprint.pressed(&keys) || touch.sprint.0) && stance == PlayerStance::Standing;
         let mut move_axis = Vec2::ZERO;
-        if keys.pressed(KeyCode::KeyW) {
+        if Bind::Forward.pressed(&keys) {
             move_axis.y += 1.0;
         }
-        if keys.pressed(KeyCode::KeyS) {
+        if Bind::Back.pressed(&keys) {
             move_axis.y -= 1.0;
         }
-        if keys.pressed(KeyCode::KeyD) {
+        if Bind::StrafeRight.pressed(&keys) {
             move_axis.x += 1.0;
         }
-        if keys.pressed(KeyCode::KeyA) {
+        if Bind::StrafeLeft.pressed(&keys) {
             move_axis.x -= 1.0;
         }
 
@@ -607,9 +609,9 @@ pub(crate) fn send_player_input(
         yaw: cam.yaw,
 
         jump: if noclip.0 {
-            keys.pressed(KeyCode::Space) || touch.noclip_fly.up
+            Bind::Jump.pressed(&keys) || touch.noclip_fly.up
         } else {
-            keys.just_pressed(KeyCode::Space) || touch.jump.0
+            Bind::Jump.just_pressed(&keys) || touch.jump.0
         },
         sprint: sprinting,
         aiming,
@@ -663,16 +665,16 @@ pub(crate) fn sync_camera_to_player(
 pub(crate) fn nudge_player_model_tuning(keys: Res<ButtonInput<KeyCode>>, mut tuning: ResMut<PlayerModelTuning>) {
     const SCALE_STEP: f32 = 0.02;
     const Y_OFFSET_STEP: f32 = 0.02;
-    if keys.just_pressed(KeyCode::Comma) {
+    if Bind::TuningBack.just_pressed(&keys) {
         tuning.scale = (tuning.scale - SCALE_STEP).max(0.05);
     }
-    if keys.just_pressed(KeyCode::Period) {
+    if Bind::TuningForward.just_pressed(&keys) {
         tuning.scale += SCALE_STEP;
     }
-    if keys.just_pressed(KeyCode::Minus) {
+    if Bind::TuningDown.just_pressed(&keys) {
         tuning.y_offset -= Y_OFFSET_STEP;
     }
-    if keys.just_pressed(KeyCode::Equal) {
+    if Bind::TuningUp.just_pressed(&keys) {
         tuning.y_offset += Y_OFFSET_STEP;
     }
 }
@@ -682,7 +684,7 @@ pub(crate) fn save_player_model_tuning(
     tuning: Res<PlayerModelTuning>,
     mut toast: ResMut<F9SaveToast>,
 ) {
-    if !keys.just_pressed(KeyCode::F9) {
+    if !Bind::TuningSave.just_pressed(&keys) {
         return;
     }
     let out = format_character_ron(&CharacterRon {
@@ -1063,7 +1065,7 @@ pub(crate) fn reload_gun(
     mut gun: Query<&mut Gun>,
     active: Res<ActiveWeapon>,
 ) {
-    if game_over.0 || !(keys.just_pressed(KeyCode::KeyR) || touch_reload.0) {
+    if game_over.0 || !(Bind::Reload.just_pressed(&keys) || touch_reload.0) {
         return;
     }
     let Ok(mut gun) = gun.single_mut() else {

@@ -1,5 +1,7 @@
 
 use bevy::prelude::*;
+
+use crate::keybinds::Bind;
 use crate::*;
 
 #[derive(Resource)]
@@ -1799,7 +1801,7 @@ pub(crate) fn toggle_settings_menu(
     mut was_pressed: Local<bool>,
     toggle_button: Query<&Interaction, With<SettingsToggleButton>>,
 ) {
-    if keys.just_pressed(KeyCode::F1) {
+    if Bind::Help.just_pressed(&keys) {
         visible.0 = !visible.0;
     }
     let is_pressed = toggle_button.iter().any(|interaction| *interaction == Interaction::Pressed);
@@ -1899,7 +1901,7 @@ pub(crate) fn spawn_mouse_ui_lock_indicator(commands: &mut Commands) {
 }
 
 pub(crate) fn toggle_mouse_ui_lock(keys: Res<ButtonInput<KeyCode>>, mut locked: ResMut<MouseUiLocked>) {
-    if keys.just_pressed(KeyCode::Tab) {
+    if Bind::Settings.just_pressed(&keys) {
         locked.0 = !locked.0;
     }
 }

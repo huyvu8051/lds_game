@@ -593,7 +593,7 @@ pub(crate) fn gun_view_animation(
         }
         // T asks for it directly, so nobody has to stand around to see it.
         // Still refused while busy: the weapon is in the middle of something.
-        let asked = keys.just_pressed(INSPECT_KEY);
+        let asked = crate::keybinds::Bind::Inspect.just_pressed(&keys);
         let wait = INSPECT_WAIT + gun.inspect_done as f32 * INSPECT_WAIT_EXTRA;
         if gun.inspect_t <= 0.0 && !busy && (asked || gun.idle_elapsed >= wait) {
             gun.inspect_t = f32::EPSILON;

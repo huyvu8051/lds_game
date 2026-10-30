@@ -1,6 +1,8 @@
 
 use bevy::input::touch::Touches;
 use bevy::prelude::*;
+
+use crate::keybinds::Bind;
 use crate::*;
 
 #[derive(Resource)]
@@ -191,7 +193,7 @@ pub(crate) fn update_touch_controls_idle_hidden(
     mut idle_elapsed: Local<f32>,
     mut hidden: ResMut<TouchControlsIdleHidden>,
 ) {
-    if settings_visible.0 || touches.iter().next().is_some() || keys.just_pressed(KeyCode::Backquote) {
+    if settings_visible.0 || touches.iter().next().is_some() || Bind::ReleaseCursor.just_pressed(&keys) {
         *idle_elapsed = 0.0;
         if hidden.0 {
             hidden.0 = false;

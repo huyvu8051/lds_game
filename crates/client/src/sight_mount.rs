@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::keybinds::Bind;
+
 use crate::{
     load_gltf_scene, ActiveWeapon, AimSocket, Gun, GunMeshPart, WeaponId, WorldAssetRoot,
 };
@@ -455,7 +457,7 @@ pub(crate) fn cycle_fitted_sight(
     loadout: Res<crate::inventory::Loadout>,
     mut attachments: ResMut<crate::inventory::Attachments>,
 ) {
-    if !keys.just_pressed(KeyCode::KeyU) {
+    if !Bind::CycleSight.just_pressed(&keys) {
         return;
     }
     let sights: Vec<crate::items::ItemKind> = crate::items::ALL_ITEMS

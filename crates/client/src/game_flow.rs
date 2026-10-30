@@ -1,5 +1,7 @@
 
 use bevy::prelude::*;
+
+use crate::keybinds::Bind;
 use crate::*;
 
 #[derive(Component)]
@@ -419,7 +421,7 @@ pub(crate) fn map_select_button(
 }
 
 pub(crate) fn restart_game(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>, game_over: Res<GameOver>) {
-    if !game_over.0 || !keys.just_pressed(KeyCode::KeyR) {
+    if !game_over.0 || !Bind::Restart.just_pressed(&keys) {
         return;
     }
     commands.trigger(RequestRestart);

@@ -9,6 +9,8 @@
 
 use bevy::prelude::*;
 
+use crate::keybinds::Bind;
+
 use crate::*;
 use shared::GameLayer;
 
@@ -567,7 +569,7 @@ pub(crate) fn use_consumable_key(
 ) {
     // H for heal. X was taken by going prone, which this was quietly
     // doing at the same time every time anybody drank anything.
-    if keys.just_pressed(KeyCode::KeyH) {
+    if Bind::Heal.just_pressed(&keys) {
         use_selected_consumable(inventory, boost, player, crate::items::Category::Healing);
     }
 }
@@ -579,11 +581,11 @@ pub(crate) fn select_weapon_slot(
     mut loadout: ResMut<Loadout>,
     mut request: ResMut<weapon::WeaponSwitchRequest>,
 ) {
-    let wanted = if keys.just_pressed(KeyCode::Digit1) {
+    let wanted = if Bind::Slot1.just_pressed(&keys) {
         Slot::Primary(0)
-    } else if keys.just_pressed(KeyCode::Digit2) {
+    } else if Bind::Slot2.just_pressed(&keys) {
         Slot::Primary(1)
-    } else if keys.just_pressed(KeyCode::Digit3) {
+    } else if Bind::Slot3.just_pressed(&keys) {
         Slot::Sidearm
     } else {
         return;

@@ -1,5 +1,7 @@
 
 use bevy::prelude::*;
+
+use crate::keybinds::Bind;
 use crate::*;
 
 #[derive(Component)]
@@ -689,37 +691,37 @@ pub(crate) fn toggle_debug_flags(
     mut zombie_health_bars_hidden: ResMut<ZombieHealthBarsHidden>,
     mut autopilot: ResMut<Autopilot>,
 ) {
-    if keys.just_pressed(KeyCode::KeyF) {
+    if Bind::FreezeZombies.just_pressed(&keys) {
         freeze.0 = !freeze.0;
 
         commands.trigger(SetFreezeZombies(freeze.0));
     }
     // Y, because H is the heal key now and a player reaching for a bandage
     // should not get a wireframe.
-    if keys.just_pressed(KeyCode::KeyY) {
+    if Bind::ShowHitboxes.just_pressed(&keys) {
         show_hitboxes.0 = !show_hitboxes.0;
     }
     // O and K, not G and B. Those two became gameplay keys -- G throws a
     // grenade and B opens the backpack -- and a debug toggle sharing a key
     // with something the player does on purpose is a debug toggle that
     // fires by accident.
-    if keys.just_pressed(KeyCode::KeyO) {
+    if Bind::GodMode.just_pressed(&keys) {
         god_mode.0 = !god_mode.0;
     }
-    if keys.just_pressed(KeyCode::KeyK) {
+    if Bind::AimBlur.just_pressed(&keys) {
         aim_blur.0 = !aim_blur.0;
     }
-    if keys.just_pressed(KeyCode::KeyV) {
+    if Bind::FocalAlternate.just_pressed(&keys) {
         dof_focal_alt.0 = !dof_focal_alt.0;
     }
-    if keys.just_pressed(KeyCode::KeyM) {
+    if Bind::StopZombieAnimation.just_pressed(&keys) {
         zombie_anim_disabled.0 = !zombie_anim_disabled.0;
     }
-    if keys.just_pressed(KeyCode::KeyJ) {
+    if Bind::HideHealthBars.just_pressed(&keys) {
         zombie_health_bars_hidden.0 = !zombie_health_bars_hidden.0;
     }
 
-    if keys.just_pressed(KeyCode::KeyI) {
+    if Bind::Autopilot.just_pressed(&keys) {
         autopilot.0 = !autopilot.0;
     }
 }

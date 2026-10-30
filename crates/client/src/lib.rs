@@ -52,6 +52,7 @@ use condition_hud::*;
 mod dismember;
 use dismember::*;
 mod auto_lean;
+mod keybinds;
 mod sight_mount;
 mod sight_swap;
 mod lightmap;
@@ -197,11 +198,6 @@ const WEAPON_ON_AXIS_BLEND: f32 = 0.25;
 /// Left alone for this long and the weapon gets looked over, the way someone
 /// with nothing to shoot at checks what they are holding.
 ///
-/// Each round waits longer than the last, so a player standing still for a
-/// while is not shown the same thing on a loop.
-/// Asks for the look-over without waiting for it. F is the usual key for this
-/// and the HUD already has it.
-const INSPECT_KEY: KeyCode = KeyCode::KeyT;
 const INSPECT_WAIT: f32 = 9.0;
 const INSPECT_WAIT_EXTRA: f32 = 7.0;
 const INSPECT_SECONDS: f32 = 3.6;
@@ -920,7 +916,8 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-    app.init_resource::<MagazineInHand>()
+    keybinds::report_clashes();
+app.init_resource::<MagazineInHand>()
 .init_resource::<sight_mount::FittedSight>()
 .init_resource::<sight_swap::ShownSight>()
 .init_resource::<sight_swap::SightSwap>()
