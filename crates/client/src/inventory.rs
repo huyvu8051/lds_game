@@ -613,9 +613,9 @@ pub(crate) fn equip_slot(
 /// pack. A worse one goes straight in the pack rather than swapping down.
 ///
 /// An attachment is fitted to the weapon in hand if that socket is empty,
-/// and to the other weapon if it is not. Only to a weapon that can show it:
-/// a sight bolted to a rifle with no rail would sit in the bag's socket and
-/// nowhere on screen.
+/// and to the other weapon if it is not. Every weapon carries rail sockets
+/// now, so there is nowhere a sight can be fitted and not be seen; a weapon
+/// added without them would need that checked again.
 ///
 /// Everything else goes in the pack.
 pub(crate) fn take_item(
@@ -646,9 +646,6 @@ pub(crate) fn take_item(
             .chain(Slot::ALL.into_iter().filter(|s| *s != loadout.active));
         for slot in order {
             let Some(weapon) = loadout.get(slot) else { continue };
-            if socket == AttachSlot::Sight && !crate::sight_mount::weapon_takes_sight(weapon) {
-                continue;
-            }
             if attachments.get(slot, socket).is_none() {
                 attachments.set(slot, socket, Some(kind));
                 info!("[loot] fitting {} to {}", kind.label(), weapon.def().name);

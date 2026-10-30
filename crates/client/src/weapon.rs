@@ -468,7 +468,7 @@ impl WeaponId {
 /// mesh now ships with.
 static AK47: WeaponDef = WeaponDef {
     name: "AK-47",
-    mesh_path: "models/ak47_scope/raw/scene.gltf",
+    mesh_path: "models/ak47_scope/mesh/ak47_scope.glb",
     rest_offset: Vec3::new(0.160, -0.0905, -0.7094),
     ready_offset: Vec3::new(0.045, -0.1905, -0.6194),
     ads_eye_relief: 0.12,

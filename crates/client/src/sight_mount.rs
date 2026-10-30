@@ -160,54 +160,6 @@ impl SightId {
     }
 }
 
-/// Whether this weapon has somewhere for a sight to clamp.
-///
-/// A list rather than a field on the weapon, because what decides it is the
-/// mesh: these are the ones carrying `Socket_RailRear` and `Socket_RailFront`
-/// -- twelve that `add_rails.sh` built a rail onto, six that came wearing a
-/// sight and had it split off by `strip_builtin_sights.sh`, and eleven that
-/// were drawn with a rail and had no way to say where it was until
-/// `mark_rails.sh` found it. Fitting a sight to anything else puts it in the
-/// bag's socket and nowhere on screen.
-///
-/// What is left out: the four the project began with, the SVD, whose scope
-/// hangs on a side rail with nothing under it, and the AK, which still wears
-/// the scope it was drawn with.
-pub(crate) fn weapon_takes_sight(weapon: WeaponId) -> bool {
-    matches!(
-        weapon,
-        WeaponId::Ace32
-            | WeaponId::BerylM762
-            | WeaponId::G36c
-            | WeaponId::M16a4
-            | WeaponId::MicroUzi
-            | WeaponId::Mk12
-            | WeaponId::Mk14Ebr
-            | WeaponId::Mp5k
-            | WeaponId::ScarL
-            | WeaponId::Sks
-            | WeaponId::Vss
-            | WeaponId::Famas
-            | WeaponId::Mk47Mutant
-            | WeaponId::P90
-            | WeaponId::Vector
-            | WeaponId::M249
-            | WeaponId::AugA3
-            | WeaponId::Bizon
-            | WeaponId::Dp28
-            | WeaponId::Groza
-            | WeaponId::Mini14
-            | WeaponId::MosinNagant
-            | WeaponId::P1911
-            | WeaponId::Qbz95
-            | WeaponId::R1895
-            | WeaponId::S686
-            | WeaponId::Skorpion
-            | WeaponId::Slr
-            | WeaponId::TommyGun
-    )
-}
-
 /// What is clamped to the weapon the player is holding, if anything.
 ///
 /// Derived, never authored: the bag's sight socket is what decides, so the
@@ -289,7 +241,7 @@ pub(crate) fn wire_rail_nodes(
             "rail" => 0,
             "Socket_RailRear" => 1,
             "Socket_RailFront" => 2,
-            "builtin_sight" => 3,
+            n if n.starts_with("builtin_sight") => 3,
             _ => continue,
         };
         let mut current = entity;
