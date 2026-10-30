@@ -606,13 +606,19 @@ pub(crate) fn inventory_screen_rows(
                         }
                         equipment.set(slot, Some(level));
                     }
-                } else if let Some(socket) = kind.attach_slot() {
-                    let slot = loadout.active;
-                    if loadout.get(slot).is_some() && inventory.take_one(kind) {
-                        if let Some(previous) = attachments.get(slot, socket) {
-                            inventory.add(previous, 1);
-                        }
-                        attachments.set(slot, socket, Some(kind));
+                } else if kind.attach_slot().is_some() {
+                    // The same order the ground uses: the weapon in hand
+                    // first, then the other one. If neither socket is free
+                    // it comes straight back and nothing has happened --
+                    // take one off to make room.
+                    if inventory.take_one(kind) {
+                        inventory::take_item(
+                            &mut inventory,
+                            &mut equipment,
+                            &mut attachments,
+                            &loadout,
+                            kind,
+                        );
                     }
                 } else if let Some(i) = inventory::HEAL_ITEMS.iter().position(|k| *k == kind) {
                     inventory.set_selected(kind.category(), i);
