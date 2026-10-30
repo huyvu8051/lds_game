@@ -575,7 +575,13 @@ pub(crate) fn inventory_screen_rows(
             RowAction::Take(entity) => {
                 let Ok((pickup, _)) = pickups.get(entity) else { continue };
                 match pickup.kind {
-                    inventory::PickupKind::Item(kind) => inventory.add(kind, 1),
+                    inventory::PickupKind::Item(kind) => inventory::take_item(
+                        &mut inventory,
+                        &mut equipment,
+                        &mut attachments,
+                        &loadout,
+                        kind,
+                    ),
                     inventory::PickupKind::Weapon(weapon) => inventory::pick_up_weapon(
                         &mut commands,
                         &mut loadout,
@@ -592,14 +598,11 @@ pub(crate) fn inventory_screen_rows(
                 if let Some((slot, level)) = kind.wear_slot() {
                     // What comes off goes back in the pack, so swapping a
                     // helmet for a better one does not throw the old away.
+                    // Downwards too: tapping it is a choice, unlike walking
+                    // over it, so this does not refuse a worse one.
                     if inventory.take_one(kind) {
-                        if let Some(old) = equipment.level(slot) {
-                            if let Some(previous) = ALL_ITEMS
-                                .into_iter()
-                                .find(|k| k.wear_slot() == Some((slot, old)))
-                            {
-                                inventory.add(previous, 1);
-                            }
+                        if let Some(old) = equipment.level(slot).and_then(|old| ItemKind::worn_as(slot, old)) {
+                            inventory.add(old, 1);
                         }
                         equipment.set(slot, Some(level));
                     }
@@ -618,9 +621,7 @@ pub(crate) fn inventory_screen_rows(
             }
             RowAction::Unwear(slot) => {
                 let Some(level) = equipment.level(slot) else { continue };
-                if let Some(kind) =
-                    ALL_ITEMS.into_iter().find(|k| k.wear_slot() == Some((slot, level)))
-                {
+                if let Some(kind) = ItemKind::worn_as(slot, level) {
                     inventory.add(kind, 1);
                 }
                 equipment.set(slot, None);

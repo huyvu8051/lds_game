@@ -602,6 +602,62 @@ pub(crate) fn equip_slot(
     request.0 = Some(weapon);
 }
 
+/// Takes an item in and puts it where it belongs.
+///
+/// Walking over a thing and tapping it in the list are the same act, so both
+/// go through here. Three rules, in order:
+///
+/// Armour is worn if it beats what is on, and what comes off goes in the
+/// pack. A worse one goes straight in the pack rather than swapping down.
+///
+/// An attachment is fitted to the weapon in hand if that socket is empty,
+/// and to the other weapon if it is not. Only to a weapon that can show it:
+/// a sight bolted to a rifle with no rail would sit in the bag's socket and
+/// nowhere on screen.
+///
+/// Everything else goes in the pack.
+pub(crate) fn take_item(
+    inventory: &mut Inventory,
+    equipment: &mut Equipment,
+    attachments: &mut Attachments,
+    loadout: &Loadout,
+    kind: ItemKind,
+) {
+    if let Some((wear, level)) = kind.wear_slot() {
+        match equipment.level(wear) {
+            Some(worn) if worn >= level => inventory.add(kind, 1),
+            worn => {
+                if let Some(old) = worn.and_then(|level| ItemKind::worn_as(wear, level)) {
+                    inventory.add(old, 1);
+                }
+                equipment.set(wear, Some(level));
+                info!("[loot] wearing {}", kind.label());
+            }
+        }
+        return;
+    }
+
+    if let Some(socket) = kind.attach_slot() {
+        // The hand first, then whatever else is carried: a sight picked up
+        // mid-fight belongs on the weapon that is already up.
+        let order = std::iter::once(loadout.active)
+            .chain(Slot::ALL.into_iter().filter(|s| *s != loadout.active));
+        for slot in order {
+            let Some(weapon) = loadout.get(slot) else { continue };
+            if socket == AttachSlot::Sight && !crate::sight_mount::weapon_takes_sight(weapon) {
+                continue;
+            }
+            if attachments.get(slot, socket).is_none() {
+                attachments.set(slot, socket, Some(kind));
+                info!("[loot] fitting {} to {}", kind.label(), weapon.def().name);
+                return;
+            }
+        }
+    }
+
+    inventory.add(kind, 1);
+}
+
 /// What a dropped thing is.
 #[derive(Clone, Copy)]
 pub(crate) enum PickupKind {
@@ -854,6 +910,8 @@ pub(crate) fn collect_pickups(
     mut commands: Commands,
     mut loadout: ResMut<Loadout>,
     mut inventory: ResMut<Inventory>,
+    mut equipment: ResMut<Equipment>,
+    mut attachments: ResMut<Attachments>,
     mut request: ResMut<weapon::WeaponSwitchRequest>,
     assets: Option<Res<PickupAssets>>,
     player: Query<&Transform, With<Player>>,
@@ -869,7 +927,13 @@ pub(crate) fn collect_pickups(
             continue;
         }
         match pickup.kind {
-            PickupKind::Item(kind) => inventory.add(kind, 1),
+            PickupKind::Item(kind) => take_item(
+                &mut inventory,
+                &mut equipment,
+                &mut attachments,
+                &loadout,
+                kind,
+            ),
             PickupKind::Weapon(weapon) => pick_up_weapon(
                 &mut commands,
                 &mut loadout,

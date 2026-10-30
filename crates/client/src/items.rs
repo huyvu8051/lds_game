@@ -334,6 +334,13 @@ impl ItemKind {
         })
     }
 
+    /// The item that is this much armour. The reverse of `wear_slot`, for
+    /// the three places that have a slot and a level and need something to
+    /// put back in the pack.
+    pub(crate) fn worn_as(slot: WearSlot, level: u8) -> Option<ItemKind> {
+        ALL_ITEMS.into_iter().find(|k| k.wear_slot() == Some((slot, level)))
+    }
+
     /// Where it is worn, and at what level.
     pub(crate) fn wear_slot(self) -> Option<(WearSlot, u8)> {
         use ItemKind::*;

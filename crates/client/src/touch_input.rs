@@ -680,9 +680,16 @@ pub(crate) fn touch_look(
 
 /// One tap, one weapon. Edge triggered off Interaction::Pressed, since a held
 /// finger would otherwise cycle every frame.
+///
+/// Through the same door a weapon on the ground goes through, so the next one
+/// lands in a slot by the rules that decide slots rather than appearing in
+/// the hand with the loadout left behind. Nothing to drop: this is a button,
+/// and nobody taps a button expecting litter.
 pub(crate) fn touch_weapon_button(
+    mut commands: Commands,
     buttons: Query<&Interaction, With<TouchWeaponButton>>,
     active: Res<crate::ActiveWeapon>,
+    mut loadout: ResMut<crate::inventory::Loadout>,
     mut request: ResMut<crate::weapon::WeaponSwitchRequest>,
     mut was_pressed: Local<bool>,
 ) {
@@ -690,7 +697,14 @@ pub(crate) fn touch_weapon_button(
     if pressed && !*was_pressed {
         let all = crate::WeaponId::ALL;
         let at = all.iter().position(|w| *w == active.0).unwrap_or(0);
-        request.0 = Some(all[(at + 1) % all.len()]);
+        crate::inventory::pick_up_weapon(
+            &mut commands,
+            &mut loadout,
+            &mut request,
+            None,
+            all[(at + 1) % all.len()],
+            None,
+        );
     }
     *was_pressed = pressed;
 }
