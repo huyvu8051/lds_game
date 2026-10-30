@@ -738,7 +738,7 @@ pub(crate) fn shoot(
     globals: Query<&GlobalTransform>,
     spatial_query: SpatialQuery,
     (touch_firing, casings, mouse): (Res<TouchFiring>, Res<CasingAssets>, Res<ButtonInput<MouseButton>>),
-    mut cooldown: Local<f32>,
+    (mut cooldown, mut was_held): (Local<f32>, Local<bool>),
     (mut smoke_materials, mut flash_materials, mut shock): (
         ResMut<Assets<MuzzleSmokeMaterial>>,
         ResMut<Assets<MuzzleFlashMaterial>>,
@@ -776,7 +776,12 @@ pub(crate) fn shoot(
     // applied to either would make both measure something else.
     let aimed = cursor.grab_mode != CursorGrabMode::None;
     let held = (aimed && mouse.pressed(MouseButton::Left)) || touch_firing.0;
-    let pulled = aimed && mouse.just_pressed(MouseButton::Left);
+    // The edge comes off `held`, not off the mouse. `just_pressed` is a
+    // mouse-only fact, so single and burst were unreachable from a
+    // touchscreen: the fire button raises `touch_firing` and never reports a
+    // press, leaving both modes holding a trigger that was never pulled.
+    let pulled = held && !*was_held;
+    *was_held = held;
     let mode = fire_mode.mode(active.def());
     let by_hand = match mode {
         weapon::FireMode::Auto => held,
