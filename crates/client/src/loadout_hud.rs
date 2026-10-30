@@ -39,6 +39,16 @@ pub(crate) struct ThrowButtonLabel(pub(crate) ItemKind);
 #[derive(Component)]
 pub(crate) struct CookRing;
 
+/// Where each throwable sits. The smokescreens on the left, the ones that
+/// hurt on the right -- so a hand reaching in a fight only has to be on the
+/// correct side to be harmless or not.
+const THROW_GRID: [[ItemKind; 2]; 2] = [
+    [ItemKind::StunGrenade, ItemKind::FragGrenade],
+    [ItemKind::SmokeGrenade, ItemKind::Molotov],
+];
+const THROW_BUTTON: f32 = 70.0;
+const THROW_GAP: f32 = 3.0;
+
 #[derive(Component)]
 pub(crate) struct GearCellLabel(pub(crate) WearSlot);
 #[derive(Component)]
@@ -501,46 +511,57 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
                 }
             });
 
-            // One button per throwable, above the heal selector. PUBG puts
-            // these on the weapon bar; here they are their own column
-            // because holding one is a different gesture from tapping a
-            // weapon slot and the two should not be neighbours by accident.
+            // Two by two rather than a stack of four. Four in a line made a
+            // column as tall as the weapon slots beside it; side by side the
+            // block is half the height and a thumb crosses it in one move.
+            //
+            // PUBG puts these on the weapon bar; here they are their own
+            // block, because holding one is a different gesture from tapping
+            // a weapon slot and the two should not be neighbours by accident.
             row.spawn(Node {
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(3.0),
+                row_gap: Val::Px(THROW_GAP),
                 align_items: AlignItems::Center,
                 ..default()
             })
             .with_children(|col| {
-                for kind in inventory::THROWABLES {
-                    col.spawn((
-                        Node {
-                            width: Val::Px(74.0),
-                            height: Val::Px(22.0),
-                            border: UiRect::all(Val::Px(1.0)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            overflow: Overflow::clip(),
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-                        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
-                        Button,
-                        Interaction::default(),
-                        ThrowButton(kind),
-                        children![(
-                            Text::new(String::new()),
-                            TextFont { font_size: FontSize::Px(10.0), ..default() },
-                            TextColor(kind.colour()),
-                            ThrowButtonLabel(kind),
-                        )],
-                    ));
+                for pair in THROW_GRID {
+                    col.spawn(Node {
+                        column_gap: Val::Px(THROW_GAP),
+                        ..default()
+                    })
+                    .with_children(|line| {
+                        for kind in pair {
+                            line.spawn((
+                                Node {
+                                    width: Val::Px(THROW_BUTTON),
+                                    height: Val::Px(22.0),
+                                    border: UiRect::all(Val::Px(1.0)),
+                                    align_items: AlignItems::Center,
+                                    justify_content: JustifyContent::Center,
+                                    overflow: Overflow::clip(),
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+                                BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
+                                Button,
+                                Interaction::default(),
+                                ThrowButton(kind),
+                                children![(
+                                    Text::new(String::new()),
+                                    TextFont { font_size: FontSize::Px(10.0), ..default() },
+                                    TextColor(kind.colour()),
+                                    ThrowButtonLabel(kind),
+                                )],
+                            ));
+                        }
+                    });
                 }
                 // How much fuse is left while one is in the hand. The only
                 // thing worth seeing at that moment.
                 col.spawn((
                     Node {
-                        width: Val::Px(74.0),
+                        width: Val::Px(THROW_BUTTON * 2.0 + THROW_GAP),
                         height: Val::Px(4.0),
                         ..default()
                     },
@@ -641,14 +662,38 @@ pub(crate) fn update_weapon_slot_ammo(
     }
 }
 
+/// Tapping a weapon slot draws it; tapping the one already drawn walks its
+/// fire modes.
+///
+/// The second tap had nothing to do -- `equip_slot` would re-request a
+/// weapon already in hand -- and a phone has no Z to press, so the modes
+/// were unreachable there at all. Putting them on the slot keeps them with
+/// the gun they belong to, which is also where a thumb already is.
 pub(crate) fn loadout_hud_buttons(
     mut loadout: ResMut<Loadout>,
     mut request: ResMut<weapon::WeaponSwitchRequest>,
+    active: Res<ActiveWeapon>,
+    mut fire_mode: ResMut<weapon::FireModeSelection>,
+    mut gun: Query<&mut Gun>,
     slots: Query<(&Interaction, &WeaponSlotButton), Changed<Interaction>>,
 ) {
     for (interaction, slot) in &slots {
-        if *interaction == Interaction::Pressed {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+        if loadout.active != slot.0 || loadout.get(slot.0).is_none() {
             inventory::equip_slot(&mut loadout, &mut request, slot.0);
+            continue;
+        }
+        let def = active.def();
+        if def.fire_modes.len() < 2 {
+            continue;
+        }
+        fire_mode.next(def);
+        // Touched so the ammo readout, which only rebuilds on a changed Gun,
+        // picks the new mode up. Cheaper than making it rebuild every frame.
+        if let Ok(mut gun) = gun.single_mut() {
+            gun.set_changed();
         }
     }
 }
