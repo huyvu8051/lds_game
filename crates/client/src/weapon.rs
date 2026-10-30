@@ -9,46 +9,30 @@ use crate::*;
 /// were global constants while there was only ever one gun.
 /// How the trigger behaves. A bolt rifle has one, a carbine has three.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// How a weapon answers a held trigger.
+///
+/// `Single` and `Auto` now do the same thing -- fire for as long as it is
+/// held, one round every `fire_rate`. What used to separate them was a
+/// switch, and the switch is gone; what separates the guns that carry them is
+/// the rate itself, which is 0.125s on an AK and 1.3s on an M24. Both names
+/// are kept because they say what the weapon is, and because getting the
+/// distinction back means changing this match rather than retyping
+/// thirty-five weapons.
 pub(crate) enum FireMode {
     Single,
     Burst,
     Auto,
 }
 
-impl FireMode {
-    /// One letter. The word does not fit beside a name and a round count in
-    /// 132 pixels, and the initial is what the eye is checking for anyway.
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            FireMode::Single => "S",
-            FireMode::Burst => "B",
-            FireMode::Auto => "A",
-        }
-    }
-}
 
 /// Rounds a burst sends.
 pub(crate) const BURST_ROUNDS: u32 = 3;
 
-/// Which mode the weapon in hand is on. One index rather than one per
-/// weapon: a switch that remembers each gun separately is a nicety nobody
-/// asked for, and the index is clamped to whatever the weapon offers.
-#[derive(Resource, Default)]
-pub(crate) struct FireModeSelection {
-    pub(crate) index: usize,
-    pub(crate) burst_left: u32,
-}
-
-impl FireModeSelection {
-    pub(crate) fn mode(&self, def: &WeaponDef) -> FireMode {
-        def.fire_modes[self.index.min(def.fire_modes.len() - 1)]
-    }
-
-    pub(crate) fn next(&mut self, def: &WeaponDef) {
-        self.index = (self.index + 1) % def.fire_modes.len();
-        self.burst_left = 0;
-    }
-}
+/// How long after a burst before the next one starts.
+///
+/// Without it a burst weapon held down is an automatic one: three rounds, no
+/// pause, three more. The pause is the whole of what makes it a burst.
+pub(crate) const BURST_GAP_SECONDS: f32 = 0.3;
 
 pub(crate) struct WeaponDef {
     pub(crate) name: &'static str,
@@ -145,9 +129,14 @@ pub(crate) reticle: ReticleKind,
     pub(crate) damage_scale: f32,
     pub(crate) fire_rate: f32,
     pub(crate) magazine: u32,
-/// The fire modes it offers, in the order the switch walks them. First is
-/// what it starts on.
-pub(crate) fire_modes: &'static [FireMode],
+/// How this weapon fires, and the only way it fires.
+///
+/// It was a list with a selector on top: most rifles carried auto, burst and
+/// single, and a button walked between them. Holding the trigger now does
+/// whichever one thing the weapon does -- a single-shot rifle repeats at its
+/// own rate, a burst weapon keeps bursting -- so there was nothing left for
+/// a list to choose between. Each weapon kept the mode it used to start on.
+pub(crate) fire_mode: FireMode,
 /// The calibre it feeds on, which is what the reserve count beside the
 /// magazine is counting and what a reload draws from.
 pub(crate) ammo: crate::ItemKind,
@@ -511,7 +500,7 @@ static AK47: WeaponDef = WeaponDef {
     damage_scale: 1.0,
     fire_rate: 0.12,
     magazine: 50,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo762,
     // 7.62: slower, heavier, looser at the top of a burst. Every axis above
     // the M4's.
@@ -593,7 +582,7 @@ static M4A1: WeaponDef = WeaponDef {
     damage_scale: 0.85,
     fire_rate: 0.105,
     magazine: 45,
-    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo556,
     // 5.56: about two thirds the AK's kick, settling faster. Cut by more than
     // a flat ratio because it also fires faster, and matching per shot would
@@ -684,7 +673,7 @@ static SCAR_L: WeaponDef = WeaponDef {
     fire_rate: 0.126,
     magazine: 40,
     // Safe, semi, auto. No burst on a Mk16.
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo556,
     // The M4's, kicking a little harder per shot and ringing lower and longer
     // for the extra mass, which the slower cyclic rate leaves room for.
@@ -764,7 +753,7 @@ static M16A4: WeaponDef = WeaponDef {
     magazine: 45,
     // No auto on an A4. Three rounds or one, which is the whole character of
     // the rifle: a 474mm sight radius and a trigger that will not run away.
-    fire_modes: &[FireMode::Burst, FireMode::Single],
+    fire_mode: FireMode::Burst,
     ammo: crate::ItemKind::Ammo556,
     // The M4's, a touch lighter per shot for the longer rifle's mass, and
     // recovering sooner because a burst ends on its own.
@@ -840,7 +829,7 @@ static FAMAS: WeaponDef = WeaponDef {
     // against the M416's 750, and the M4 here is 571, so this lands at 761.
     fire_rate: 0.079,
     magazine: 35,
-    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo556,
     // Light per shot, but at this rate the climb stacks faster than anything
     // else, so the ceiling is what holds it rather than the step.
@@ -916,7 +905,7 @@ static G36C: WeaponDef = WeaponDef {
     // 750rpm real, the same as the M416, so the same number the M4 carries.
     fire_rate: 0.105,
     magazine: 40,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo556,
     // Short and light: more of the shot reaches the shoulder, and there is
     // less weapon to absorb it, so the gun moves more than the view does.
@@ -991,7 +980,7 @@ static QBZ95: WeaponDef = WeaponDef {
     // the M4's 571 sets.
     fire_rate: 0.121,
     magazine: 40,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo556,
     // A bullpup fires into the shoulder rather than above it, so less of the
     // shot becomes climb and more of it becomes a shove.
@@ -1066,7 +1055,7 @@ static AUG_A3: WeaponDef = WeaponDef {
     // 700rpm real, which is 533 on the scale the M4's 571 sets.
     fire_rate: 0.1125,
     magazine: 40,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo556,
     // Heavy for a 5.56 and balanced over the shoulder, so it is the steadiest
     // of them: the least climb per shot and the soonest back on target.
@@ -1139,7 +1128,7 @@ static BERYL_M762: WeaponDef = WeaponDef {
     // 0.12 here.
     fire_rate: 0.103,
     magazine: 45,
-    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo762,
     // The AK's round out of a lighter rifle fired faster: the same step, a
     // higher ceiling, and less time between shots to give any of it back.
@@ -1208,7 +1197,7 @@ static ACE32: WeaponDef = WeaponDef {
     // 650rpm real against the AK's 600.
     fire_rate: 0.111,
     magazine: 45,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo762,
     // The AK's round through a stock that lines up with the bore, so less of
     // it turns into pitch and the rifle settles sooner.
@@ -1279,7 +1268,7 @@ static MK47_MUTANT: WeaponDef = WeaponDef {
     fire_rate: 0.12,
     magazine: 30,
     // No auto. A burst of two, or one at a time.
-    fire_modes: &[FireMode::Burst, FireMode::Single],
+    fire_mode: FireMode::Burst,
     ammo: crate::ItemKind::Ammo762,
     // The AK's kick through an AR stock: it climbs less and shoves more, and
     // a burst of two ends before any of it stacks.
@@ -1354,7 +1343,7 @@ static GROZA: WeaponDef = WeaponDef {
     // going out that fast.
     fire_rate: 0.103,
     magazine: 40,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo762,
     // Heavy and fired straight into the shoulder: it shoves hard and climbs
     // less than the AK, but at this rate there is no time to give any back.
@@ -1427,7 +1416,7 @@ static VECTOR: WeaponDef = WeaponDef {
     // 1200rpm real against the UMP's 600, so half the UMP's 0.10.
     fire_rate: 0.055,
     magazine: 25,
-    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo45,
     // The action drives the bolt down and back rather than straight back, and
     // the weapon is built around keeping that off the shoulder: very little
@@ -1500,7 +1489,7 @@ static MP5K: WeaponDef = WeaponDef {
     // 900rpm real against the UMP's 600.
     fire_rate: 0.067,
     magazine: 40,
-    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo9mm,
     // A roller-delayed action and a light round: the steadiest thing in the
     // game to hold on target, which is most of why the real one is famous.
@@ -1573,7 +1562,7 @@ static SKS: WeaponDef = WeaponDef {
     damage_scale: 1.15,
     fire_rate: 0.14,
     magazine: 20,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo762,
     // Heavy per shot, but semi only: there is always time for the sight to
     // come back before the next one.
@@ -1645,7 +1634,7 @@ static P1911: WeaponDef = WeaponDef {
     damage_scale: 1.05,
     fire_rate: 0.14,
     magazine: 10,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo45,
     // A pistol with nothing braced behind it, but a quarter of the Deagle's
     // round: it moves in the hands and comes back before the finger does.
@@ -1712,7 +1701,7 @@ static BIZON: WeaponDef = WeaponDef {
     damage_scale: 0.7,
     fire_rate: 0.075,
     magazine: 53,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo9mm,
     recoil: Recoil {
         strike_speed: 56.0,
@@ -1777,7 +1766,7 @@ static SKORPION: WeaponDef = WeaponDef {
     damage_scale: 0.6,
     fire_rate: 0.06,
     magazine: 20,
-    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo9mm,
     recoil: Recoil {
         strike_speed: 56.0,
@@ -1842,7 +1831,7 @@ static TOMMY_GUN: WeaponDef = WeaponDef {
     damage_scale: 0.8,
     fire_rate: 0.085,
     magazine: 50,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo45,
     recoil: Recoil {
         strike_speed: 56.0,
@@ -1907,7 +1896,7 @@ static MICRO_UZI: WeaponDef = WeaponDef {
     damage_scale: 0.6,
     fire_rate: 0.048,
     magazine: 35,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo9mm,
     recoil: Recoil {
         strike_speed: 56.0,
@@ -1972,7 +1961,7 @@ static DP28: WeaponDef = WeaponDef {
     damage_scale: 1.05,
     fire_rate: 0.109,
     magazine: 47,
-    fire_modes: &[FireMode::Auto],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo762,
     recoil: Recoil {
         strike_speed: 64.0,
@@ -2037,7 +2026,7 @@ static M249: WeaponDef = WeaponDef {
     damage_scale: 0.9,
     fire_rate: 0.075,
     magazine: 100,
-    fire_modes: &[FireMode::Auto],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo556,
     recoil: Recoil {
         strike_speed: 64.0,
@@ -2102,7 +2091,7 @@ static MINI14: WeaponDef = WeaponDef {
     damage_scale: 1.0,
     fire_rate: 0.13,
     magazine: 20,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo556,
     recoil: Recoil {
         strike_speed: 52.0,
@@ -2167,7 +2156,7 @@ static MK12: WeaponDef = WeaponDef {
     damage_scale: 1.05,
     fire_rate: 0.13,
     magazine: 20,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo556,
     recoil: Recoil {
         strike_speed: 52.0,
@@ -2232,7 +2221,7 @@ static MK14_EBR: WeaponDef = WeaponDef {
     damage_scale: 1.35,
     fire_rate: 0.12,
     magazine: 20,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo762,
     recoil: Recoil {
         strike_speed: 52.0,
@@ -2297,7 +2286,7 @@ static SLR: WeaponDef = WeaponDef {
     damage_scale: 1.3,
     fire_rate: 0.12,
     magazine: 20,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo762,
     recoil: Recoil {
         strike_speed: 52.0,
@@ -2362,7 +2351,7 @@ static VSS: WeaponDef = WeaponDef {
     damage_scale: 0.95,
     fire_rate: 0.086,
     magazine: 20,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo9mm,
     recoil: Recoil {
         strike_speed: 52.0,
@@ -2427,7 +2416,7 @@ static SVD: WeaponDef = WeaponDef {
     damage_scale: 1.4,
     fire_rate: 0.13,
     magazine: 20,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo762,
     recoil: Recoil {
         strike_speed: 52.0,
@@ -2492,7 +2481,7 @@ static MOSIN_NAGANT: WeaponDef = WeaponDef {
     damage_scale: 2.9,
     fire_rate: 1.5,
     magazine: 5,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo762,
     recoil: Recoil {
         strike_speed: 34.0,
@@ -2557,7 +2546,7 @@ static R1895: WeaponDef = WeaponDef {
     damage_scale: 1.3,
     fire_rate: 0.3,
     magazine: 7,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo762,
     recoil: Recoil {
         strike_speed: 50.0,
@@ -2622,7 +2611,7 @@ static P90: WeaponDef = WeaponDef {
     damage_scale: 0.65,
     fire_rate: 0.063,
     magazine: 50,
-    fire_modes: &[FireMode::Auto, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo57mm,
     recoil: Recoil {
         strike_speed: 56.0,
@@ -2687,7 +2676,7 @@ static S686: WeaponDef = WeaponDef {
     damage_scale: 2.6,
     fire_rate: 0.22,
     magazine: 2,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo12g,
     recoil: Recoil {
         strike_speed: 34.0,
@@ -2768,7 +2757,7 @@ static M24: WeaponDef = WeaponDef {
     damage_scale: 3.2,
     fire_rate: 1.3,
     magazine: 5,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo762,
     recoil: Recoil {
         strike_speed: 28.0,
@@ -2862,7 +2851,7 @@ static UMP45: WeaponDef = WeaponDef {
     damage_scale: 0.80,
     fire_rate: 0.10,
     magazine: 35,
-    fire_modes: &[FireMode::Auto, FireMode::Burst, FireMode::Single],
+    fire_mode: FireMode::Auto,
     ammo: crate::ItemKind::Ammo45,
     // .45 ACP is a heavy, slow round, but the UMP's bolt is built to swallow
     // it: more kick per shot than the M4 and less climb over a burst, because
@@ -2947,7 +2936,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     // Semi-automatic: the ceiling is the trigger finger, not the action.
     fire_rate: 0.26,
     magazine: 7,
-    fire_modes: &[FireMode::Single],
+    fire_mode: FireMode::Single,
     ammo: crate::ItemKind::Ammo45,
     // The hardest kick here, and the slowest recovery. strike_speed below the
     // M24's because this is not braced against anything -- the blow pushes

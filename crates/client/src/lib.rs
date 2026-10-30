@@ -1049,7 +1049,6 @@ impl Plugin for GamePlugin {
         .init_resource::<InventoryScreenOpen>()
         .init_resource::<Equipment>()
         .init_resource::<Attachments>()
-        .init_resource::<weapon::FireModeSelection>()
         .init_resource::<Patrol>()
         .init_resource::<PatrolFire>()
         .init_resource::<PatrolRoute>()
@@ -1314,8 +1313,6 @@ impl Plugin for GamePlugin {
                 inventory::update_pickup_labels,
                 inventory_screen::touch_scroll_bag,
                 inventory_screen::wheel_scroll_bag,
-                        cycle_fire_mode,
-                        touch_fire_mode_button,
                         cook_and_throw,
                         advance_grenades,
                         advance_smoke,

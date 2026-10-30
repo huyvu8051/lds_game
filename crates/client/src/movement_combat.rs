@@ -745,13 +745,13 @@ pub(crate) fn shoot(
     globals: Query<&GlobalTransform>,
     spatial_query: SpatialQuery,
     (touch_firing, casings, mouse): (Res<TouchFiring>, Res<CasingAssets>, Res<ButtonInput<MouseButton>>),
-    (mut cooldown, mut was_held): (Local<f32>, Local<bool>),
+    (mut cooldown, mut burst_left, mut burst_gap): (Local<f32>, Local<u32>, Local<f32>),
     (mut smoke_materials, mut flash_materials, mut shock): (
         ResMut<Assets<MuzzleSmokeMaterial>>,
         ResMut<Assets<MuzzleFlashMaterial>>,
         ResMut<FireShock>,
     ),
-    (driven, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, mut fire_mode, swap): (
+    (driven, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, swap): (
         Res<crate::patrol::Driven>,
         Res<AutopilotIntent>,
         Res<LocalPlayerMoving>,
@@ -763,9 +763,6 @@ pub(crate) fn shoot(
         Res<PortSmokeEnabled>,
         Res<MuzzleFlashEnabled>,
         Res<ShellCasingsEnabled>,
-        // Riding in with the flags rather than taking a parameter of its
-        // own: Bevy caps a system at sixteen and this one was already there.
-        ResMut<weapon::FireModeSelection>,
         Res<crate::WeaponSwap>,
     ),
 ) {
@@ -783,26 +780,33 @@ pub(crate) fn shoot(
     // applied to either would make both measure something else.
     let aimed = cursor.grab_mode != CursorGrabMode::None;
     let held = (aimed && mouse.pressed(MouseButton::Left)) || touch_firing.0;
-    // The edge comes off `held`, not off the mouse. `just_pressed` is a
-    // mouse-only fact, so single and burst were unreachable from a
-    // touchscreen: the fire button raises `touch_firing` and never reports a
-    // press, leaving both modes holding a trigger that was never pulled.
-    let pulled = held && !*was_held;
-    *was_held = held;
-    let mode = fire_mode.mode(active.def());
-    let by_hand = match mode {
-        weapon::FireMode::Auto => held,
-        weapon::FireMode::Single => pulled,
+    *burst_gap = (*burst_gap - time.delta_secs()).max(0.0);
+    let mode = active.def().fire_mode;
+    // Holding is the whole of the trigger now. A single-shot weapon repeats
+    // at its own fire rate, which for the guns that carry that mode is slow
+    // enough to be the difference; a burst weapon keeps bursting with a pause
+    // between. Neither asks whether the trigger was *just* pulled, which is a
+    // question a touchscreen could never answer -- the fire button raises a
+    // flag and holds it, and has no press to report.
+    // Whoever is pulling it. The autopilot goes through the mode the same
+    // way a hand does -- it was exempt, which quietly turned every burst
+    // weapon it picked up into an automatic one, and made an autopilot run a
+    // poor stand-in for play.
+    let trigger = if driven.0 { intent.fire } else { held };
+    let shaped = match mode {
+        weapon::FireMode::Auto | weapon::FireMode::Single => trigger,
         weapon::FireMode::Burst => {
-            if pulled {
-                fire_mode.burst_left = weapon::BURST_ROUNDS;
+            if trigger && *burst_left == 0 && *burst_gap <= 0.0 {
+                *burst_left = weapon::BURST_ROUNDS;
             }
-            fire_mode.burst_left > 0
+            *burst_left > 0
         }
     };
     // Nothing leaves a barrel that is halfway out of frame.
-    let firing =
-        !swap.busy() && (always_fire() || if driven.0 { intent.fire } else { by_hand });
+    // ALWAYS_FIRE stays outside the mode: it exists to hold the trigger flat
+    // for a measurement, and a burst weapon pausing three times a second
+    // would make it measure something else.
+    let firing = !swap.busy() && (always_fire() || shaped);
     if !firing || *cooldown > 0.0 {
         return;
     }
@@ -830,7 +834,10 @@ pub(crate) fn shoot(
     *cooldown = active.def().fire_rate;
     gun.ammo -= 1;
     if mode == weapon::FireMode::Burst {
-        fire_mode.burst_left = fire_mode.burst_left.saturating_sub(1);
+        *burst_left = burst_left.saturating_sub(1);
+        if *burst_left == 0 {
+            *burst_gap = weapon::BURST_GAP_SECONDS;
+        }
     }
     gun.recoil_target = 1.0;
 

@@ -158,6 +158,31 @@ impl SightId {
     }
 }
 
+/// Whether this weapon has somewhere for a sight to clamp.
+///
+/// A list rather than a field on the weapon, because what decides it is the
+/// mesh: these twelve are the ones `add_rails.sh` built a rail onto, and the
+/// ones that shipped with a rail already have no sockets marking its ends.
+/// Fitting a sight to anything else puts it in the bag's socket and nowhere
+/// on screen.
+pub(crate) fn weapon_takes_sight(weapon: WeaponId) -> bool {
+    matches!(
+        weapon,
+        WeaponId::Bizon
+            | WeaponId::Dp28
+            | WeaponId::Groza
+            | WeaponId::Mini14
+            | WeaponId::MosinNagant
+            | WeaponId::P1911
+            | WeaponId::Qbz95
+            | WeaponId::R1895
+            | WeaponId::S686
+            | WeaponId::Skorpion
+            | WeaponId::Slr
+            | WeaponId::TommyGun
+    )
+}
+
 /// What is clamped to the weapon the player is holding, if anything.
 ///
 /// Derived, never authored: the bag's sight socket is what decides, so the

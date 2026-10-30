@@ -215,7 +215,7 @@ pub(crate) fn update_weapon_slots(
     }
 }
 
-/// The rounds and the fire mode, in the cell for the weapon they belong to.
+/// The rounds, in the cell for the weapon they belong to.
 ///
 /// A slot that is not in hand has no `Gun` of its own -- switching to one
 /// hands it a full magazine -- so that is what its cell shows. The reserve is
@@ -223,7 +223,6 @@ pub(crate) fn update_weapon_slots(
 pub(crate) fn update_weapon_slot_ammo(
     loadout: Res<Loadout>,
     inventory: Res<Inventory>,
-    fire_mode: Res<weapon::FireModeSelection>,
     gun: Query<&Gun>,
     mut labels: Query<(&WeaponSlotAmmo, &mut Text)>,
 ) {
@@ -243,11 +242,7 @@ pub(crate) fn update_weapon_slot_ammo(
                     _ => def.magazine,
                 };
                 let reserve = inventory.count(def.ammo);
-                if def.fire_modes.len() > 1 {
-                    format!("{} {} / {}", fire_mode.mode(def).label(), mag, reserve)
-                } else {
-                    format!("{mag} / {reserve}")
-                }
+                format!("{mag} / {reserve}")
             }
         };
     }

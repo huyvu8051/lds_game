@@ -23,13 +23,6 @@ pub(crate) struct TouchAimButton;
 
 #[derive(Component)]
 pub(crate) struct TouchReloadButton;
-/// Walks the weapon's fire modes. Under RELOAD because the two are the same
-/// kind of thing -- housekeeping on the gun in hand, done between shots, by
-/// the hand that is not steering.
-#[derive(Component)]
-pub(crate) struct TouchFireModeButton;
-#[derive(Component)]
-pub(crate) struct TouchFireModeLabel;
 #[derive(Component)]
 pub(crate) struct TouchJumpButton;
 #[derive(Component)]
@@ -331,16 +324,6 @@ pub(crate) fn spawn_touch_controls(commands: &mut Commands) {
         Color::srgba(1.0, 0.8, 0.2, 0.4),
         TouchReloadButton,
         (),
-    );
-    // Directly under RELOAD, in the same column.
-    spawn_touch_round_button(
-        commands,
-        "AUTO",
-        TouchAnchor::TopRight { right: 16.0, top: 68.0 + ads_px + 12.0 },
-        ads_px,
-        Color::srgba(0.5, 0.7, 1.0, 0.4),
-        TouchFireModeButton,
-        TouchFireModeLabel,
     );
 
     let stance_btn_px = TOUCH_FIRE_BUTTON_PX * 0.6;
