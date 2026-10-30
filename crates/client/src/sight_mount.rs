@@ -112,6 +112,25 @@ static SCOPE_8X: SightDef = SightDef {
 };
 
 impl SightId {
+    /// The item that is this sight. One each: a sight the player can carry
+    /// and a sight the weapon can wear are the same object, so the bag and
+    /// the rail cannot disagree about which products exist.
+    pub(crate) fn from_item(item: crate::items::ItemKind) -> Option<SightId> {
+        use crate::items::ItemKind::*;
+        Some(match item {
+            RedDot => SightId::RedDotA,
+            TubeDot => SightId::RedDotB,
+            Holographic => SightId::HoloA,
+            HoloCompact => SightId::HoloB,
+            HoloHeavy => SightId::HoloC,
+            Scope2x => SightId::Scope2x,
+            Scope3x => SightId::Scope3x,
+            Scope6x => SightId::Scope6x,
+            Scope8x => SightId::Scope8x,
+            _ => return None,
+        })
+    }
+
     pub(crate) const ALL: [SightId; 9] = [
         SightId::RedDotA,
         SightId::RedDotB,
@@ -140,21 +159,24 @@ impl SightId {
 }
 
 /// What is clamped to the weapon the player is holding, if anything.
-#[derive(Resource)]
+///
+/// Derived, never authored: the bag's sight socket is what decides, so the
+/// screen that fits one and the rail that carries it cannot disagree.
+#[derive(Resource, Default)]
 pub(crate) struct FittedSight(pub(crate) Option<SightId>);
 
-impl Default for FittedSight {
-    /// `SIGHT=` starts the player with one fitted, by the same number the
-    /// cycle key counts through. Checking where a sight sits means looking
-    /// at it, and a screenshot cannot press a key.
-    fn default() -> Self {
-        Self(
-            std::env::var("SIGHT")
-                .ok()
-                .and_then(|v| v.trim().parse::<usize>().ok())
-                .and_then(|n| SightId::ALL.get(n.checked_sub(1)?).copied()),
-        )
-    }
+/// `SIGHT=` fits one on everything the player is carrying, by the same number
+/// the cycle key counts through. Checking where a sight sits means looking at
+/// it, and a screenshot cannot press a key.
+pub(crate) fn sight_from_env() -> Option<crate::items::ItemKind> {
+    let id = std::env::var("SIGHT")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .and_then(|n| SightId::ALL.get(n.checked_sub(1)?).copied())?;
+    crate::items::ALL_ITEMS
+        .iter()
+        .copied()
+        .find(|item| SightId::from_item(*item) == Some(id))
 }
 
 /// The rail a sight clamps to, as a node in the weapon's own mesh.
@@ -366,25 +388,36 @@ pub(crate) fn show_rail_with_sight(
     }
 }
 
-/// Cycles through the sights on a key, because tuning where one sits means
-/// looking at it and a screenshot cannot press a button.
+/// Cycles the sight on the weapon in hand, because tuning where one sits
+/// means looking at it and a screenshot cannot press a button.
+///
+/// Writes the bag rather than the fitting: everything else reads the bag, and
+/// two writers would have the key and the inventory screen fighting.
 pub(crate) fn cycle_fitted_sight(
     keys: Res<ButtonInput<KeyCode>>,
-    mut fitted: ResMut<FittedSight>,
+    loadout: Res<crate::inventory::Loadout>,
+    mut attachments: ResMut<crate::inventory::Attachments>,
 ) {
     if !keys.just_pressed(KeyCode::KeyB) {
         return;
     }
-    let next = match fitted.0 {
-        None => Some(SightId::ALL[0]),
-        Some(current) => {
-            let at = SightId::ALL.iter().position(|id| *id == current).unwrap_or(0);
-            SightId::ALL.get(at + 1).copied()
-        }
+    let sights: Vec<crate::items::ItemKind> = crate::items::ALL_ITEMS
+        .iter()
+        .copied()
+        .filter(|item| SightId::from_item(*item).is_some())
+        .collect();
+    let current = attachments.get(loadout.active, crate::items::AttachSlot::Sight);
+    let next = match current {
+        None => sights.first().copied(),
+        Some(item) => sights
+            .iter()
+            .position(|k| *k == item)
+            .and_then(|at| sights.get(at + 1))
+            .copied(),
     };
-    fitted.0 = next;
+    attachments.set(loadout.active, crate::items::AttachSlot::Sight, next);
     match next {
-        Some(id) => info!("[sight] {}", id.def().name),
+        Some(item) => info!("[sight] {}", item.label()),
         None => info!("[sight] irons"),
     }
 }
@@ -405,5 +438,25 @@ pub(crate) fn drop_weapon_for_sight(
     let wanted = active.def().rest_offset - Vec3::Y * drop.0;
     if gun.base_offset != wanted {
         gun.base_offset = wanted;
+    }
+}
+
+/// Follows what the bag says is bolted to the weapon in hand.
+///
+/// The inventory screen already fits and unfits into an `AttachSlot::Sight`
+/// socket; this is the one line that was missing between that and the rail.
+pub(crate) fn follow_fitted_attachment(
+    loadout: Res<crate::inventory::Loadout>,
+    attachments: Res<crate::inventory::Attachments>,
+    mut fitted: ResMut<FittedSight>,
+) {
+    if !loadout.is_changed() && !attachments.is_changed() {
+        return;
+    }
+    let wanted = attachments
+        .get(loadout.active, crate::items::AttachSlot::Sight)
+        .and_then(SightId::from_item);
+    if fitted.0 != wanted {
+        fitted.0 = wanted;
     }
 }

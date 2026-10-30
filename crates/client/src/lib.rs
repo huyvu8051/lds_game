@@ -1261,6 +1261,7 @@ impl Plugin for GamePlugin {
                 // One group, not five: this tuple is at Bevy's twenty-item
                 // limit and the outer .chain() stops compiling past it.
                 (
+                    sight_mount::follow_fitted_attachment,
                     sight_mount::wire_rail_nodes,
                     sight_mount::wire_sight_eye,
                     sight_mount::cycle_fitted_sight,

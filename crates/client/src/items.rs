@@ -143,16 +143,20 @@ pub(crate) enum ItemKind {
     CheekPad,
     BulletLoops,
 
-    // Sights.
+    // Sights. One per mesh we own, which is why there are two red dots and
+    // three holographics and no 4x: each was taken off a weapon that wore
+    // one, and they differ by more than a label. The open dot carries its
+    // line of sight 53mm over the rail and the tube 32mm, so the weapon
+    // hangs twenty-one millimetres lower under one than the other.
     RedDot,
+    TubeDot,
     Holographic,
+    HoloCompact,
+    HoloHeavy,
     Scope2x,
     Scope3x,
-    Scope4x,
     Scope6x,
     Scope8x,
-    Scope15x,
-    CantedSight,
 
     // Armour, three levels apiece.
     Helmet1,
@@ -207,14 +211,14 @@ pub(crate) const ALL_ITEMS: [ItemKind; 52] = [
     ItemKind::CheekPad,
     ItemKind::BulletLoops,
     ItemKind::RedDot,
+    ItemKind::TubeDot,
     ItemKind::Holographic,
+    ItemKind::HoloCompact,
+    ItemKind::HoloHeavy,
     ItemKind::Scope2x,
     ItemKind::Scope3x,
-    ItemKind::Scope4x,
     ItemKind::Scope6x,
     ItemKind::Scope8x,
-    ItemKind::Scope15x,
-    ItemKind::CantedSight,
     ItemKind::Helmet1,
     ItemKind::Helmet2,
     ItemKind::Helmet3,
@@ -269,14 +273,14 @@ impl ItemKind {
             CheekPad => "Cheek Pad",
             BulletLoops => "Bullet Loops",
             RedDot => "Red Dot Sight",
+            TubeDot => "Tube Red Dot",
             Holographic => "Holographic Sight",
+            HoloCompact => "Compact Holographic",
+            HoloHeavy => "Heavy Holographic",
             Scope2x => "2x Scope",
             Scope3x => "3x Scope",
-            Scope4x => "4x Scope",
             Scope6x => "6x Scope",
             Scope8x => "8x Scope",
-            Scope15x => "15x Scope",
-            CantedSight => "Canted Sight",
             Helmet1 => "Helmet Lv1",
             Helmet2 => "Helmet Lv2",
             Helmet3 => "Helmet Lv3",
@@ -324,8 +328,8 @@ impl ItemKind {
             }
             QuickdrawMag | ExtendedMag | ExtendedQuickdrawMag => AttachSlot::Magazine,
             TacticalStock | CheekPad | BulletLoops => AttachSlot::Stock,
-            RedDot | Holographic | Scope2x | Scope3x | Scope4x | Scope6x | Scope8x | Scope15x
-            | CantedSight => AttachSlot::Sight,
+            RedDot | TubeDot | Holographic | HoloCompact | HoloHeavy | Scope2x | Scope3x
+            | Scope6x | Scope8x => AttachSlot::Sight,
             _ => return None,
         })
     }
@@ -371,8 +375,8 @@ impl ItemKind {
             Helmet2 | Vest2 => 35.0,
             Helmet3 | Vest3 => 40.0,
             Backpack1 | Backpack2 | Backpack3 => 0.0,
-            Scope8x | Scope15x => 12.0,
-            Scope4x | Scope6x => 10.0,
+            Scope8x => 12.0,
+            Scope6x => 10.0,
             _ => 6.0,
         }
     }

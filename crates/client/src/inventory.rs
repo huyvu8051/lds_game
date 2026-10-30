@@ -370,9 +370,24 @@ impl Equipment {
 }
 
 /// What is bolted to each weapon, one set of five sockets per slot.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub(crate) struct Attachments {
     pub(crate) fitted: [[Option<ItemKind>; 5]; 3],
+}
+
+impl Default for Attachments {
+    fn default() -> Self {
+        let mut fitted = [[None; 5]; 3];
+        if let Some(sight) = crate::sight_mount::sight_from_env() {
+            let at = AttachSlot::ALL.iter().position(|s| *s == AttachSlot::Sight);
+            if let Some(at) = at {
+                for row in &mut fitted {
+                    row[at] = Some(sight);
+                }
+            }
+        }
+        Self { fitted }
+    }
 }
 
 impl Attachments {
