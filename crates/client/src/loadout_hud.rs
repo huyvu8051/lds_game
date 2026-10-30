@@ -18,8 +18,6 @@ const SLOT_WIDTH: f32 = 132.0;
 /// its own box in the far corner, which meant checking the weapon and
 /// checking what was in it were two looks at opposite ends of the screen.
 const SLOT_HEIGHT: f32 = 38.0;
-const ITEM_BUTTON: f32 = 44.0;
-
 fn health_colour(fraction: f32) -> Color {
     // One colour until it matters. A bar that is already orange at three
     // quarters has spent the warning it needs at one quarter.
@@ -60,28 +58,11 @@ pub(crate) struct HealthBarFill;
 #[derive(Component)]
 pub(crate) struct BoostBarFill;
 #[derive(Component)]
-pub(crate) struct HealthCellLabel;
-#[derive(Component)]
-pub(crate) struct BoostCellLabel;
-#[derive(Component)]
 pub(crate) struct WeaponSlotButton(pub(crate) inventory::Slot);
 #[derive(Component)]
 pub(crate) struct WeaponSlotLabel(pub(crate) inventory::Slot);
 #[derive(Component)]
 pub(crate) struct WeaponSlotAmmo(pub(crate) inventory::Slot);
-#[derive(Component)]
-pub(crate) struct ItemUseButton;
-#[derive(Component)]
-pub(crate) struct ItemUseLabel;
-#[derive(Component)]
-pub(crate) struct ItemExpandButton;
-#[derive(Component)]
-pub(crate) struct ItemList;
-#[derive(Component)]
-pub(crate) struct ItemChoiceButton(pub(crate) usize);
-#[derive(Component)]
-pub(crate) struct ItemChoiceLabel(pub(crate) usize);
-
 fn text(content: &str, size: f32, colour: Color) -> impl Bundle {
     (
         Text::new(content.to_string()),
@@ -128,72 +109,250 @@ fn stat_cell(
     )
 }
 
-/// HP and BST are buttons: tapping one spends the best item of its kind.
-///
-/// Edge-triggered off the interaction's own state rather than `Changed<>`, the
-/// same way the bag toggle is and for the same reason -- a held thumb would
-/// otherwise fire on every frame it stays down, and the 1.2s cooldown inside
-/// `use_selected_consumable` would swallow the rest without saying so.
-///
-/// This picks the slot and then goes through the existing spend path rather
-/// than applying the effect itself, so the cooldown, the refusal to waste an
-/// item at full health, and the count bookkeeping all stay in one place.
-pub(crate) fn hud_consumable_buttons(
-    mut health_held: Local<bool>,
-    mut boost_held: Local<bool>,
-    health_button: Query<&Interaction, With<HealthUseButton>>,
-    boost_button: Query<&Interaction, With<BoostUseButton>>,
-    mut inventory: ResMut<crate::inventory::Inventory>,
-    boost: ResMut<crate::inventory::Boost>,
-    player: Query<&mut Health, With<Player>>,
-) {
-    let want_health = health_button.iter().any(|i| *i == Interaction::Pressed);
-    let want_boost = boost_button.iter().any(|i| *i == Interaction::Pressed);
-    let fire_health = want_health && !*health_held;
-    let fire_boost = want_boost && !*boost_held;
-    *health_held = want_health;
-    *boost_held = want_boost;
+/// Which medicine a condition cell spends, and the list it drops.
+#[derive(Component, Clone, Copy)]
+pub(crate) struct ConditionCell(pub(crate) crate::items::Category);
 
-    let category = if fire_health {
-        crate::items::Category::Healing
-    } else if fire_boost {
-        crate::items::Category::Boost
-    } else {
-        return;
-    };
+#[derive(Component, Clone, Copy)]
+pub(crate) struct ConditionList(pub(crate) crate::items::Category);
 
-    let health_now = player.iter().next().map(|h| h.0).unwrap_or(0.0);
-    let Some(index) =
-        crate::inventory::best_consumable(&inventory, category, health_now, boost.0)
-    else {
-        return;
-    };
-    inventory.selected = index;
-    crate::inventory::use_selected_consumable(inventory, boost, player);
+#[derive(Component, Clone, Copy)]
+pub(crate) struct ConditionChoice {
+    pub(crate) category: crate::items::Category,
+    pub(crate) index: usize,
 }
 
-/// Marks the HP cell, which spends a healing item when tapped.
-#[derive(Component)]
-pub(crate) struct HealthUseButton;
+#[derive(Component, Clone, Copy)]
+pub(crate) struct ConditionChoiceLabel {
+    pub(crate) index: usize,
+}
 
-/// Marks the BST cell, which spends a boost item when tapped.
-#[derive(Component)]
-pub(crate) struct BoostUseButton;
+/// How far down a finger has to travel before it means "show me the list"
+/// rather than "use this". Short enough to feel like a flick, long enough that
+/// a thumb that rolls while tapping still spends the item it meant to.
+const CONDITION_DRAG_OPEN: f32 = 12.0;
+
+/// Tap a condition cell to spend what it shows; drag down to change it.
+///
+/// Tap and drag start the same way, so the decision cannot be made on press —
+/// it is made on release, by whether the finger travelled. Which is why this
+/// hit-tests positions itself instead of reading `Interaction`: that reports
+/// pressed or not and never says where, and the two gestures differ only in
+/// where the finger went.
+///
+/// Built around the same three facts `multi_touch_button_interaction` is:
+/// a gesture belongs to the finger that started it, every finger counts, and
+/// the answer has to come in the same frame the finger moves.
+pub(crate) fn condition_cell_input(
+    touches: Res<ButtonInput<MouseButton>>,
+    fingers: Res<Touches>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut drag: Local<Option<(crate::items::Category, f32, bool)>>,
+    cells: Query<(&ComputedNode, &UiGlobalTransform, &ConditionCell)>,
+    mut lists: Query<(&mut Node, &ConditionList)>,
+    inventory: ResMut<Inventory>,
+    boost: ResMut<Boost>,
+    player: Query<&mut Health, With<Player>>,
+) {
+    let Ok(window) = windows.single() else { return };
+    let scale = window.scale_factor();
+    let finger = fingers.iter().next().map(|t| t.position() * scale);
+    let pointer = finger.or_else(|| window.cursor_position().map(|p| p * scale));
+    let down = finger.is_some() || touches.pressed(MouseButton::Left);
+
+    let Some(at) = pointer else {
+        *drag = None;
+        return;
+    };
+
+    if down {
+        match drag.as_mut() {
+            None => {
+                let landed = cells
+                    .iter()
+                    .find(|(node, transform, _)| node.contains_point(**transform, at))
+                    .map(|(_, _, cell)| cell.0);
+                if let Some(category) = landed {
+                    *drag = Some((category, at.y, false));
+                }
+            }
+            Some((category, start_y, opened)) => {
+                if !*opened && at.y - *start_y > CONDITION_DRAG_OPEN {
+                    *opened = true;
+                    let category = *category;
+                    for (mut node, list) in &mut lists {
+                        node.display =
+                            if list.0 == category { Display::Flex } else { Display::None };
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+    // Released. A travelled finger already opened the list and has said its
+    // piece; a still one spends the item.
+    let Some((category, _, opened)) = drag.take() else { return };
+    if opened {
+        return;
+    }
+    let over = cells
+        .iter()
+        .any(|(node, transform, cell)| cell.0 == category && node.contains_point(*transform, at));
+    if !over {
+        return;
+    }
+    for (mut node, _) in &mut lists {
+        node.display = Display::None;
+    }
+    crate::inventory::use_selected_consumable(inventory, boost, player, category);
+}
+
+/// Picking a row points that cell at that medicine and puts the list away.
+pub(crate) fn condition_choice_buttons(
+    mut inventory: ResMut<Inventory>,
+    choices: Query<(&Interaction, &ConditionChoice), Changed<Interaction>>,
+    mut lists: Query<&mut Node, With<ConditionList>>,
+) {
+    for (interaction, choice) in &choices {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+        inventory.set_selected(choice.category, choice.index);
+        for mut node in &mut lists {
+            node.display = Display::None;
+        }
+    }
+}
+
+/// The cell says what it will spend and how many are left; the bar underneath
+/// says how much of the thing it mends you still have.
+///
+/// The label used to read "HP 100", which repeated the bar directly beneath it
+/// and left nowhere to see which medicine a tap would burn.
+pub(crate) fn update_condition_labels(
+    inventory: Res<Inventory>,
+    mut labels: Query<(&mut Text, &mut TextColor, &ConditionCellLabel)>,
+    mut choices: Query<(&mut Text, &ConditionChoiceLabel), Without<ConditionCellLabel>>,
+) {
+    if !inventory.is_changed() {
+        return;
+    }
+    for (mut text, mut colour, cell) in &mut labels {
+        let kind = inventory.selected_kind(cell.0);
+        let count = inventory.count(kind);
+        let short: String =
+            kind.label().chars().filter(|c| c.is_alphanumeric()).take(3).collect();
+        text.0 = format!("{} {}", short.to_uppercase(), count);
+        colour.0 = if count == 0 { Color::srgba(1.0, 1.0, 1.0, 0.35) } else { kind.colour() };
+    }
+    for (mut text, choice) in &mut choices {
+        let kind = crate::inventory::HEAL_ITEMS[choice.index];
+        text.0 = format!("{} {}", kind.label(), inventory.count(kind));
+    }
+}
+
+/// Marks the label inside a condition cell.
+#[derive(Component, Clone, Copy)]
+pub(crate) struct ConditionCellLabel(pub(crate) crate::items::Category);
+
+/// One condition cell: what it will spend, how much of that thing is left, and
+/// the list it drops when dragged.
+///
+/// The list hangs off the cell with `position_type: Absolute` so opening it
+/// cannot push the compass sideways, and `top: 100%` keeps it pinned under the
+/// cell it belongs to wherever that cell ends up.
+fn condition_cell(
+    parent: &mut ChildSpawnerCommands,
+    category: crate::items::Category,
+    fill: Color,
+    fill_marker: impl Component,
+) {
+    parent
+        .spawn((
+            Node {
+                width: Val::Px(GEAR_CELL),
+                height: Val::Px(SLOT_HEIGHT),
+                border: UiRect::all(Val::Px(1.0)),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                row_gap: Val::Px(2.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
+            ConditionCell(category),
+        ))
+        .with_children(|cell| {
+            cell.spawn((
+                text("--", 10.0, Color::srgba(1.0, 1.0, 1.0, 0.4)),
+                ConditionCellLabel(category),
+            ));
+            cell.spawn((
+                Node { width: Val::Px(GEAR_CELL - 12.0), height: Val::Px(3.0), ..default() },
+                BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.12)),
+                children![(
+                    Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() },
+                    BackgroundColor(fill),
+                    fill_marker,
+                )],
+            ));
+            cell.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: Val::Percent(100.0),
+                    left: Val::Px(0.0),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(2.0),
+                    display: Display::None,
+                    ..default()
+                },
+                ConditionList(category),
+            ))
+            .with_children(|list| {
+                for (index, kind) in crate::inventory::HEAL_ITEMS.into_iter().enumerate() {
+                    if kind.category() != category {
+                        continue;
+                    }
+                    list.spawn((
+                        Node {
+                            width: Val::Px(120.0),
+                            height: Val::Px(24.0),
+                            border: UiRect::all(Val::Px(1.0)),
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.85)),
+                        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
+                        Button,
+                        Interaction::default(),
+                        ConditionChoice { category, index },
+                        children![(
+                            text(kind.label(), 11.0, kind.colour()),
+                            ConditionChoiceLabel { index },
+                        )],
+                    ));
+                }
+            });
+        });
+}
 
 /// The condition cells, flanking the compass.
 ///
 /// They used to sit in the bottom bar beside the weapons, which made that bar
-/// 970px of fixed-width cells on a phone 852pt wide -- every cell shrank, and
+/// 970px of fixed-width cells on a screen 852pt wide — every cell shrank and
 /// `overflow: clip()` on the weapon slots started eating the gun names. Moving
 /// them up buys back 306px and puts "how much is left" next to the thing the
 /// eyes are already on.
 ///
-/// Split either side of the compass rather than grouped: what you have left is
-/// on the left, what you are wearing is on the right, and neither reads as part
-/// of the other.
+/// Split either side of the compass rather than grouped: what you have left on
+/// the left, what you are wearing on the right.
 ///
-/// Both carry `NativeUiRoot`, without which they are invisible on the phone and
-/// only on the phone -- the extractor walks from those markers and nowhere else.
+/// Both roots carry `NativeUiRoot`, without which they are invisible on the
+/// phone and only on the phone — the extractor walks from those markers and
+/// nowhere else.
 pub(crate) fn spawn_condition_hud(commands: &mut Commands) {
     const GAP: f32 = 4.0;
     const EDGE_GAP: f32 = 8.0;
@@ -215,18 +374,13 @@ pub(crate) fn spawn_condition_hud(commands: &mut Commands) {
             NativeUiRoot,
         ))
         .with_children(|left| {
-            left.spawn((
-                stat_cell("HP", health_colour(1.0), HealthCellLabel, HealthBarFill),
-                Button,
-                Interaction::default(),
-                HealthUseButton,
-            ));
-            left.spawn((
-                stat_cell("BST", Color::srgb(0.95, 0.80, 0.25), BoostCellLabel, BoostBarFill),
-                Button,
-                Interaction::default(),
-                BoostUseButton,
-            ));
+            condition_cell(left, crate::items::Category::Healing, health_colour(1.0), HealthBarFill);
+            condition_cell(
+                left,
+                crate::items::Category::Boost,
+                Color::srgb(0.95, 0.80, 0.25),
+                BoostBarFill,
+            );
         });
 
     commands
@@ -249,13 +403,12 @@ pub(crate) fn spawn_condition_hud(commands: &mut Commands) {
         ))
         .with_children(|gear| {
             for slot in WearSlot::ALL {
-                let cell = gear.spawn(stat_cell(
+                let mut cell = gear.spawn(stat_cell(
                     slot.label(),
                     Color::srgb(0.6, 0.95, 0.7),
                     GearCellLabel(slot),
                     GearCellWear(slot),
                 ));
-                let mut cell = cell;
                 if slot == WearSlot::Backpack {
                     cell.insert((
                         Button,
@@ -417,104 +570,6 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
                 ));
             });
 
-            // Beside the bars: the selected item, and the way to change it.
-            row.spawn(Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(4.0),
-                align_items: AlignItems::Center,
-                ..default()
-            })
-            .with_children(|side| {
-                // The list, above the buttons and hidden until asked for, so
-                // opening it never covers the bars it belongs to.
-                side.spawn((
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(3.0),
-                        display: Display::None,
-                        ..default()
-                    },
-                    ItemList,
-                ))
-                .with_children(|list| {
-                    for (i, kind) in inventory::HEAL_ITEMS.into_iter().enumerate() {
-                        list.spawn((
-                            Node {
-                                width: Val::Px(140.0),
-                                height: Val::Px(24.0),
-                                border: UiRect::all(Val::Px(1.0)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                ..default()
-                            },
-                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
-                            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
-                            Button,
-                            Interaction::default(),
-                            ItemChoiceButton(i),
-                            children![(
-                                Text::new(kind.label().to_string()),
-                                TextFont { font_size: FontSize::Px(11.0), ..default() },
-                                TextColor(kind.colour()),
-                                ItemChoiceLabel(i),
-                            )],
-                        ));
-                    }
-                });
-
-                side.spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(4.0),
-                    align_items: AlignItems::Center,
-                    ..default()
-                })
-                .with_children(|buttons| {
-                    buttons
-                        .spawn((
-                            Node {
-                                width: Val::Px(ITEM_BUTTON),
-                                height: Val::Px(ITEM_BUTTON),
-                                border: UiRect::all(Val::Px(1.0)),
-                                align_items: AlignItems::Center,
-                                justify_content: JustifyContent::Center,
-                                border_radius: BorderRadius::all(Val::Px(4.0)),
-                                ..default()
-                            },
-                            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-                            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.35)),
-                            Button,
-                            Interaction::default(),
-                            ItemUseButton,
-                            children![(
-                                Text::new("BND 0".to_string()),
-                                TextFont { font_size: FontSize::Px(11.0), ..default() },
-                                TextColor(Color::WHITE),
-                                ItemUseLabel,
-                            )],
-                        ));
-                    buttons.spawn((
-                        Node {
-                            width: Val::Px(22.0),
-                            height: Val::Px(ITEM_BUTTON),
-                            border: UiRect::all(Val::Px(1.0)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            border_radius: BorderRadius::all(Val::Px(4.0)),
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-                        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.35)),
-                        Button,
-                        Interaction::default(),
-                        ItemExpandButton,
-                        children![(
-                            Text::new("^".to_string()),
-                            TextFont { font_size: FontSize::Px(14.0), ..default() },
-                            TextColor(Color::srgba(1.0, 1.0, 1.0, 0.8)),
-                        )],
-                    ));
-                });
-            });
         });
 }
 
@@ -523,23 +578,16 @@ pub(crate) fn update_bars(
     player: Query<&Health, With<Player>>,
     mut health_bar: Query<(&mut Node, &mut BackgroundColor), With<HealthBarFill>>,
     mut boost_bar: Query<&mut Node, (With<BoostBarFill>, Without<HealthBarFill>)>,
-    mut health_label: Query<&mut Text, With<HealthCellLabel>>,
-    mut boost_label: Query<&mut Text, (With<BoostCellLabel>, Without<HealthCellLabel>)>,
 ) {
+    // Numbers no longer: the cell's own text says which medicine a tap spends,
+    // and a bar directly under it already said how much was left.
     if let (Ok(health), Ok((mut node, mut colour))) = (player.single(), health_bar.single_mut()) {
         let fraction = (health.0 / PLAYER_MAX_HEALTH).clamp(0.0, 1.0);
         node.width = Val::Percent(fraction * 100.0);
         *colour = BackgroundColor(health_colour(fraction));
-        if let Ok(mut text) = health_label.single_mut() {
-            text.0 = format!("HP {}", health.0.max(0.0).round() as i32);
-        }
     }
     if let Ok(mut node) = boost_bar.single_mut() {
-        let fraction = (boost.0 / inventory::BOOST_MAX).clamp(0.0, 1.0);
-        node.width = Val::Percent(fraction * 100.0);
-        if let Ok(mut text) = boost_label.single_mut() {
-            text.0 = format!("BST {}", boost.0.max(0.0).round() as i32);
-        }
+        node.width = Val::Percent((boost.0 / inventory::BOOST_MAX).clamp(0.0, 1.0) * 100.0);
     }
 }
 
@@ -610,65 +658,15 @@ pub(crate) fn update_weapon_slot_ammo(
     }
 }
 
-pub(crate) fn update_item_ui(
-    inventory: Res<Inventory>,
-    mut use_label: Query<&mut Text, With<ItemUseLabel>>,
-    mut choice_labels: Query<(&ItemChoiceLabel, &mut TextColor), Without<ItemUseLabel>>,
-    mut list: Query<&mut Node, With<ItemList>>,
-) {
-    if !inventory.is_changed() {
-        return;
-    }
-    let kind = inventory.selected_kind();
-    if let Ok(mut text) = use_label.single_mut() {
-        // Three letters, because the slot is forty-four pixels wide and
-        // "Adrenaline Syringe" is not going in it.
-        let short: String = kind.label().chars().filter(|c| c.is_alphanumeric()).take(3).collect();
-        text.0 = format!("{} {}", short.to_uppercase(), inventory.count(kind));
-    }
-    for (label, mut colour) in &mut choice_labels {
-        let this = inventory::HEAL_ITEMS[label.0.min(inventory::HEAL_ITEMS.len() - 1)];
-        // An item you have none of is still listed, just plainly: the slot
-        // existing is information, and hiding it would make the list jump
-        // about as things are spent.
-        let strength = if inventory.count(this) == 0 { 0.3 } else { 1.0 };
-        let base = this.colour().to_srgba();
-        *colour = TextColor(Color::srgba(base.red, base.green, base.blue, strength));
-    }
-    if let Ok(mut node) = list.single_mut() {
-        node.display = if inventory.expanded { Display::Flex } else { Display::None };
-    }
-}
-
-/// Every button on the panel, in one system because they all speak to the
-/// same two resources and splitting them would mean borrowing both twice.
 pub(crate) fn loadout_hud_buttons(
     mut loadout: ResMut<Loadout>,
-    mut inventory: ResMut<Inventory>,
     mut request: ResMut<weapon::WeaponSwitchRequest>,
-    boost: ResMut<Boost>,
-    player: Query<&mut Health, With<Player>>,
     slots: Query<(&Interaction, &WeaponSlotButton), Changed<Interaction>>,
-    use_button: Query<&Interaction, (With<ItemUseButton>, Changed<Interaction>)>,
-    expand: Query<&Interaction, (With<ItemExpandButton>, Changed<Interaction>)>,
-    choices: Query<(&Interaction, &ItemChoiceButton), Changed<Interaction>>,
 ) {
     for (interaction, slot) in &slots {
         if *interaction == Interaction::Pressed {
             inventory::equip_slot(&mut loadout, &mut request, slot.0);
         }
-    }
-    for (interaction, choice) in &choices {
-        if *interaction == Interaction::Pressed {
-            inventory.selected = choice.0;
-            inventory.expanded = false;
-        }
-    }
-    if expand.iter().any(|i| *i == Interaction::Pressed) {
-        inventory.expanded = !inventory.expanded;
-    }
-    if use_button.iter().any(|i| *i == Interaction::Pressed) {
-        inventory::use_selected_consumable(inventory, boost, player);
     }
 }
 

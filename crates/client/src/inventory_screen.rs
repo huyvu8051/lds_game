@@ -566,7 +566,7 @@ pub(crate) fn inventory_screen_rows(
     // Where the player is looking, so a drop leaves in front of them rather
     // than straight down between their feet.
     let facing = eye.single().map(|e| e.forward().as_vec3()).unwrap_or(Vec3::NEG_Z);
-    let mut used = false;
+    let mut used: Option<crate::items::Category> = None;
     for (interaction, action) in &rows {
         if *interaction != Interaction::Pressed {
             continue;
@@ -612,8 +612,8 @@ pub(crate) fn inventory_screen_rows(
                         attachments.set(slot, socket, Some(kind));
                     }
                 } else if let Some(i) = inventory::HEAL_ITEMS.iter().position(|k| *k == kind) {
-                    inventory.selected = i;
-                    used = true;
+                    inventory.set_selected(kind.category(), i);
+                    used = Some(kind.category());
                 }
             }
             RowAction::Unwear(slot) => {
@@ -652,7 +652,7 @@ pub(crate) fn inventory_screen_rows(
     }
     // Spending happens after the loop so the selection made above is the one
     // spent, and so the two resources are not borrowed inside it.
-    if used {
-        inventory::use_selected_consumable(inventory, boost, health);
+    if let Some(category) = used {
+        inventory::use_selected_consumable(inventory, boost, health, category);
     }
 }

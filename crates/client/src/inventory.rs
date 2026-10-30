@@ -216,15 +216,18 @@ pub(crate) struct Inventory {
     /// One count per entry in ALL_ITEMS.
     pub(crate) counts: Vec<u32>,
     /// Which of HEAL_ITEMS the bottom-right button spends.
-    pub(crate) selected: usize,
-    pub(crate) expanded: bool,
+    /// Which medicine each condition cell will spend. Two, not one: HP and
+    /// BST are separate buttons now, and a single index meant choosing a
+    /// bandage silently changed what the boost cell would drink.
+    pub(crate) selected_heal: usize,
+    pub(crate) selected_boost: usize,
     cooldown: f32,
 }
 
 impl Default for Inventory {
     fn default() -> Self {
         let mut inventory =
-            Self { counts: vec![0; ALL_ITEMS.len()], selected: 0, expanded: false, cooldown: 0.0 };
+            Self { counts: vec![0; ALL_ITEMS.len()], selected_heal: 0, selected_boost: 3, cooldown: 0.0 };
         // Enough to start with, so the pack is not an empty list the first
         // time anybody opens it -- and under the 100 a player with no
         // backpack can carry, so the first thing the screen shows is not an
@@ -251,8 +254,22 @@ impl Inventory {
         self.counts.get(kind.index()).copied().unwrap_or(0)
     }
 
-    pub(crate) fn selected_kind(&self) -> ItemKind {
-        HEAL_ITEMS[self.selected.min(HEAL_ITEMS.len() - 1)]
+    pub(crate) fn selected_index(&self, category: crate::items::Category) -> usize {
+        match category {
+            crate::items::Category::Boost => self.selected_boost,
+            _ => self.selected_heal,
+        }
+    }
+
+    pub(crate) fn set_selected(&mut self, category: crate::items::Category, index: usize) {
+        match category {
+            crate::items::Category::Boost => self.selected_boost = index,
+            _ => self.selected_heal = index,
+        }
+    }
+
+    pub(crate) fn selected_kind(&self, category: crate::items::Category) -> ItemKind {
+        HEAL_ITEMS[self.selected_index(category).min(HEAL_ITEMS.len() - 1)]
     }
 
     pub(crate) fn add(&mut self, kind: ItemKind, n: u32) {
@@ -461,15 +478,34 @@ pub(crate) fn best_consumable(
     clean.or(most).map(|(index, _)| index)
 }
 
+/// Keeps each condition cell pointed at something it can actually spend.
+///
+/// You pick a bandage, you use your last bandage, and the cell would otherwise
+/// go on showing a bandage and doing nothing when tapped — a dead button in
+/// the middle of a fight. This re-points it at whatever else of that kind is in
+/// the pack, by the same "just enough" rule the cell used before anyone chose.
+pub(crate) fn keep_selection_stocked(mut inventory: ResMut<Inventory>, boost: Res<Boost>, player: Query<&Health, With<Player>>) {
+    let health = player.iter().next().map(|h| h.0).unwrap_or(0.0);
+    for category in [crate::items::Category::Healing, crate::items::Category::Boost] {
+        if inventory.count(inventory.selected_kind(category)) > 0 {
+            continue;
+        }
+        if let Some(index) = best_consumable(&inventory, category, health, boost.0) {
+            inventory.set_selected(category, index);
+        }
+    }
+}
+
 pub(crate) fn use_selected_consumable(
     mut inventory: ResMut<Inventory>,
     mut boost: ResMut<Boost>,
     mut player: Query<&mut Health, With<Player>>,
+    category: crate::items::Category,
 ) -> bool {
     if inventory.cooldown > 0.0 {
         return false;
     }
-    let kind = inventory.selected_kind();
+    let kind = inventory.selected_kind(category);
     if inventory.count(kind) == 0 {
         return false;
     }
@@ -518,7 +554,7 @@ pub(crate) fn use_consumable_key(
     // H for heal. X was taken by going prone, which this was quietly
     // doing at the same time every time anybody drank anything.
     if keys.just_pressed(KeyCode::KeyH) {
-        use_selected_consumable(inventory, boost, player);
+        use_selected_consumable(inventory, boost, player, crate::items::Category::Healing);
     }
 }
 
