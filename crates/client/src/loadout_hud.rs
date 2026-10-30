@@ -147,7 +147,7 @@ pub(crate) fn condition_cell_input(
     touches: Res<ButtonInput<MouseButton>>,
     fingers: Res<Touches>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    mut drag: Local<Option<(crate::items::Category, f32, bool)>>,
+    mut drag: Local<Option<(crate::items::Category, f32, bool, Vec2)>>,
     cells: Query<(&ComputedNode, &UiGlobalTransform, &ConditionCell)>,
     mut lists: Query<(&mut Node, &ConditionList)>,
     inventory: ResMut<Inventory>,
@@ -157,10 +157,22 @@ pub(crate) fn condition_cell_input(
     let Ok(window) = windows.single() else { return };
     let scale = window.scale_factor();
     let finger = fingers.iter().next().map(|t| t.position() * scale);
-    let pointer = finger.or_else(|| window.cursor_position().map(|p| p * scale));
     let down = finger.is_some() || touches.pressed(MouseButton::Left);
 
-    let Some(at) = pointer else {
+    // Where to judge from: the finger still down, else the one that just came
+    // up, else the mouse, else wherever the gesture was last seen.
+    //
+    // A lifted finger is already out of `Touches::iter()` by the time this
+    // runs, and a phone has no cursor standing behind it — so the frame that
+    // ends a tap arrives with no pointer at all. Falling back to the last
+    // known position is what lets a tap be a tap; without it the release is
+    // judged against nothing and the item is never spent.
+    let at = finger
+        .or_else(|| fingers.iter_just_released().next().map(|t| t.position() * scale))
+        .or_else(|| window.cursor_position().map(|p| p * scale))
+        .or_else(|| drag.map(|(_, _, _, last)| last));
+
+    let Some(at) = at else {
         *drag = None;
         return;
     };
@@ -173,10 +185,11 @@ pub(crate) fn condition_cell_input(
                     .find(|(node, transform, _)| node.contains_point(**transform, at))
                     .map(|(_, _, cell)| cell.0);
                 if let Some(category) = landed {
-                    *drag = Some((category, at.y, false));
+                    *drag = Some((category, at.y, false, at));
                 }
             }
-            Some((category, start_y, opened)) => {
+            Some((category, start_y, opened, last)) => {
+                *last = at;
                 if !*opened && at.y - *start_y > CONDITION_DRAG_OPEN {
                     *opened = true;
                     let category = *category;
@@ -192,7 +205,7 @@ pub(crate) fn condition_cell_input(
 
     // Released. A travelled finger already opened the list and has said its
     // piece; a still one spends the item.
-    let Some((category, _, opened)) = drag.take() else { return };
+    let Some((category, _, opened, _)) = drag.take() else { return };
     if opened {
         return;
     }
