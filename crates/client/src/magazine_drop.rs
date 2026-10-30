@@ -5,6 +5,59 @@ use bevy::prelude::*;
 
 use crate::*;
 
+/// Where the charging handle is, and so where the hand goes once the
+/// magazine is in.
+///
+/// Taken from the real weapons, not from the meshes: none of them carries a
+/// handle as a node of its own, so there is nothing to measure and nothing
+/// that moves when the hand pulls. The hand going to the right place is the
+/// half of it that can be had without splitting every receiver.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum Charging {
+    /// Nothing to work. A revolver's cylinder and a break-action's barrels
+    /// chamber themselves as they close.
+    None,
+    /// On the side of the receiver, pulled straight back. +1 is the strong
+    /// side, -1 the weak one.
+    Side(f32),
+    /// Behind the receiver on the bore line: the AR's paddle, worked with
+    /// the fingers either side of the stock.
+    Rear,
+    /// On top of the receiver: the Uzi's, and a bullpup's under its handle.
+    Top,
+}
+
+fn charging_of(weapon: WeaponId) -> Charging {
+    use WeaponId::*;
+    match weapon {
+        // AR-pattern: the T-handle behind the upper.
+        M4a1 | M16a4 | Mk12 | Mk47Mutant => Charging::Rear,
+
+        // Weak side, where the support hand already is. The FAL is here
+        // too: the SLR's handle is on the left, unlike almost everything
+        // else of its size.
+        G36c | Mp5k | Ump45 | Famas | AugA3 | Vector | P90 | ScarL | Slr => {
+            Charging::Side(-1.0)
+        }
+
+        // Strong side: the AK family and everything else that puts it by the
+        // ejection port. The Groza and the Bizon are built on AK receivers
+        // and keep the AK's handle with them.
+        Ak47 | BerylM762 | Ace32 | Groza | Bizon | Sks | Vss | Svd | Dp28 | M249 | Mini14
+        | Mk14Ebr | TommyGun | Skorpion | M24 | MosinNagant => Charging::Side(1.0),
+
+        // Over the receiver: the Uzi's handle sits on top, and the QBZ's is
+        // under its carry handle on the centreline.
+        MicroUzi | Qbz95 => Charging::Top,
+
+        // A pistol's slide is racked from behind, over the top.
+        Deagle | P1911 => Charging::Rear,
+
+        // Closing them is what chambers them.
+        R1895 | S686 => Charging::None,
+    }
+}
+
 /// Fractions of the reload at which the magazine changes hands.
 ///
 /// The old one comes off into the hand, is let go partway to the pouch, and a
@@ -15,6 +68,19 @@ const MAG_TAKEN_AT: f32 = RELOAD_HAND_AT_MAG;
 const MAG_RELEASED_AT: f32 = 0.33;
 const MAG_FETCHED_AT: f32 = 0.56;
 const MAG_SEATED_AT: f32 = RELOAD_HAND_BACK_AT_MAG;
+
+/// And then the charge, in the tail of the same move: the hand leaves the
+/// well, takes the handle, pulls it back, lets it go, and comes home.
+const CHARGE_AT_HANDLE: f32 = 0.83;
+const CHARGE_PULLED: f32 = 0.90;
+const CHARGE_LET_GO: f32 = 0.94;
+/// How far back the handle travels, and how far over the ejection port it
+/// sits. A handle rides the receiver's top edge, not the port itself.
+const CHARGE_TRAVEL: f32 = 0.055;
+const CHARGE_LIFT: f32 = 0.014;
+/// The AR's paddle sits behind the port on the bore line, under the sight.
+const CHARGE_REAR_BACK: f32 = 0.085;
+const CHARGE_REAR_DROP: f32 = 0.022;
 
 const MAG_LIFETIME: f32 = 20.0;
 const MAG_DROP_SPEED: f32 = 0.8;
@@ -78,13 +144,15 @@ const SPRINT_FREE_HAND_FROM_EYE: Vec3 = Vec3::new(-0.26, -0.40, -0.26);
 
 pub(crate) fn drive_reload_hand(
     active: Res<ActiveWeapon>,
-    gun: Query<&Gun>,
+    gun: Query<(&Gun, &GlobalTransform)>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
     fore: Query<&GlobalTransform, With<ForeGripSocket>>,
+    eject: Query<&GlobalTransform, With<EjectSocket>>,
+    irons: Query<&GlobalTransform, With<crate::sight_mount::IronAimSocket>>,
     magazine: Query<(&GlobalTransform, &Aabb), With<ViewmodelMagazine>>,
     mut target: Query<&mut Transform, With<ReloadHandTarget>>,
 ) {
-    let (Ok(gun), Ok(eye), Ok(mut target), Ok(fore)) =
+    let (Ok((gun, gun_global)), Ok(eye), Ok(mut target), Ok(fore)) =
         (gun.single(), camera.single(), target.single_mut(), fore.single())
     else {
         return;
@@ -113,6 +181,33 @@ pub(crate) fn drive_reload_hand(
     }
     let pouch = RELOAD_POUCH_FROM_EYE - Vec3::Z * view_pullback();
 
+    // Where the handle is, in the weapon's own frame, where the bore runs
+    // down -Z and up is +Y -- so mirroring a right-hand port to the left is a
+    // sign on x, and pulling the handle back is +Z.
+    let handle = match charging_of(active.0) {
+        Charging::None => None,
+        Charging::Side(sign) => eject.single().ok().map(|port| {
+            let at = port.reparented_to(gun_global).translation;
+            Vec3::new(sign * at.x.abs(), at.y + CHARGE_LIFT, at.z)
+        }),
+        Charging::Top => eject.single().ok().map(|port| {
+            let at = port.reparented_to(gun_global).translation;
+            Vec3::new(0.0, at.y + CHARGE_LIFT * 3.0, at.z)
+        }),
+        Charging::Rear => eject.single().ok().map(|port| {
+            let at = port.reparented_to(gun_global).translation;
+            let line = irons
+                .single()
+                .map(|aim| aim.reparented_to(gun_global).translation.y - CHARGE_REAR_DROP)
+                .unwrap_or(at.y + CHARGE_LIFT);
+            Vec3::new(0.0, line, at.z + CHARGE_REAR_BACK)
+        }),
+    };
+    let to_eye = |in_gun: Vec3| {
+        gun_global.mul_transform(Transform::from_translation(in_gun)).reparented_to(eye).translation
+    };
+    let charge = handle.map(|at| (to_eye(at), to_eye(at + Vec3::Z * CHARGE_TRAVEL)));
+
     let progress = 1.0 - (gun.reload_remaining / active.def().reload_duration).clamp(0.0, 1.0);
     let span = |from: f32, to: f32| (progress - from) / (to - from);
     target.translation = if progress < RELOAD_HAND_AT_MAG {
@@ -121,6 +216,19 @@ pub(crate) fn drive_reload_hand(
         eased(magwell, pouch, span(RELOAD_HAND_AT_MAG, RELOAD_HAND_AT_POUCH))
     } else if progress < RELOAD_HAND_BACK_AT_MAG {
         eased(pouch, magwell, span(RELOAD_HAND_AT_POUCH, RELOAD_HAND_BACK_AT_MAG))
+    } else if let Some((held, pulled)) = charge {
+        // Taken, pulled, let go, and home. The release is not eased: a
+        // charging handle is let go of, and the spring is faster than the
+        // hand that was on it.
+        if progress < CHARGE_AT_HANDLE {
+            eased(magwell, held, span(RELOAD_HAND_BACK_AT_MAG, CHARGE_AT_HANDLE))
+        } else if progress < CHARGE_PULLED {
+            eased(held, pulled, span(CHARGE_AT_HANDLE, CHARGE_PULLED))
+        } else if progress < CHARGE_LET_GO {
+            pulled.lerp(held, span(CHARGE_PULLED, CHARGE_LET_GO).clamp(0.0, 1.0).powi(2))
+        } else {
+            eased(held, home.translation, span(CHARGE_LET_GO, 1.0))
+        }
     } else {
         eased(magwell, home.translation, span(RELOAD_HAND_BACK_AT_MAG, 1.0))
     };
