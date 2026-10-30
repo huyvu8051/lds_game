@@ -38,6 +38,22 @@ const RELOAD_HAND_BACK_AT_MAG: f32 = 0.74;
 /// Off the eye, low and on the weak-hand side: where a spare magazine lives.
 const RELOAD_POUCH_FROM_EYE: Vec3 = Vec3::new(-0.16, -0.58, -0.26);
 
+/// Grows a world-space box to take in one more part of the magazine.
+///
+/// The part's own node origin is no use for this. A magazine welded out of
+/// loose shards by the asset pipeline keeps whatever origin it was joined at,
+/// and for the SLR that is the muzzle -- six hundred and ninety millimetres
+/// from the magazine, and where the hand was being sent. The mesh bounds say
+/// where the thing actually is.
+fn grow_to_part(span: &mut Option<(Vec3, Vec3)>, global: &GlobalTransform, aabb: &Aabb) {
+    let centre = global.transform_point(Vec3::from(aabb.center));
+    let half = (global.affine().matrix3 * Vec3::from(aabb.half_extents)).abs();
+    *span = Some(match *span {
+        Some((lo, hi)) => (lo.min(centre - half), hi.max(centre + half)),
+        None => (centre - half, centre + half),
+    });
+}
+
 fn eased(from: Vec3, to: Vec3, t: f32) -> Vec3 {
     let t = t.clamp(0.0, 1.0);
     from.lerp(to, t * t * (3.0 - 2.0 * t))
@@ -59,7 +75,7 @@ pub(crate) fn drive_reload_hand(
     gun: Query<&Gun>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
     fore: Query<&GlobalTransform, With<ForeGripSocket>>,
-    magazine: Query<&GlobalTransform, With<ViewmodelMagazine>>,
+    magazine: Query<(&GlobalTransform, &Aabb), With<ViewmodelMagazine>>,
     mut target: Query<&mut Transform, With<ReloadHandTarget>>,
 ) {
     let (Ok(gun), Ok(eye), Ok(mut target), Ok(fore)) =
@@ -70,15 +86,25 @@ pub(crate) fn drive_reload_hand(
     let home = fore.reparented_to(eye);
     // The magazine is only hidden while it is away, never despawned, so its
     // place on the weapon stays readable throughout.
-    // Averaged, because a magazine can be more than one part -- the UMP's
-    // shell and the rounds inside it are separate meshes that leave together.
-    let mut well = Vec3::ZERO;
-    let mut parts = 0.0;
-    for m in &magazine {
-        well += m.reparented_to(eye).translation;
-        parts += 1.0;
+    //
+    // The box its parts fill, not the mean of their origins. A magazine can
+    // be more than one part -- the UMP's shell and the rounds inside it, the
+    // DP-28's pan in three -- and those parts do not share an origin either.
+    let mut span = None;
+    for (global, aabb) in &magazine {
+        grow_to_part(&mut span, global, aabb);
     }
-    let magwell = if parts > 0.0 { well / parts } else { home.translation };
+    let to_eye = eye.affine().inverse();
+    let magwell = span
+        .map(|(lo, hi)| to_eye.transform_point3((lo + hi) * 0.5))
+        .unwrap_or(home.translation);
+    if magazine_log_enabled() && gun.reload_remaining > 0.0 {
+        debug!(
+            "[magazine] hand sent to {:.0},{:.0},{:.0}mm from the eye, grip is at {:.0},{:.0},{:.0}",
+            magwell.x * 1000.0, magwell.y * 1000.0, magwell.z * 1000.0,
+            home.translation.x * 1000.0, home.translation.y * 1000.0, home.translation.z * 1000.0,
+        );
+    }
     let pouch = RELOAD_POUCH_FROM_EYE - Vec3::Z * view_pullback();
 
     let progress = 1.0 - (gun.reload_remaining / active.def().reload_duration).clamp(0.0, 1.0);
@@ -153,12 +179,7 @@ pub(crate) fn drop_magazine_on_reload(
         }
         *visibility = Visibility::Hidden;
         let placed = global.compute_transform();
-        let centre = global.transform_point(Vec3::from(aabb.center));
-        let half = Vec3::from(aabb.half_extents) * placed.scale.abs();
-        span = Some(match span {
-            Some((lo, hi)) => ((lo).min(centre - half), (hi).max(centre + half)),
-            None => (centre - half, centre + half),
-        });
+        grow_to_part(&mut span, global, aabb);
         taken.push((placed, mesh.0.clone(), material.0.clone()));
     }
     let (Some((lo, hi)), false) = (span, taken.is_empty()) else { return };
