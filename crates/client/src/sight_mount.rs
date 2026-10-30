@@ -164,14 +164,30 @@ impl SightId {
 ///
 /// A list rather than a field on the weapon, because what decides it is the
 /// mesh: these are the ones carrying `Socket_RailRear` and `Socket_RailFront`
-/// -- twelve that `add_rails.sh` built a rail onto, and six that came wearing
-/// a sight and had it split off by `strip_builtin_sights.sh`, which marked
-/// the rail it had been standing on. Fitting a sight to anything else puts it
-/// in the bag's socket and nowhere on screen.
+/// -- twelve that `add_rails.sh` built a rail onto, six that came wearing a
+/// sight and had it split off by `strip_builtin_sights.sh`, and eleven that
+/// were drawn with a rail and had no way to say where it was until
+/// `mark_rails.sh` found it. Fitting a sight to anything else puts it in the
+/// bag's socket and nowhere on screen.
+///
+/// What is left out: the four the project began with, the SVD, whose scope
+/// hangs on a side rail with nothing under it, and the AK, which still wears
+/// the scope it was drawn with.
 pub(crate) fn weapon_takes_sight(weapon: WeaponId) -> bool {
     matches!(
         weapon,
-        WeaponId::Famas
+        WeaponId::Ace32
+            | WeaponId::BerylM762
+            | WeaponId::G36c
+            | WeaponId::M16a4
+            | WeaponId::MicroUzi
+            | WeaponId::Mk12
+            | WeaponId::Mk14Ebr
+            | WeaponId::Mp5k
+            | WeaponId::ScarL
+            | WeaponId::Sks
+            | WeaponId::Vss
+            | WeaponId::Famas
             | WeaponId::Mk47Mutant
             | WeaponId::P90
             | WeaponId::Vector
