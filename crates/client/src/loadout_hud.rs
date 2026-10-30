@@ -662,38 +662,14 @@ pub(crate) fn update_weapon_slot_ammo(
     }
 }
 
-/// Tapping a weapon slot draws it; tapping the one already drawn walks its
-/// fire modes.
-///
-/// The second tap had nothing to do -- `equip_slot` would re-request a
-/// weapon already in hand -- and a phone has no Z to press, so the modes
-/// were unreachable there at all. Putting them on the slot keeps them with
-/// the gun they belong to, which is also where a thumb already is.
 pub(crate) fn loadout_hud_buttons(
     mut loadout: ResMut<Loadout>,
     mut request: ResMut<weapon::WeaponSwitchRequest>,
-    active: Res<ActiveWeapon>,
-    mut fire_mode: ResMut<weapon::FireModeSelection>,
-    mut gun: Query<&mut Gun>,
     slots: Query<(&Interaction, &WeaponSlotButton), Changed<Interaction>>,
 ) {
     for (interaction, slot) in &slots {
-        if *interaction != Interaction::Pressed {
-            continue;
-        }
-        if loadout.active != slot.0 || loadout.get(slot.0).is_none() {
+        if *interaction == Interaction::Pressed {
             inventory::equip_slot(&mut loadout, &mut request, slot.0);
-            continue;
-        }
-        let def = active.def();
-        if def.fire_modes.len() < 2 {
-            continue;
-        }
-        fire_mode.next(def);
-        // Touched so the ammo readout, which only rebuilds on a changed Gun,
-        // picks the new mode up. Cheaper than making it rebuild every frame.
-        if let Ok(mut gun) = gun.single_mut() {
-            gun.set_changed();
         }
     }
 }

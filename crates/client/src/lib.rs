@@ -1273,6 +1273,7 @@ impl Plugin for GamePlugin {
                 inventory_screen::touch_scroll_bag,
                 inventory_screen::wheel_scroll_bag,
                         cycle_fire_mode,
+                        touch_fire_mode_button,
                         cook_and_throw,
                         advance_grenades,
                         advance_smoke,

@@ -23,6 +23,13 @@ pub(crate) struct TouchAimButton;
 
 #[derive(Component)]
 pub(crate) struct TouchReloadButton;
+/// Walks the weapon's fire modes. Under RELOAD because the two are the same
+/// kind of thing -- housekeeping on the gun in hand, done between shots, by
+/// the hand that is not steering.
+#[derive(Component)]
+pub(crate) struct TouchFireModeButton;
+#[derive(Component)]
+pub(crate) struct TouchFireModeLabel;
 #[derive(Component)]
 pub(crate) struct TouchJumpButton;
 #[derive(Component)]
@@ -384,6 +391,47 @@ pub(crate) fn spawn_touch_controls(commands: &mut Commands) {
                     ..default()
                 },
                 TextColor(Color::WHITE),
+            ));
+        });
+
+    commands
+        .spawn((
+            Node {
+                width: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
+                height: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
+                position_type: PositionType::Absolute,
+                right: Val::Px(16.0),
+                // Directly under RELOAD, in the same column.
+                top: Val::Px(68.0 + TOUCH_FIRE_BUTTON_PX * 0.7 + 12.0),
+                border: UiRect::all(Val::Px(2.0)),
+                border_radius: BorderRadius::all(Val::Px(TOUCH_FIRE_BUTTON_PX * 0.35)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.5, 0.7, 1.0, 0.4)),
+            TouchButtonBaseColor(Color::srgba(0.5, 0.7, 1.0, 0.4)),
+            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.6)),
+            Button,
+            Interaction::default(),
+            GlobalZIndex(STATIC_UI_Z_INDEX),
+            TouchFireModeButton,
+            TouchControlButton,
+            NativeUiRoot,
+        ))
+        .with_children(|btn| {
+            // The button is its own readout: it says the mode it is on, not
+            // what pressing it does. A control that only named its action
+            // would leave the current mode legible nowhere a thumb is
+            // looking.
+            btn.spawn((
+                Text::new("AUTO"),
+                TextFont {
+                    font_size: FontSize::Px(10.0),
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                TouchFireModeLabel,
             ));
         });
 
