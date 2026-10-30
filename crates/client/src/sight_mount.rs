@@ -294,6 +294,7 @@ pub(crate) fn wire_rail_nodes(
             2 => node.insert(RailFrontSocket),
             _ => node.insert((BuiltinSight, Visibility::Hidden)),
         };
+
     }
 }
 
@@ -442,6 +443,11 @@ pub(crate) fn show_rail_with_sight(
 /// Cycles the sight on the weapon in hand, because tuning where one sits
 /// means looking at it and a screenshot cannot press a button.
 ///
+/// On U, not on B. B opens the bag, and sharing it meant every trip into the
+/// bag fitted a sight on the way in -- which read as the bag putting back
+/// whatever had just been taken off, and was the more confusing for the fact
+/// that the attachment is the very mesh that weapon was drawn wearing.
+///
 /// Writes the bag rather than the fitting: everything else reads the bag, and
 /// two writers would have the key and the inventory screen fighting.
 pub(crate) fn cycle_fitted_sight(
@@ -449,7 +455,7 @@ pub(crate) fn cycle_fitted_sight(
     loadout: Res<crate::inventory::Loadout>,
     mut attachments: ResMut<crate::inventory::Attachments>,
 ) {
-    if !keys.just_pressed(KeyCode::KeyB) {
+    if !keys.just_pressed(KeyCode::KeyU) {
         return;
     }
     let sights: Vec<crate::items::ItemKind> = crate::items::ALL_ITEMS

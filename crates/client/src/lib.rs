@@ -1275,7 +1275,7 @@ impl Plugin for GamePlugin {
                     )
                         .chain(),
                     sight_mount::wire_sight_eye,
-                    sight_mount::cycle_fitted_sight,
+                    sight_mount::cycle_fitted_sight.run_if(debug_keys_allowed),
                     sight_mount::show_rail_with_sight,
                     // After the swap has put the weapon's own rest offset
                     // back, so the drop lands on top of it, not under it.
