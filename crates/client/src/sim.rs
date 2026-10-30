@@ -92,6 +92,7 @@ impl Plugin for SimPlugin {
             .add_observer(on_clear_all_zombies)
             .add_observer(on_set_auto_maintain_zombies)
             .add_observer(on_set_freeze_zombies)
+            .add_systems(Update, freeze_zombies_after)
             .add_observer(on_set_damage_multiplier)
             .add_observer(on_player_died)
             .add_observer(on_request_restart)
@@ -113,6 +114,33 @@ impl Default for FreezeZombiesServer {
 fn on_set_freeze_zombies(trigger: On<SetFreezeZombies>, mut freeze: ResMut<FreezeZombiesServer>) {
     freeze.0 = trigger.event().0;
 }
+
+/// `FREEZE_AFTER=<seconds>` stops them once the scene has been running.
+///
+/// Different from freezing at startup, and the difference is the point:
+/// a zombie that never chased anything never had a destination, while one
+/// frozen mid-chase is holding the destination it had. Measuring the second
+/// is measuring what the button in the menu actually does.
+fn freeze_zombies_after(
+    time: Res<Time>,
+    mut freeze: ResMut<FreezeZombiesServer>,
+    mut elapsed: Local<f32>,
+    mut done: Local<bool>,
+) {
+    let Some(after) = std::env::var("FREEZE_AFTER").ok().and_then(|v| v.parse::<f32>().ok()) else {
+        return;
+    };
+    if *done {
+        return;
+    }
+    *elapsed += time.delta_secs();
+    if *elapsed >= after {
+        *done = true;
+        freeze.0 = true;
+        println!("[sim] FREEZE_AFTER: zombies stopped at {:.0}s", *elapsed);
+    }
+}
+
 
 
 
@@ -384,8 +412,26 @@ fn move_zombies(
 ) {
 
     if freeze.0 {
-        for (_, _, mut motion, ..) in &mut zombies {
+        for (_, _, mut motion, _, _, agent_target, ..) in &mut zombies {
             motion.moving = false;
+            // The destination goes too, not just the walking, so that a
+            // frozen zombie is holding nothing: landmass skips an agent with
+            // no target, and on unfreeze nobody sets off towards where the
+            // player stood a minute ago.
+            //
+            // Measured, and worth saying so: keeping the stale target costs
+            // less than the noise floor -- 40 zombies frozen mid-chase came
+            // out the same either way. This is here because frozen should
+            // mean frozen, not because it was found to be expensive.
+            //
+            // Only when it is not already clear. Writing the same value is a
+            // change as far as change detection is concerned, and landmass
+            // reads that.
+            if let Some(mut agent_target) = agent_target
+                && !matches!(*agent_target, AgentTarget3d::None)
+            {
+                *agent_target = AgentTarget3d::None;
+            }
         }
         return;
     }

@@ -415,3 +415,47 @@ Còn lại: một ổ kẹt quanh `52, 24` trên desert_city mà patrol rơi xu�
 dưới. Cơ chế cứu (đứng im 20 giây thì nhấc lên waypoint) gỡ được, và **in ra
 mỗi lần** — một lần chạy toàn teleport không bao giờ bị nhầm là một lần chạy
 đi bộ.
+
+---
+
+## FREEZE_ZOMBIES có tắt tìm đường không? Không hẳn.
+
+Desktop, desert_city, `NO_AUTOPILOT=1`, player đứng yên, xen kẽ 2 lượt, bỏ 6
+giây đầu, trung vị `update`:
+
+| | 20 zombie | 40 zombie |
+|---|---|---|
+| A — zombie đi bình thường | 3.60 ms | 3.67 ms |
+| B — `FREEZE_ZOMBIES=1` | 3.46 | 3.48 |
+| C — `ABLATE` bỏ hẳn `zombie_ai` | 3.38 | 3.35 |
+| **toàn bộ zombie AI** (A−C) | **+0.23** | **+0.31** |
+| freeze gỡ được (A−B) | +0.14 | +0.19 |
+| **còn lại sau freeze** (B−C) | **+0.09** | **+0.13** |
+
+Hai lượt của mỗi ô khớp nhau trong 0.05 ms, nên các hiệu số này là thật chứ
+không phải trôi nhiệt.
+
+**Freeze chỉ chặn `move_zombies`.** Nó `return` sớm, nên không ghi
+`AgentTarget3d` nữa — nhưng `near_player_scorer`, `chase_action_system` và
+`Thinker` của big-brain nằm ở `FixedPreUpdate` và **vẫn chạy mọi tick**, cùng
+với phần đồng bộ agent của landmass ở 64 Hz. Khoảng 40% chi phí AI sống sót
+qua freeze, và phần sống sót đó là **big-brain, không phải tính đường**.
+
+**Tìm đường gần như không phải thủ phạm gây nóng.** Gấp đôi zombie từ 20 lên
+40 chỉ thêm 0.08 ms — vì `LandmassSystems::Update` đã bị ghìm xuống 10 Hz
+trong `FixedUpdate` từ trước (xem `navigation.rs`). Toàn bộ zombie AI là 6–8%
+của `update`, mà `update` chỉ là một phần của frame.
+
+### Một giả thuyết đã bị chính số liệu bác
+
+Tôi đoán zombie bị freeze **giữa chừng** sẽ giữ nguyên `AgentTarget3d` cũ và
+landmass cứ thế lái tiếp. Cơ chế thì đúng, nhưng độ lớn thì không: thêm
+`FREEZE_AFTER=12` để freeze một cảnh đang chạy, 40 zombie, giữ target so với
+xoá target ra **cùng một con số trong phạm vi nhiễu** (−0.07 ms, trong khi hai
+lượt của một cấu hình đã lệch nhau 0.22 ms).
+
+Vẫn xoá target khi freeze, nhưng vì *đóng băng thì phải là đóng băng*, không
+phải vì nó tiết kiệm được gì.
+
+`FREEZE_AFTER=<giây>` giữ lại: freeze một cảnh đang chạy là thứ cái nút trong
+menu thật sự làm, khác với freeze từ lúc khởi động.
