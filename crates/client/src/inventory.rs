@@ -152,24 +152,13 @@ impl Loadout {
     }
 }
 
-/// What the throwable slot cycles.
+/// One button each on the HUD, and the order the throw key walks.
 pub(crate) const THROWABLES: [ItemKind; 4] = [
     ItemKind::FragGrenade,
     ItemKind::SmokeGrenade,
     ItemKind::StunGrenade,
     ItemKind::Molotov,
 ];
-
-/// Which throwable the slot is on.
-#[derive(Resource, Default)]
-pub(crate) struct ThrowableSelection(pub(crate) usize);
-
-impl ThrowableSelection {
-    pub(crate) fn kind(&self) -> ItemKind {
-        THROWABLES[self.0.min(THROWABLES.len() - 1)]
-    }
-}
-
 
 
 /// The items the heal selector cycles: everything that mends or boosts.

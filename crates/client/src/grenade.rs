@@ -112,7 +112,6 @@ pub(crate) fn release_cook(cooking: &mut Cooking) -> Option<(ItemKind, f32)> {
 pub(crate) fn cook_and_throw(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
-    selection: Res<ThrowableSelection>,
     mut cooking: ResMut<Cooking>,
     mut inventory: ResMut<Inventory>,
     mut commands: Commands,
@@ -123,8 +122,13 @@ pub(crate) fn cook_and_throw(
     let Some(assets) = assets else { return };
 
     if keys.just_pressed(KeyCode::KeyG) {
-        let kind = selection.kind();
-        if cooking.kind.is_none() && inventory.count(kind) > 0 {
+        // The first one carried. There is no selected throwable any more --
+        // the HUD gives each its own button, so choosing happens by pressing
+        // the one you want, and only the key still needs told which.
+        let kind = crate::inventory::THROWABLES
+            .into_iter()
+            .find(|kind| inventory.count(*kind) > 0);
+        if let (None, Some(kind)) = (cooking.kind, kind) {
             begin_cook(&mut cooking, &inventory, kind);
             if let Some(sounds) = sounds.as_ref() {
                 play_sample(&mut commands, sounds.pin.clone(), 0.9);

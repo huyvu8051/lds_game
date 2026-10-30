@@ -12,7 +12,7 @@ use crate::*;
 
 const PANEL_BOTTOM: f32 = 16.0;
 /// Wide enough for the longest weapon name. "DESERT EAGLE" overflowed 112
-/// and the throwable cell beside it was what the overflow landed on.
+/// and spilled into whatever stood beside it.
 const SLOT_WIDTH: f32 = 132.0;
 /// Two lines now: the name, and the rounds under it. The readout used to be
 /// its own box in the far corner, which meant checking the weapon and
@@ -38,11 +38,6 @@ pub(crate) struct ThrowButton(pub(crate) ItemKind);
 pub(crate) struct ThrowButtonLabel(pub(crate) ItemKind);
 #[derive(Component)]
 pub(crate) struct CookRing;
-
-#[derive(Component)]
-pub(crate) struct ThrowableSlotButton;
-#[derive(Component)]
-pub(crate) struct ThrowableSlotLabel;
 
 #[derive(Component)]
 pub(crate) struct GearCellLabel(pub(crate) WearSlot);
@@ -504,31 +499,6 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
                             ));
                         });
                 }
-                // A fourth cell beside the three. PUBG keeps throwables out
-                // of the weapon slots because they are not weapons you hold,
-                // they are weapons you spend.
-                slots
-                    .spawn((
-                        Node {
-                            width: Val::Px(GEAR_CELL + 24.0),
-                            height: Val::Px(SLOT_HEIGHT),
-                            border: UiRect::all(Val::Px(1.0)),
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-                        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.2)),
-                        Button,
-                        Interaction::default(),
-                        ThrowableSlotButton,
-                    ))
-                    .with_children(|cell| {
-                        cell.spawn((
-                            text("--", 11.0, Color::srgb(0.95, 0.55, 0.25)),
-                            ThrowableSlotLabel,
-                        ));
-                    });
             });
 
             // One button per throwable, above the heal selector. PUBG puts
@@ -715,38 +685,6 @@ pub(crate) fn update_gear_cells(
         } else {
             Color::srgb(0.95, 0.5, 0.3)
         });
-    }
-}
-
-/// The throwable cell: what is selected, how many are left, and a tap to
-/// move to the next one that is actually carried.
-pub(crate) fn throwable_slot(
-    mut selection: ResMut<ThrowableSelection>,
-    inventory: Res<Inventory>,
-    button: Query<&Interaction, (With<ThrowableSlotButton>, Changed<Interaction>)>,
-    mut label: Query<&mut Text, With<ThrowableSlotLabel>>,
-) {
-    if button.iter().any(|i| *i == Interaction::Pressed) {
-        // Steps over the ones there are none of, so the slot never lands on
-        // something that cannot be thrown.
-        for step in 1..=inventory::THROWABLES.len() {
-            let next = (selection.0 + step) % inventory::THROWABLES.len();
-            if inventory.count(inventory::THROWABLES[next]) > 0 || step == inventory::THROWABLES.len() {
-                selection.0 = next;
-                break;
-            }
-        }
-    }
-    if !selection.is_changed() && !inventory.is_changed() {
-        return;
-    }
-    let kind = selection.kind();
-    let held = inventory.count(kind);
-    if let Ok(mut text) = label.single_mut() {
-        // First word only: "Frag Grenade" and "Molotov Cocktail" both say
-        // everything they need to in one.
-        let short = kind.label().split_whitespace().next().unwrap_or("--");
-        text.0 = if held > 0 { format!("{short} {held}") } else { "--".to_string() };
     }
 }
 

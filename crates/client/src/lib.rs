@@ -1036,7 +1036,6 @@ impl Plugin for GamePlugin {
         .init_resource::<InventoryScreenOpen>()
         .init_resource::<Equipment>()
         .init_resource::<Attachments>()
-        .init_resource::<ThrowableSelection>()
         .init_resource::<weapon::FireModeSelection>()
         .init_resource::<Cooking>()
         .init_resource::<Flashed>()
@@ -1136,7 +1135,7 @@ impl Plugin for GamePlugin {
                     ),
                     update_bars,
                     update_weapon_slots,
-                    ( update_gear_cells, throwable_slot, update_fuse_labels, update_flash_overlay, throw_buttons),
+                    ( update_gear_cells, update_fuse_labels, update_flash_overlay, throw_buttons),
                     damage_multiplier_buttons,
                     update_damage_multiplier_text,
                     auto_maintain_button,
