@@ -751,7 +751,7 @@ pub(crate) fn shoot(
         ResMut<Assets<MuzzleFlashMaterial>>,
         ResMut<FireShock>,
     ),
-    (driven, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, swap): (
+    (driven, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, swap, sight_swap): (
         Res<crate::patrol::Driven>,
         Res<AutopilotIntent>,
         Res<LocalPlayerMoving>,
@@ -764,6 +764,7 @@ pub(crate) fn shoot(
         Res<MuzzleFlashEnabled>,
         Res<ShellCasingsEnabled>,
         Res<crate::WeaponSwap>,
+        Res<crate::sight_swap::SightSwap>,
     ),
 ) {
     *cooldown = (*cooldown - time.delta_secs()).max(0.0);
@@ -806,7 +807,10 @@ pub(crate) fn shoot(
     // ALWAYS_FIRE stays outside the mode: it exists to hold the trigger flat
     // for a measurement, and a burst weapon pausing three times a second
     // would make it measure something else.
-    let firing = !swap.busy() && (always_fire() || shaped);
+    // A sight going on or coming off holds the weapon the same way a
+    // holster does: the weak hand is away and the gun is turned on its side.
+    let firing =
+        !swap.busy() && !crate::sight_swap::hand_busy_swapping(&sight_swap) && (always_fire() || shaped);
     if !firing || *cooldown > 0.0 {
         return;
     }

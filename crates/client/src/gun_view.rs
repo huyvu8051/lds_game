@@ -328,7 +328,7 @@ pub(crate) fn gun_view_animation(
     mut query: Query<(&mut Transform, &GlobalTransform, &mut Gun), Without<FpsCamera>>,
     aim: Query<&GlobalTransform, (With<AimSocket>, Without<Gun>, Without<FpsCamera>)>,
     local: LocalPlayerState,
-    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose, swap, infinite_ammo): (
+    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose, swap, infinite_ammo, sight_swap): (
         Res<ActiveWeapon>,
         Res<WalkCycle>,
         Res<crate::movement_combat::FireShock>,
@@ -339,6 +339,7 @@ pub(crate) fn gun_view_animation(
         Res<grenade::ThrowPose>,
         Res<crate::WeaponSwap>,
         Res<crate::InfiniteAmmo>,
+        Res<crate::sight_swap::SightSwap>,
     ),
 ) {
     // Taken, not read: the single consumer clearing it is what lets each
@@ -748,7 +749,12 @@ pub(crate) fn gun_view_animation(
                 * Quat::from_rotation_z(inspect_angles.z.to_radians()),
             gun.inspect_blend,
         );
-        let pose_turn = reload_turn * sprint_turn;
+        // Rolled round so the rail faces the eye while a sight is going on
+        // or coming off. Part of pose_turn rather than added after, so the
+        // swing correction below takes it out about the firing grip too --
+        // the hand that is holding the weapon does not move.
+        let (present_turn, present_pull) = sight_swap.present_pose();
+        let pose_turn = reload_turn * sprint_turn * present_turn;
         let pose_swing = grip_in_gun - pose_turn * grip_in_gun;
 
         let base_rotation = Quat::from_rotation_z(settle_twist.to_radians())
@@ -765,6 +771,7 @@ pub(crate) fn gun_view_animation(
             .lerp(active.def().ready_offset, gun.ready_blend)
             .lerp(gun.base_offset, gun.inspect_blend);
         let resting = posture
+            + present_pull
             + gun.settle_current
             + active.def().sprint_carry.offset * gun.sprint_blend
             + inspect_offset * gun.inspect_blend;

@@ -290,7 +290,7 @@ pub(crate) struct SightDrop(pub(crate) f32);
 pub(crate) fn fit_sight(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    fitted: Res<FittedSight>,
+    fitted: Res<crate::sight_swap::ShownSight>,
     active: Res<ActiveWeapon>,
     mut drop: ResMut<SightDrop>,
     gun: Query<(Entity, &GlobalTransform), With<Gun>>,
@@ -399,15 +399,22 @@ pub(crate) fn wire_sight_eye(
     }
 }
 
-/// The rail shows only with something standing on it.
+/// The rail shows only with something standing on it -- and while a sight is
+/// on its way to or from it, which is the one time an empty rail is worth
+/// looking at.
 pub(crate) fn show_rail_with_sight(
-    fitted: Res<FittedSight>,
+    fitted: Res<crate::sight_swap::ShownSight>,
+    swap: Res<crate::sight_swap::SightSwap>,
     mut rails: Query<&mut Visibility, With<Rail>>,
 ) {
-    if !fitted.is_changed() {
+    if !fitted.is_changed() && !swap.is_changed() {
         return;
     }
-    let shown = if fitted.0.is_some() { Visibility::Inherited } else { Visibility::Hidden };
+    let shown = if fitted.0.is_some() || swap.running.is_some() {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
     for mut visibility in &mut rails {
         *visibility = shown;
     }

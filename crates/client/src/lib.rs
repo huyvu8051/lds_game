@@ -53,6 +53,7 @@ mod dismember;
 use dismember::*;
 mod auto_lean;
 mod sight_mount;
+mod sight_swap;
 mod lightmap;
 mod autopilot;
 mod patrol;
@@ -920,6 +921,8 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
     app.init_resource::<sight_mount::FittedSight>()
+.init_resource::<sight_swap::ShownSight>()
+.init_resource::<sight_swap::SightSwap>()
 .init_resource::<sight_mount::SightDrop>()
 .init_resource::<PlayerModelPoseOverride>()
         .register_type::<PlayerModelPose>()
@@ -1262,6 +1265,14 @@ impl Plugin for GamePlugin {
                 (
                     sight_mount::follow_fitted_attachment,
                     sight_mount::wire_rail_nodes,
+                    // The gesture decides when the weapon actually wears it,
+                    // so it has to have moved before fit_sight asks.
+                    (
+                        sight_swap::begin_sight_swap,
+                        sight_swap::advance_sight_swap,
+                        sight_swap::carry_swapped_sight,
+                    )
+                        .chain(),
                     sight_mount::wire_sight_eye,
                     sight_mount::cycle_fitted_sight,
                     sight_mount::show_rail_with_sight,
@@ -1396,6 +1407,9 @@ impl Plugin for GamePlugin {
         PostUpdate,
         (
             drive_reload_hand,
+// After it: during a swap this is the one that decides where the
+// weak hand is, and the reload path would otherwise write last.
+sight_swap::drive_sight_hand,
             update_pole_targets,
             solve_grip_ik,
         )
