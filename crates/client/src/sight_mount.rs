@@ -161,14 +161,21 @@ impl SightId {
 /// Whether this weapon has somewhere for a sight to clamp.
 ///
 /// A list rather than a field on the weapon, because what decides it is the
-/// mesh: these twelve are the ones `add_rails.sh` built a rail onto, and the
-/// ones that shipped with a rail already have no sockets marking its ends.
-/// Fitting a sight to anything else puts it in the bag's socket and nowhere
-/// on screen.
+/// mesh: these are the ones carrying `Socket_RailRear` and `Socket_RailFront`
+/// -- twelve that `add_rails.sh` built a rail onto, and six that came wearing
+/// a sight and had it split off by `strip_builtin_sights.sh`, which marked
+/// the rail it had been standing on. Fitting a sight to anything else puts it
+/// in the bag's socket and nowhere on screen.
 pub(crate) fn weapon_takes_sight(weapon: WeaponId) -> bool {
     matches!(
         weapon,
-        WeaponId::Bizon
+        WeaponId::Famas
+            | WeaponId::Mk47Mutant
+            | WeaponId::P90
+            | WeaponId::Vector
+            | WeaponId::M249
+            | WeaponId::AugA3
+            | WeaponId::Bizon
             | WeaponId::Dp28
             | WeaponId::Groza
             | WeaponId::Mini14
@@ -203,6 +210,16 @@ pub(crate) fn sight_from_env() -> Option<crate::items::ItemKind> {
         .copied()
         .find(|item| SightId::from_item(*item) == Some(id))
 }
+
+/// The sight a weapon was drawn wearing, split off into a node of its own.
+///
+/// Hidden, always, so every weapon starts bare and the bag decides what it
+/// carries. Kept rather than deleted because hiding is reversible and costs
+/// a visibility flag, and because the mesh it holds is the same one the
+/// matching attachment is made from -- there is nothing to re-align if it
+/// is ever wanted back.
+#[derive(Component)]
+pub(crate) struct BuiltinSight;
 
 /// The rail a sight clamps to, as a node in the weapon's own mesh.
 ///
@@ -254,6 +271,7 @@ pub(crate) fn wire_rail_nodes(
             "rail" => 0,
             "Socket_RailRear" => 1,
             "Socket_RailFront" => 2,
+            "builtin_sight" => 3,
             _ => continue,
         };
         let mut current = entity;
@@ -273,7 +291,8 @@ pub(crate) fn wire_rail_nodes(
         match tag {
             0 => node.insert((Rail, Visibility::Hidden)),
             1 => node.insert(RailRearSocket),
-            _ => node.insert(RailFrontSocket),
+            2 => node.insert(RailFrontSocket),
+            _ => node.insert((BuiltinSight, Visibility::Hidden)),
         };
     }
 }
