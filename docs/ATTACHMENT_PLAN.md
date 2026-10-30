@@ -99,11 +99,13 @@ cannot find a lens buried in a forty-thousand-triangle gun. Once the
 scope is a small object on its own, the lens is obvious. Extraction is
 the fix, not a detour around it.
 
-Two caveats worth saying out loud. None of these were built to a shared
-mount standard, so each needs its own origin set by eye. And the ones
-that are integral -- the AUG's and the QBU's grow out of a carry handle
-rather than clamping to a rail -- have no mount foot at all, and need
-one modelled.
+One caveat, and one thing this plan got wrong. The caveat: none of these
+were built to a shared mount standard, so each needs its own origin set.
+The error: this said the AUG's and the QBU's optics grow out of a carry
+handle and have no mount foot. Both turn out to sit on proper Picatinny
+mounts -- the AUG on a single ring block, the QBU on a one-piece
+cantilever carrying its own top rail -- which makes them the two easiest
+harvests rather than the two that needed a foot modelled.
 
 ### What that covers, and what it does not
 
@@ -113,13 +115,32 @@ one modelled.
 | `Holographic` | `vector`, `p90` or `m249` | three, all EOTech-shaped |
 | `Scope2x` | `aug_a3` | short prism, the right length for 2x |
 | `Scope3x` | `qbu` | mid tube |
-| `Scope4x` | `svd` | the classic, and its lenses are already named |
+| `Scope4x` | `svd` | **held back**, see below |
 | `Scope6x` | `awm` | long tube |
 | `Scope8x` | `lynx_amr` | longest of them |
 | `Scope15x` | **nothing** | needs sourcing or modelling |
 | `CantedSight` | **nothing** | small, 45-degree mount; probably modelled |
 
 Seven of nine covered from what we already own.
+
+### Done so far
+
+Four are off and filed under `zombie_assets/attachments/scopes`:
+`scope_2x` from the AUG at 206mm, `scope_3x` from the QBU at 224mm,
+`scope_6x` from the AWM at 291mm, `scope_8x` from the Lynx at 406mm.
+Each carries `Socket_Mount` at the bottom of its foot, `Socket_Eye` and
+`Socket_Objective` on the axis, and between fourteen and twenty-seven
+blended lens discs.
+
+The lens count is the point. The QBU's, the AWM's and the Lynx's scopes
+are opaque in game today because the filter that finds a lens on a whole
+gun also catches the tube around it. Off the gun, every one of them
+found its lenses on the first pass.
+
+`scope_4x` is held back. The SVD's PSO hangs on a Russian side rail
+rather than a foot, the download bundles a separate illuminator
+alongside it, and only one disc in the whole tube reads as a lens -- so
+it would still be opaque. That one wants a person in Blender.
 
 ## Building the missing rails
 
@@ -295,9 +316,12 @@ weapon, before phase 5's grind is committed to.
 
 - **Which of the duplicates to keep.** Two red dots and three
   holographics; the rest become spares or skins.
-- **`Scope15x` and `CantedSight`** have no source at all.
+- **`Scope15x` and `CantedSight`** have no source at all, and
+  `Scope4x` has one that needs hand work.
 - **What each attachment actually does to the numbers.** Decision 6 says
   they change them; nobody has said by how much. That is a balance pass,
   and it wants its own table next to the weapon one.
-- **Suppressors.** The FAMAS and the P90 wear one already. Harvest them
-  the same way, or model one?
+- **Suppressors.** The FAMAS and the P90 each wear a clean detachable
+  can, and both come off the same way a scope does. The VSS's is
+  integral, with the front sight standing on it, so taking it would
+  leave the gun without a barrel.
