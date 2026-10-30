@@ -20,6 +20,7 @@ pub(crate) enum SightId {
     HoloC,
     Scope2x,
     Scope3x,
+    Scope4x,
     Scope6x,
     Scope8x,
 }
@@ -97,6 +98,16 @@ static SCOPE_3X: SightDef = SightDef {
     aim_fov_multiplier: 0.560,
 };
 
+static SCOPE_4X: SightDef = SightDef {
+    name: "4x scope",
+    mesh_path: "models/sights/scope_4x/scope_4x.glb",
+    eye_back: 0.141,
+    eye_rise: 0.033,
+    // Not interpolated like the others: 0.525 is the number the AK's own
+    // four-power scope has been shipping with since long before any of this.
+    aim_fov_multiplier: 0.525,
+};
+
 static SCOPE_6X: SightDef = SightDef {
     name: "6x scope",
     mesh_path: "models/sights/scope_6x/scope_6x.glb",
@@ -127,13 +138,14 @@ impl SightId {
             HoloHeavy => SightId::HoloC,
             Scope2x => SightId::Scope2x,
             Scope3x => SightId::Scope3x,
+            Scope4x => SightId::Scope4x,
             Scope6x => SightId::Scope6x,
             Scope8x => SightId::Scope8x,
             _ => return None,
         })
     }
 
-    pub(crate) const ALL: [SightId; 9] = [
+    pub(crate) const ALL: [SightId; 10] = [
         SightId::RedDotA,
         SightId::RedDotB,
         SightId::HoloA,
@@ -141,6 +153,7 @@ impl SightId {
         SightId::HoloC,
         SightId::Scope2x,
         SightId::Scope3x,
+        SightId::Scope4x,
         SightId::Scope6x,
         SightId::Scope8x,
     ];
@@ -154,6 +167,7 @@ impl SightId {
             SightId::HoloC => &HOLO_C,
             SightId::Scope2x => &SCOPE_2X,
             SightId::Scope3x => &SCOPE_3X,
+            SightId::Scope4x => &SCOPE_4X,
             SightId::Scope6x => &SCOPE_6X,
             SightId::Scope8x => &SCOPE_8X,
         }
