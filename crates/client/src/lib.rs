@@ -52,6 +52,7 @@ use condition_hud::*;
 mod dismember;
 use dismember::*;
 mod auto_lean;
+mod sight_mount;
 mod lightmap;
 mod autopilot;
 mod patrol;
@@ -918,7 +919,9 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-    app.init_resource::<PlayerModelPoseOverride>()
+    app.init_resource::<sight_mount::FittedSight>()
+.init_resource::<sight_mount::SightDrop>()
+.init_resource::<PlayerModelPoseOverride>()
         .register_type::<PlayerModelPose>()
         .register_type::<ZombiePose>()
         .register_type::<PlayerModelPoseOverride>()
@@ -1255,6 +1258,17 @@ impl Plugin for GamePlugin {
                 wire_zombie_hitbox_bones,
                 wire_gun_mesh,
                 wire_weapon_sockets,
+                // One group, not five: this tuple is at Bevy's twenty-item
+                // limit and the outer .chain() stops compiling past it.
+                (
+                    sight_mount::wire_rail_nodes,
+                    sight_mount::wire_sight_eye,
+                    sight_mount::cycle_fitted_sight,
+                    sight_mount::show_rail_with_sight,
+                    // After the swap has put the weapon's own rest offset
+                    // back, so the drop lands on top of it, not under it.
+                    (sight_mount::fit_sight, sight_mount::drop_weapon_for_sight).chain(),
+                ),
                 log_frame_pacing,
                 track_muzzle_socket,
                 update_zombie_animation.run_if(resource_exists::<ZombieAnim>).run_if(clip_tick()),

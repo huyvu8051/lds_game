@@ -93,7 +93,10 @@ pub(crate) fn wire_weapon_sockets(
         }
         let mut socket = commands.entity(entity);
         match name.as_str() {
-            "Socket_Aim" => socket.insert(AimSocket),
+            // Two components, not one. AimSocket is handed to a fitted
+            // sight's own eye and taken back when it comes off; IronAimSocket
+            // stays, so there is always something to hand it back to.
+            "Socket_Aim" => socket.insert((AimSocket, crate::sight_mount::IronAimSocket)),
             "Socket_SightFront" => socket.insert(FrontSightSocket),
             "Socket_Eject" => socket.insert(EjectSocket),
             "Socket_Muzzle" => socket.insert(MuzzleSocket),

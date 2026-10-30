@@ -441,6 +441,7 @@ pub(crate) fn apply_lean_input(
 pub(crate) fn apply_aim_zoom(
     time: Res<Time>,
     active: Res<ActiveWeapon>,
+    fitted_sight: Res<crate::sight_mount::FittedSight>,
     pose: Res<WeaponPose>,
     mut camera: Query<&mut Projection, With<FpsCamera>>,
 ) {
@@ -460,7 +461,13 @@ pub(crate) fn apply_aim_zoom(
         return;
     };
 
-    let target_fov = BASE_FOV * (1.0 + (def.aim_fov_multiplier - 1.0) * pose.sighted);
+    // A fitted sight overrides the weapon's own: what the player looks
+    // through decides how much of the world is in the frame, not what it is
+    // bolted to.
+    let aim_fov = fitted_sight
+        .0
+        .map_or(def.aim_fov_multiplier, |sight| sight.def().aim_fov_multiplier);
+    let target_fov = BASE_FOV * (1.0 + (aim_fov - 1.0) * pose.sighted);
     let t = (AIM_ZOOM_SPEED * time.delta_secs()).min(1.0);
     perspective.fov += (target_fov - perspective.fov) * t;
 }
