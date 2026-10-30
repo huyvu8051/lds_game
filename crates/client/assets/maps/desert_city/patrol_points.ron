@@ -1,0 +1,29 @@
+// Where the test patrol walks, in the same format mapbake_editor writes the
+// zombie spawns beside this file.
+//
+// These are the zombie spawns themselves, minus two of the three that stand
+// within two metres of each other at the north end -- that cluster is one
+// place, and a route that visits it three times is a route that spends its
+// time in one corner.
+//
+// Taken from the spawns rather than authored fresh because a waypoint has
+// exactly one requirement, that something can path to it, and those points
+// already carry it: zombies are placed there and walk out. A coordinate
+// invented by eye satisfies it only by luck.
+//
+// What is left is a ring around the map: north end, west street, the
+// south-west corner, along the south wall, up the east side and back across
+// the north. The patrol picks at random among them, so it crosses the middle
+// as often as it follows the ring.
+[
+    (5.6314573, 3.280929, 9.292496),
+    (4.2914543, 4.500353, -10.247151),
+    (0.5176786, 9.740947, -27.323494),
+    (18.113405, 6.402485, -29.715334),
+    (41.529305, 6.8870077, -28.00538),
+    (51.176216, 6.5249476, -17.482395),
+    (65.45231, 6.6540155, -5.5159197),
+    (66.45498, 7.03204, 5.918382),
+    (65.41214, 6.6300898, 21.366076),
+    (45.24221, 6.257253, 27.826141),
+]

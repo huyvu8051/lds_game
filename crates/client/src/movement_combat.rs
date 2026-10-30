@@ -292,11 +292,11 @@ pub(crate) fn mouse_look(
     mut look_delta: ResMut<MouseLookDelta>,
     sensitivity_scale: Res<SensitivityScale>,
     mut query: Query<&mut FpsCamera>,
-    autopilot: Res<Autopilot>,
+    driven: Res<crate::patrol::Driven>,
     look_only: Res<AutopilotLookOnly>,
 ) {
 
-    if autopilot.0 || look_only.0 {
+    if driven.0 || look_only.0 {
         return;
     }
     let Ok(cursor) = cursor.single() else {
@@ -400,12 +400,12 @@ pub(crate) fn apply_lean_input(
     keys: Res<ButtonInput<KeyCode>>,
     touch_lean: Res<TouchLeanHeld>,
     game_over: Res<GameOver>,
-    autopilot: Res<Autopilot>,
+    driven: Res<crate::patrol::Driven>,
     auto_lean: Res<AutoLean>,
     mut query: Query<&mut Lean>,
 ) {
 
-    if autopilot.0 {
+    if driven.0 {
         return;
     }
     let target: f32 = if game_over.0 {
@@ -536,11 +536,11 @@ pub(crate) fn send_player_input(
     noclip: Res<Noclip>,
     touch_move_axis: Res<TouchMoveAxis>,
 
-    (mut local_moving, mut local_sprinting, mut local_move_axis, autopilot, intent, boost): (
+    (mut local_moving, mut local_sprinting, mut local_move_axis, driven, intent, boost): (
         ResMut<LocalPlayerMoving>,
         ResMut<LocalPlayerSprinting>,
         ResMut<LocalPlayerMoveAxis>,
-        Res<Autopilot>,
+        Res<crate::patrol::Driven>,
         Res<AutopilotIntent>,
         Res<Boost>,
     ),
@@ -563,7 +563,7 @@ pub(crate) fn send_player_input(
     // nobody is aiming.
     let aiming = pose.sighted > 0.5;
 
-    let (move_axis, sprinting) = if autopilot.0 {
+    let (move_axis, sprinting) = if driven.0 {
         (intent.move_axis, intent.sprint)
     } else {
         let sprinting = (keys.pressed(KeyCode::ShiftLeft) || touch.sprint.0) && stance == PlayerStance::Standing;
@@ -744,8 +744,8 @@ pub(crate) fn shoot(
         ResMut<Assets<MuzzleFlashMaterial>>,
         ResMut<FireShock>,
     ),
-    (autopilot, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, mut fire_mode, swap): (
-        Res<Autopilot>,
+    (driven, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, mut fire_mode, swap): (
+        Res<crate::patrol::Driven>,
         Res<AutopilotIntent>,
         Res<LocalPlayerMoving>,
         Res<LocalPlayerSprinting>,
@@ -795,7 +795,7 @@ pub(crate) fn shoot(
     };
     // Nothing leaves a barrel that is halfway out of frame.
     let firing =
-        !swap.busy() && (always_fire() || if autopilot.0 { intent.fire } else { by_hand });
+        !swap.busy() && (always_fire() || if driven.0 { intent.fire } else { by_hand });
     if !firing || *cooldown > 0.0 {
         return;
     }

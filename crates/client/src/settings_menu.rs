@@ -379,6 +379,12 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                 })
                 .with_children(|row| {
                     spawn_cheat_toggle_button(row, "Autopilot", AutopilotButton);
+                    // Beside the autopilot because the whole point of them is
+                    // to be compared: one walks the map, the other fights on
+                    // it, and running each alone is how you find out which
+                    // one the phone is warming up for.
+                    spawn_cheat_toggle_button(row, "Patrol", PatrolButton);
+                    spawn_cheat_toggle_button(row, "Patrol Fire", PatrolFireButton);
                 });
 
                 page.spawn(Node {
@@ -1102,6 +1108,11 @@ pub(crate) struct CheatDespawnBotButton;
 pub(crate) struct CheatLookAtTargetButton;
 #[derive(Component)]
 pub(crate) struct CheatShowAutopilotTargetButton;
+
+#[derive(Component)]
+pub(crate) struct PatrolButton;
+#[derive(Component)]
+pub(crate) struct PatrolFireButton;
 #[derive(Component)]
 pub(crate) struct CheatShowHitMarkersButton;
 #[derive(Component)]
@@ -1280,9 +1291,55 @@ pub(crate) fn cheat_toggle_buttons_3(
     }
 }
 
-pub(crate) fn autopilot_toggle_button(mut autopilot: ResMut<Autopilot>, btn: Query<&Interaction, (With<AutopilotButton>, Changed<Interaction>)>) {
+/// The two patrol toggles, and the colour that says which is on.
+///
+/// Their own system rather than another arm of `update_extra_toggle_colors`,
+/// which is already carrying nine markers and is at the limit of what a Bevy
+/// query tuple holds.
+pub(crate) fn patrol_toggle_buttons(
+    mut patrol: ResMut<crate::patrol::Patrol>,
+    mut fire: ResMut<crate::patrol::PatrolFire>,
+    mut autopilot: ResMut<Autopilot>,
+    pressed: Query<
+        (Option<&PatrolButton>, &Interaction),
+        (Or<(With<PatrolButton>, With<PatrolFireButton>)>, Changed<Interaction>),
+    >,
+    mut colours: Query<
+        (&mut BackgroundColor, Option<&PatrolButton>),
+        Or<(With<PatrolButton>, With<PatrolFireButton>)>,
+    >,
+) {
+    for (is_patrol, interaction) in &pressed {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+        if is_patrol.is_some() {
+            patrol.0 = !patrol.0;
+            // One driver at a time. Both writing the intent would measure
+            // neither of them.
+            if patrol.0 {
+                autopilot.0 = false;
+            }
+        } else {
+            fire.0 = !fire.0;
+        }
+    }
+    for (mut bg, is_patrol) in &mut colours {
+        let on = if is_patrol.is_some() { patrol.0 } else { fire.0 };
+        bg.0 = if on {
+            Color::srgba(0.3, 1.0, 0.4, 0.5)
+        } else {
+            Color::srgba(1.0, 1.0, 1.0, 0.2)
+        };
+    }
+}
+
+pub(crate) fn autopilot_toggle_button(mut autopilot: ResMut<Autopilot>, mut patrol: ResMut<crate::patrol::Patrol>, btn: Query<&Interaction, (With<AutopilotButton>, Changed<Interaction>)>) {
     if tapped(&btn) {
         autopilot.0 = !autopilot.0;
+        if autopilot.0 {
+            patrol.0 = false;
+        }
     }
 }
 

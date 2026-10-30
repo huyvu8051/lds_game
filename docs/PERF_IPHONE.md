@@ -365,3 +365,53 @@ and reads nothing off the screen. Two things that cost a trace each:
 
 Run with `MAP_ID=1`; without it the build sits in the menu, which is capped at
 30 and measures nothing.
+
+---
+
+## Tách "đi quanh map" khỏi "giao tranh"
+
+Autopilot làm mọi thứ cùng lúc — chọn mục tiêu, bắn tia line-of-sight mỗi
+tick, nghiêng người, né, ngắm, bắn. Bật nó lên rồi thấy máy nóng chỉ nói được
+rằng *một thứ gì đó* trong đó tốn nhiệt. Patrol đi đúng ngần ấy đường, qua
+đúng navmesh đó, và không làm phần còn lại.
+
+| | |
+|---|---|
+| `PATROL=1` | đi theo tuyến, không bắn |
+| `PATROL=1 PATROL_FIRE=1` | đi, và bắn thứ nó đi ngang qua |
+| nút `Patrol` / `Patrol Fire` | cùng hai thứ đó, trong settings menu — dùng khi cầm máy, vì env var chỉ tới được qua `devicectl` |
+
+Patrol và autopilot **không bao giờ lái cùng lúc**: bật cái này tắt cái kia.
+Cả hai ghi chung `AutopilotIntent`, nên chạy song song thì không đo được cái
+nào.
+
+Ba con số để so, lấy từ `NATIVE_STATS=1`: đứng yên → patrol → patrol có bắn →
+autopilot. Hiệu giữa nấc 2 và 3 là cái giá của việc bắn; giữa 3 và 4 là cái
+giá của phần nghĩ trong autopilot.
+
+### Tuyến đường
+
+`crates/client/assets/maps/<map>/patrol_points.ron`, cùng định dạng và cùng
+editor với `zombie_spawns.ron` bên cạnh. Map không có file riêng thì dùng luôn
+các điểm spawn zombie.
+
+desert_city có 10 điểm, lấy từ chính 12 điểm spawn zombie, bỏ 2 trong 3 điểm
+chụm vào nhau ở đầu bắc. Lấy từ đó chứ không tự bịa toạ độ, vì waypoint chỉ có
+đúng một yêu cầu — phải có thứ gì đó đi tới được nó — mà các điểm spawn đã
+mang sẵn tính chất đó.
+
+### Ba thứ đã cắn vào rig này, đã sửa
+
+- **Player bị zombie ăn.** Patrol không bắn nên bị ăn thịt, mà player chết thì
+  `send_player_input` thoát sớm — nhìn từ ngoài **giống hệt lỗi tìm đường**.
+  Mất một vòng debug mới nhận ra, và chỉ lộ khi chạy với `ZOMBIE_COUNT=0`.
+  Giờ patrol bật bất tử trong lúc đi, và trả lại đúng trạng thái cũ khi tắt.
+- **"Tới nơi" chỉ đo theo mặt bằng**, nên patrol tuyên bố tới waypoint trong
+  khi đứng ở tầng thấp hơn 2 m, rồi kẹt luôn dưới đó. Giờ đòi cả độ cao.
+- **Bỏ waypoint giữa đường.** Đi vòng quanh toà nhà làm khoảng cách đường chim
+  bay *tăng* một lúc, mà ngưỡng 6 giây coi đó là thất bại. Nâng lên 12.
+
+Còn lại: một ổ kẹt quanh `52, 24` trên desert_city mà patrol rơi xuống tầng
+dưới. Cơ chế cứu (đứng im 20 giây thì nhấc lên waypoint) gỡ được, và **in ra
+mỗi lần** — một lần chạy toàn teleport không bao giờ bị nhầm là một lần chạy
+đi bộ.

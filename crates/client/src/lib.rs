@@ -54,7 +54,15 @@ use dismember::*;
 mod auto_lean;
 mod lightmap;
 mod autopilot;
+mod patrol;
+
+/// Whether the test patrol has the controls. The autopilot stands down when
+/// it does, so only one of them is ever writing the intent.
+fn patrol_off(patrol: Res<Patrol>) -> bool {
+    !patrol.0
+}
 use auto_lean::*;
+use patrol::{load_patrol_route, patrol_think, track_driven, Driven, Patrol, PatrolFire, PatrolRoute};
 use autopilot::{autopilot_pick_target, autopilot_think, Autopilot, AutopilotIntent, AutopilotLookOnly, AutopilotState};
 
 mod touch_input;
@@ -1039,12 +1047,16 @@ impl Plugin for GamePlugin {
         .init_resource::<Equipment>()
         .init_resource::<Attachments>()
         .init_resource::<weapon::FireModeSelection>()
+        .init_resource::<Patrol>()
+        .init_resource::<PatrolFire>()
+        .init_resource::<PatrolRoute>()
+        .init_resource::<Driven>()
         .init_resource::<Cooking>()
         .init_resource::<Flashed>()
         .init_resource::<ThrowPose>()
         .init_resource::<WeaponSwap>()
         .add_systems(Startup, (apply_persisted_settings, setup_common, force_game_over_on_start).chain())
-        .add_systems(Startup, (spawn_pole_targets, init_pickup_assets, init_grenade_assets))
+        .add_systems(Startup, (spawn_pole_targets, init_pickup_assets, init_grenade_assets, load_patrol_route))
         .add_systems(OnEnter(AppState::Menu), enter_menu)
         .add_systems(OnExit(AppState::Menu), exit_menu)
         // Gameplay is built while the loading screen is still up, so the map
@@ -1149,7 +1161,7 @@ impl Plugin for GamePlugin {
                     cheat_toggle_buttons_3,
                     (render_toggle_buttons, update_render_toggle_colors).chain(),
                     (fire_fx_toggle_buttons, update_fire_fx_toggle_colors).chain(),
-                    autopilot_toggle_button,
+                    (autopilot_toggle_button, patrol_toggle_buttons),
                     update_extra_toggle_colors,
                     cheat_spawn_zombie_button,
                     shadow_quality_buttons,
@@ -1179,12 +1191,25 @@ impl Plugin for GamePlugin {
                     toggle_noclip.run_if(debug_keys_allowed),
                     toggle_player_stance,
                     toggle_debug_flags.run_if(debug_keys_allowed),
-                    autopilot_pick_target,
-                    // No longer ordered against LandmassSystems::Output --
-                    // landmass runs in FixedUpdate now, and this does not.
-                    // The desired velocity read here can be one frame old,
-                    // which is nothing against a 20Hz decision rate.
-                    autopilot_think,
+                    // Whoever is steering, decided before anything reads
+                    // it, and only ever one of them: patrol exists to walk
+                    // the map without the fight in it, and an autopilot
+                    // writing the same intent would put the fight back.
+                    //
+                    // Grouped only to stay inside the twenty this tuple
+                    // takes; the chain still orders them.
+                    (
+                        track_driven,
+                        autopilot_pick_target.run_if(patrol_off),
+                        // No longer ordered against LandmassSystems::Output
+                        // -- landmass runs in FixedUpdate now, and this does
+                        // not. The desired velocity read here can be one
+                        // frame old, which is nothing against a 20Hz
+                        // decision rate.
+                        autopilot_think.run_if(patrol_off),
+                        patrol_think,
+                    )
+                        .chain(),
                     mouse_look,
                     // Before shoot, not after. Everything that leaves the
                     // barrel is placed from the weapon's transform, and a

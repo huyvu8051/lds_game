@@ -161,14 +161,20 @@ pub fn navmesh_chunk_paths(scenario: Scenario) -> Vec<String> {
     names.into_iter().map(|name| format!("{asset_dir}/{name}")).collect()
 }
 
-pub fn zombie_spawn_points(scenario: Scenario) -> Vec<Vec3> {
-    let relative = format!("{}/zombie_spawns.ron", scenario.map_asset_dir());
+/// A list of authored points next to the map, as mapbake_editor writes them.
+///
+/// `required` is whether a missing file is worth complaining about: the
+/// zombie spawns are, since a map without them spawns nothing; a patrol route
+/// is optional and falls back.
+fn authored_points(scenario: Scenario, file: &str, required: bool) -> Vec<Vec3> {
+    let relative = format!("{}/{file}", scenario.map_asset_dir());
     let Some(path) = asset_file_path(&relative) else {
         return Vec::new();
     };
-
     let Ok(text) = std::fs::read_to_string(&path) else {
-        error!("no authored zombie spawns at {path:?} — author them in mapbake_editor");
+        if required {
+            error!("no authored points at {path:?} — author them in mapbake_editor");
+        }
         return Vec::new();
     };
     match ron::de::from_str::<Vec<[f32; 3]>>(&text) {
@@ -177,6 +183,26 @@ pub fn zombie_spawn_points(scenario: Scenario) -> Vec<Vec3> {
             error!("failed to parse {path:?}: {e}");
             Vec::new()
         }
+    }
+}
+
+pub fn zombie_spawn_points(scenario: Scenario) -> Vec<Vec3> {
+    authored_points(scenario, "zombie_spawns.ron", true)
+}
+
+/// Where the test patrol walks. Same format, same place, same authoring as
+/// the zombie spawns beside it.
+///
+/// Falls back to those spawns when a map has no route of its own. They are
+/// already points on the baked ground that something is expected to path from
+/// and to, which is the only property a waypoint has to have -- and a small
+/// map needs no route separate from them.
+pub fn patrol_points(scenario: Scenario) -> Vec<Vec3> {
+    let authored = authored_points(scenario, "patrol_points.ron", false);
+    if authored.is_empty() {
+        zombie_spawn_points(scenario)
+    } else {
+        authored
     }
 }
 
