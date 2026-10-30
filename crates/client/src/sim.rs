@@ -65,7 +65,18 @@ impl Plugin for SimPlugin {
                     chase_action_system.in_set(BigBrainSet::Actions),
                     near_player_scorer.in_set(BigBrainSet::Scorers),
                 )
-                    .run_if(crate::ablation::group(crate::ablation::Group::ZombieAi)),
+                    .run_if(crate::ablation::group(crate::ablation::Group::ZombieAi))
+                    .run_if(zombies_thinking),
+            )
+            // big-brain's own three sets, not just the two systems above.
+            // Those are what this app puts *in* the sets; the Thinker that
+            // drives them is the plugin's, runs per zombie per tick, and
+            // never looked at the freeze flag -- which is how a frozen run
+            // kept about 40% of what the AI costs.
+            .configure_sets(
+                FixedPreUpdate,
+                (BigBrainSet::Scorers, BigBrainSet::Thinkers, BigBrainSet::Actions)
+                    .run_if(zombies_thinking),
             )
             // move_zombies is the one system here that costs real time -- a
             // swept capsule against the whole map per zombie, every call. In
@@ -109,6 +120,17 @@ impl Default for FreezeZombiesServer {
     fn default() -> Self {
         Self(std::env::var("FREEZE_ZOMBIES").is_ok())
     }
+}
+
+/// Whether the zombies are thinking at all.
+///
+/// Freezing is a measurement tool, and what it is for is taking the
+/// pathfinding out of a frame -- not stopping an animation. So it gates the
+/// scoring and the thinking as well as the walking: a zombie that cannot move
+/// has nothing to decide, and big-brain deciding it anyway is exactly the
+/// cost a frozen run is trying to be without.
+fn zombies_thinking(freeze: Res<FreezeZombiesServer>) -> bool {
+    !freeze.0
 }
 
 fn on_set_freeze_zombies(trigger: On<SetFreezeZombies>, mut freeze: ResMut<FreezeZombiesServer>) {
@@ -409,9 +431,17 @@ fn move_zombies(
     mut positions: Local<Vec<(Entity, Vec3)>>,
     mut candidates: Local<Vec<(Entity, Vec3, f32)>>,
     mut chase_load: Local<std::collections::HashMap<Entity, u32>>,
+    // How many were settled the last time they were put to sleep. A frozen
+    // horde needs stopping once, not sixty-four times a second, and the count
+    // is what says whether a respawn has joined it since.
+    mut settled: Local<Option<usize>>,
 ) {
 
     if freeze.0 {
+        if *settled == Some(zombies.iter().len()) {
+            return;
+        }
+        *settled = Some(zombies.iter().len());
         for (_, _, mut motion, _, _, agent_target, ..) in &mut zombies {
             motion.moving = false;
             // The destination goes too, not just the walking, so that a
@@ -435,6 +465,7 @@ fn move_zombies(
         }
         return;
     }
+    *settled = None;
 
     positions.clear();
     positions.extend(zombies.iter().map(|(e, t, ..)| (e, t.translation)));

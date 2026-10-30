@@ -418,7 +418,7 @@ mỗi lần** — một lần chạy toàn teleport không bao giờ bị nhầm
 
 ---
 
-## FREEZE_ZOMBIES có tắt tìm đường không? Không hẳn.
+## FREEZE_ZOMBIES giờ tắt luôn phần nghĩ
 
 Desktop, desert_city, `NO_AUTOPILOT=1`, player đứng yên, xen kẽ 2 lượt, bỏ 6
 giây đầu, trung vị `update`:
@@ -435,11 +435,29 @@ giây đầu, trung vị `update`:
 Hai lượt của mỗi ô khớp nhau trong 0.05 ms, nên các hiệu số này là thật chứ
 không phải trôi nhiệt.
 
-**Freeze chỉ chặn `move_zombies`.** Nó `return` sớm, nên không ghi
+**Trước đây freeze chỉ chặn `move_zombies`.** Nó `return` sớm, nên không ghi
 `AgentTarget3d` nữa — nhưng `near_player_scorer`, `chase_action_system` và
-`Thinker` của big-brain nằm ở `FixedPreUpdate` và **vẫn chạy mọi tick**, cùng
-với phần đồng bộ agent của landmass ở 64 Hz. Khoảng 40% chi phí AI sống sót
-qua freeze, và phần sống sót đó là **big-brain, không phải tính đường**.
+`Thinker` của big-brain nằm ở `FixedPreUpdate` và **vẫn chạy mọi tick**.
+Khoảng 40% chi phí AI sống sót qua freeze.
+
+Giờ ba set của big-brain — `Scorers`, `Thinkers`, `Actions` — đều gate theo cờ
+freeze, và `move_zombies` ru ngủ cả bầy **một lần** thay vì quét lại 64 lần
+mỗi giây. Đo lại, 40 zombie, 3 lượt:
+
+| | trước | sau |
+|---|---|---|
+| toàn bộ zombie AI (A−C) | +0.31 ms | +0.29 ms |
+| freeze gỡ được (A−B) | +0.19 | **+0.23** |
+| **còn sót** (B−C) | +0.13 | **+0.06** |
+
+Phần sót giảm còn một nửa, và quan trọng hơn: ba lượt của B giờ ra
+3.23/3.24/3.23 — đường chạy khi đóng băng đã thật sự đứng yên. 0.06 ms còn lại
+là phần đồng bộ agent của landmass ở 64 Hz cộng `tick_respawns`, không phải
+tính đường.
+
+Riêng việc ru ngủ một lần **không đo được lợi ích** ở 40 zombie; giữ lại vì nó
+biến đường chạy khi freeze từ O(số zombie) mỗi tick thành O(1), và số zombie
+trên máy có thể cao hơn.
 
 **Tìm đường gần như không phải thủ phạm gây nóng.** Gấp đôi zombie từ 20 lên
 40 chỉ thêm 0.08 ms — vì `LandmassSystems::Update` đã bị ghìm xuống 10 Hz
