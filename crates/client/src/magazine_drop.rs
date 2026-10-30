@@ -91,6 +91,37 @@ const CHARGE_REAR_DROP: f32 = 0.022;
 /// handle. What can be had honestly is the weapon feeling it.
 const CHARGE_KICK: Vec3 = Vec3::new(0.0, 0.0045, 0.009);
 
+/// How far the weapon cants to put its charging handle where a hand can
+/// reach it. Degrees about the bore.
+///
+/// Only for a handle on the strong side. That is the one the weak hand has
+/// to come over the top for, and canting the weapon left brings the right
+/// flank up to meet it. A handle already on the weak side needs none of
+/// this: the hand is on that side of the weapon to begin with.
+const CHARGE_ROLL_DEG: f32 = 26.0;
+/// It leans over as the hand leaves the magazine well and is square again by
+/// the time the hand is home.
+const CHARGE_ROLL_IN: f32 = 0.80;
+const CHARGE_ROLL_OUT: f32 = 0.96;
+
+pub(crate) fn charge_roll(weapon: WeaponId, progress: f32) -> f32 {
+    let Charging::Side(sign) = charging_of(weapon) else { return 0.0 };
+    if sign <= 0.0 || progress < MAG_SEATED_AT {
+        return 0.0;
+    }
+    let ramp = if progress < CHARGE_ROLL_IN {
+        (progress - MAG_SEATED_AT) / (CHARGE_ROLL_IN - MAG_SEATED_AT)
+    } else if progress > CHARGE_ROLL_OUT {
+        (1.0 - progress) / (1.0 - CHARGE_ROLL_OUT)
+    } else {
+        1.0
+    };
+    let t = ramp.clamp(0.0, 1.0);
+    // Positive rolls the strong flank up: negative is what the magazine
+    // change uses to bring the well round the other way.
+    CHARGE_ROLL_DEG * t * t * (3.0 - 2.0 * t)
+}
+
 /// How much of the jolt is showing, by the reload's own progress.
 pub(crate) fn charge_kick(weapon: WeaponId, progress: f32) -> Vec3 {
     if charging_of(weapon) == Charging::None || progress < CHARGE_PULLED {

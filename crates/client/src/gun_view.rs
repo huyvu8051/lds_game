@@ -115,6 +115,8 @@ pub(crate) struct GunPoseTimings {
     dip: f32,
     /// The snap of the bolt going home at the end of a reload.
     charge: Vec3,
+    /// How far the weapon is canted to reach its charging handle. Degrees.
+    charge_roll: f32,
     bob_x: f32,
     bob_y: f32,
     bob_pitch: f32,
@@ -135,8 +137,9 @@ pub(crate) fn gun_pose_timings(
     // back out of it. This one is flat at both ends: it eases in and eases
     // out, which is the curve the sights and the kick already use.
     let dip = ops::sin(std::f32::consts::PI * reload_t).powi(2);
-    let charge =
-        crate::charge_kick(weapon, if gun.reload_remaining > 0.0 { 1.0 - reload_t } else { 1.0 });
+    let reloaded = if gun.reload_remaining > 0.0 { 1.0 - reload_t } else { 1.0 };
+    let charge = crate::charge_kick(weapon, reloaded);
+    let charge_roll = crate::charge_roll(weapon, reloaded);
     let amount = cycle.amount();
     let bob_x = ops::sin(cycle.phase) * GUN_BOB_AMOUNT_X * amount;
     // abs() already doubles the rate: |sin| repeats every pi, not every tau.
@@ -152,7 +155,7 @@ pub(crate) fn gun_pose_timings(
     // so this pins the nose and swings the stock -- the muzzle stays the
     // steadiest thing on screen, which is what a carried weapon does.
     let bob_pitch = ops::sin(lagged).abs() * GUN_BOB_PITCH_DEG * amount;
-    GunPoseTimings { recoil_t, dip, charge, bob_x, bob_y, bob_pitch }
+    GunPoseTimings { recoil_t, dip, charge, charge_roll, bob_x, bob_y, bob_pitch }
 }
 
 
@@ -737,7 +740,10 @@ pub(crate) fn gun_view_animation(
         // Rotating about a point means turning, then putting back what the
         // turn moved that point by.
         let reload_turn = Quat::from_rotation_x(RELOAD_TILT_DEG.to_radians() * timings.dip)
-            * Quat::from_rotation_z(RELOAD_ROLL_DEG.to_radians() * timings.dip);
+            * Quat::from_rotation_z(
+                RELOAD_ROLL_DEG.to_radians() * timings.dip
+                    + timings.charge_roll.to_radians(),
+            );
         let grip_in_gun = grips
             .trigger
             .single()
