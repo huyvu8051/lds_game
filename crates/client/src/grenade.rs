@@ -64,7 +64,10 @@ pub(crate) struct FuseLabel(pub(crate) Entity);
 #[derive(Resource)]
 pub(crate) struct GrenadeAssets {
     mesh: Handle<Mesh>,
-    materials: Vec<Handle<StandardMaterial>>,
+    /// By kind rather than by position. A list meant the order it was built
+    /// in and the order it was searched in had to stay the same list, and
+    /// nothing said so.
+    materials: bevy::platform::collections::HashMap<ItemKind, Handle<StandardMaterial>>,
 }
 
 pub(crate) fn init_grenade_assets(
@@ -76,22 +79,21 @@ pub(crate) fn init_grenade_assets(
         // A sphere, because a grenade is one and because a thrown cube reads
         // as a crate every time it tumbles.
         mesh: meshes.add(Sphere::new(GRENADE_RADIUS).mesh().ico(3).unwrap()),
-        materials: inventory::THROWABLES
-            .iter()
+        materials: inventory::throwables()
             .map(|kind| {
-                materials.add(StandardMaterial {
+                let material = materials.add(StandardMaterial {
                     base_color: kind.colour(),
                     perceptual_roughness: 0.75,
                     ..default()
-                })
+                });
+                (kind, material)
             })
             .collect(),
     });
 }
 
 fn material_for(assets: &GrenadeAssets, kind: ItemKind) -> Handle<StandardMaterial> {
-    let index = inventory::THROWABLES.iter().position(|k| *k == kind).unwrap_or(0);
-    assets.materials[index.min(assets.materials.len() - 1)].clone()
+    assets.materials[&kind].clone()
 }
 
 /// Starts the fuse. Called by the key and by the on-screen buttons alike.
@@ -125,9 +127,7 @@ pub(crate) fn cook_and_throw(
         // The first one carried. There is no selected throwable any more --
         // the HUD gives each its own button, so choosing happens by pressing
         // the one you want, and only the key still needs told which.
-        let kind = crate::inventory::THROWABLES
-            .into_iter()
-            .find(|kind| inventory.count(*kind) > 0);
+        let kind = crate::inventory::throwables().find(|kind| inventory.count(*kind) > 0);
         if let (None, Some(kind)) = (cooking.kind, kind) {
             begin_cook(&mut cooking, &inventory, kind);
             if let Some(sounds) = sounds.as_ref() {

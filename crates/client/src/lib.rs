@@ -39,6 +39,7 @@ mod inventory_screen;
 mod grenade;
 mod weapon_swap;
 mod loadout_hud;
+mod condition_hud;
 use weapon::*;
 use items::*;
 use inventory::*;
@@ -47,6 +48,7 @@ use inventory_screen::*;
 use grenade::*;
 use weapon_swap::*;
 use loadout_hud::*;
+use condition_hud::*;
 mod dismember;
 use dismember::*;
 mod auto_lean;
@@ -1259,10 +1261,10 @@ impl Plugin for GamePlugin {
                     select_weapon_slot,
                     (begin_weapon_swap, advance_weapon_swap, switch_weapon).chain(),
                     use_consumable_key,
-                    loadout_hud::condition_cell_input,
-                    loadout_hud::update_condition_labels,
+                    condition_hud::condition_cell_input,
+                    condition_hud::update_condition_labels,
                     inventory::keep_selection_stocked,
-                    loadout_hud::condition_choice_buttons,
+                    condition_hud::condition_choice_buttons,
                     advance_use_cooldown,
                     advance_boost,
                     // Grouped only to stay inside the twenty this tuple

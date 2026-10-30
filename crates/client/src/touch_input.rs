@@ -298,211 +298,169 @@ pub(crate) fn spawn_touch_controls(commands: &mut Commands) {
             ));
         });
 
-    commands.spawn((
-        Node {
-            width: Val::Px(TOUCH_FIRE_BUTTON_PX),
-            height: Val::Px(TOUCH_FIRE_BUTTON_PX),
-            position_type: PositionType::Absolute,
-            right: Val::Px(32.0),
-            bottom: Val::Px(48.0),
-            border: UiRect::all(Val::Px(2.0)),
-            border_radius: BorderRadius::all(Val::Px(TOUCH_FIRE_BUTTON_PX / 2.0)),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(1.0, 0.3, 0.3, 0.55)),
-        TouchButtonBaseColor(Color::srgba(1.0, 0.3, 0.3, 0.55)),
-        BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.6)),
-        Button,
-        Interaction::default(),
-        GlobalZIndex(STATIC_UI_Z_INDEX),
+    let ads_px = TOUCH_FIRE_BUTTON_PX * 0.7;
+    spawn_touch_round_button(
+        commands,
+        "",
+        TouchAnchor::BottomRight { right: 32.0, bottom: 48.0 },
+        TOUCH_FIRE_BUTTON_PX,
+        Color::srgba(1.0, 0.3, 0.3, 0.55),
         TouchFireButton,
-        TouchControlButton,
-        NativeUiRoot,
-    ));
-
-    commands
-        .spawn((
-            Node {
-                width: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
-                height: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
-                position_type: PositionType::Absolute,
-                right: Val::Px(32.0 + (TOUCH_FIRE_BUTTON_PX - TOUCH_FIRE_BUTTON_PX * 0.7) / 2.0),
-                bottom: Val::Px(48.0 + TOUCH_FIRE_BUTTON_PX + 16.0),
-                border: UiRect::all(Val::Px(2.0)),
-                border_radius: BorderRadius::all(Val::Px(TOUCH_FIRE_BUTTON_PX * 0.35)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.3, 0.5, 1.0, 0.4)),
-            TouchButtonBaseColor(Color::srgba(0.3, 0.5, 1.0, 0.4)),
-            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.6)),
-            Button,
-            Interaction::default(),
-            GlobalZIndex(STATIC_UI_Z_INDEX),
-            TouchAimButton,
-            TouchControlButton,
-            NativeUiRoot,
-        ))
-        .with_children(|btn| {
-            btn.spawn((
-                Text::new("ADS"),
-                TextFont {
-                    font_size: FontSize::Px(12.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ));
-        });
-
-    commands
-        .spawn((
-            Node {
-                width: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
-                height: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
-                position_type: PositionType::Absolute,
-                // Top right, under the settings and bag toggles. The left
-                // edge below the radar is the kill feed's now, and the bottom
-                // right corner is three deep already -- fire, ADS and the
-                // throwables.
-                right: Val::Px(16.0),
-                top: Val::Px(68.0),
-                border: UiRect::all(Val::Px(2.0)),
-                border_radius: BorderRadius::all(Val::Px(TOUCH_FIRE_BUTTON_PX * 0.35)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(1.0, 0.8, 0.2, 0.4)),
-            TouchButtonBaseColor(Color::srgba(1.0, 0.8, 0.2, 0.4)),
-            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.6)),
-            Button,
-            Interaction::default(),
-            GlobalZIndex(STATIC_UI_Z_INDEX),
-            TouchReloadButton,
-            TouchControlButton,
-            NativeUiRoot,
-        ))
-        .with_children(|btn| {
-            btn.spawn((
-                Text::new("RELOAD"),
-                TextFont {
-                    font_size: FontSize::Px(10.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ));
-        });
-
-    commands
-        .spawn((
-            Node {
-                width: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
-                height: Val::Px(TOUCH_FIRE_BUTTON_PX * 0.7),
-                position_type: PositionType::Absolute,
-                right: Val::Px(16.0),
-                // Directly under RELOAD, in the same column.
-                top: Val::Px(68.0 + TOUCH_FIRE_BUTTON_PX * 0.7 + 12.0),
-                border: UiRect::all(Val::Px(2.0)),
-                border_radius: BorderRadius::all(Val::Px(TOUCH_FIRE_BUTTON_PX * 0.35)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.5, 0.7, 1.0, 0.4)),
-            TouchButtonBaseColor(Color::srgba(0.5, 0.7, 1.0, 0.4)),
-            BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.6)),
-            Button,
-            Interaction::default(),
-            GlobalZIndex(STATIC_UI_Z_INDEX),
-            TouchFireModeButton,
-            TouchControlButton,
-            NativeUiRoot,
-        ))
-        .with_children(|btn| {
-            // The button is its own readout: it says the mode it is on, not
-            // what pressing it does. A control that only named its action
-            // would leave the current mode legible nowhere a thumb is
-            // looking.
-            btn.spawn((
-                Text::new("AUTO"),
-                TextFont {
-                    font_size: FontSize::Px(10.0),
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                TouchFireModeLabel,
-            ));
-        });
+        (),
+    );
+    spawn_touch_round_button(
+        commands,
+        "ADS",
+        TouchAnchor::BottomRight {
+            right: 32.0 + (TOUCH_FIRE_BUTTON_PX - ads_px) / 2.0,
+            bottom: 48.0 + TOUCH_FIRE_BUTTON_PX + 16.0,
+        },
+        ads_px,
+        Color::srgba(0.3, 0.5, 1.0, 0.4),
+        TouchAimButton,
+        (),
+    );
+    // Top right, under the settings and bag toggles. The left edge below the
+    // radar is the kill feed's now, and the bottom right corner is three deep
+    // already -- fire, ADS and the throwables.
+    spawn_touch_round_button(
+        commands,
+        "RELOAD",
+        TouchAnchor::TopRight { right: 16.0, top: 68.0 },
+        ads_px,
+        Color::srgba(1.0, 0.8, 0.2, 0.4),
+        TouchReloadButton,
+        (),
+    );
+    // Directly under RELOAD, in the same column.
+    spawn_touch_round_button(
+        commands,
+        "AUTO",
+        TouchAnchor::TopRight { right: 16.0, top: 68.0 + ads_px + 12.0 },
+        ads_px,
+        Color::srgba(0.5, 0.7, 1.0, 0.4),
+        TouchFireModeButton,
+        TouchFireModeLabel,
+    );
 
     let stance_btn_px = TOUCH_FIRE_BUTTON_PX * 0.6;
     let stance_row_gap = 12.0;
     let stance_row_bottom = 32.0 + TOUCH_JOYSTICK_BASE_PX + 16.0;
-    spawn_touch_round_button(commands, "JUMP", 32.0, stance_row_bottom, stance_btn_px, Color::srgba(0.3, 1.0, 0.4, 0.4), TouchJumpButton);
+    spawn_touch_round_button(
+        commands,
+        "JUMP",
+        TouchAnchor::BottomLeft { left: 32.0, bottom: stance_row_bottom },
+        stance_btn_px,
+        Color::srgba(0.3, 1.0, 0.4, 0.4),
+        TouchJumpButton,
+        (),
+    );
     spawn_touch_round_button(
         commands,
         "CROUCH",
-        32.0 + (stance_btn_px + stance_row_gap),
-        stance_row_bottom,
+        TouchAnchor::BottomLeft { left: 32.0 + (stance_btn_px + stance_row_gap), bottom: stance_row_bottom },
         stance_btn_px,
         Color::srgba(1.0, 0.8, 0.3, 0.4),
         TouchCrouchButton,
+        (),
     );
     spawn_touch_round_button(
         commands,
         "PRONE",
-        32.0 + (stance_btn_px + stance_row_gap) * 2.0,
-        stance_row_bottom,
+        TouchAnchor::BottomLeft { left: 32.0 + (stance_btn_px + stance_row_gap) * 2.0, bottom: stance_row_bottom },
         stance_btn_px,
         Color::srgba(0.6, 0.5, 1.0, 0.4),
         TouchProneButton,
+        (),
     );
 
     let modifier_row_bottom = stance_row_bottom + stance_btn_px + stance_row_gap;
     spawn_touch_round_button(
         commands,
         "LEAN <",
-        32.0,
-        modifier_row_bottom,
+        TouchAnchor::BottomLeft { left: 32.0, bottom: modifier_row_bottom },
         stance_btn_px,
         Color::srgba(0.4, 0.85, 0.5, 0.4),
         TouchLeanLeftButton,
+        (),
     );
     spawn_touch_round_button(
         commands,
         "LEAN >",
-        32.0 + (stance_btn_px + stance_row_gap) * 2.0,
-        modifier_row_bottom,
+        TouchAnchor::BottomLeft { left: 32.0 + (stance_btn_px + stance_row_gap) * 2.0, bottom: modifier_row_bottom },
         stance_btn_px,
         Color::srgba(0.4, 0.85, 0.5, 0.4),
         TouchLeanRightButton,
+        (),
     );
     spawn_touch_round_button(
         commands,
         "WEAPON",
-        32.0 + (stance_btn_px + stance_row_gap) * 3.0,
-        modifier_row_bottom,
+        TouchAnchor::BottomLeft { left: 32.0 + (stance_btn_px + stance_row_gap) * 3.0, bottom: modifier_row_bottom },
         stance_btn_px,
         Color::srgba(0.9, 0.9, 0.95, 0.4),
         TouchWeaponButton,
+        (),
     );
 }
 
-pub(crate) fn spawn_touch_round_button(commands: &mut Commands, label: &'static str, left_px: f32, bottom_px: f32, size_px: f32, color: Color, marker: impl Component) {
+/// Where a touch button is pinned.
+///
+/// The buttons grew in three corners and each block wrote its own `left` or
+/// `right` by hand, so moving one meant knowing which corner its numbers
+/// counted from. The corner is now part of saying where it goes.
+#[derive(Clone, Copy)]
+pub(crate) enum TouchAnchor {
+    BottomLeft { left: f32, bottom: f32 },
+    BottomRight { right: f32, bottom: f32 },
+    TopRight { right: f32, top: f32 },
+}
+
+impl TouchAnchor {
+    fn apply(self, node: &mut Node) {
+        match self {
+            TouchAnchor::BottomLeft { left, bottom } => {
+                node.left = Val::Px(left);
+                node.bottom = Val::Px(bottom);
+            }
+            TouchAnchor::BottomRight { right, bottom } => {
+                node.right = Val::Px(right);
+                node.bottom = Val::Px(bottom);
+            }
+            TouchAnchor::TopRight { right, top } => {
+                node.right = Val::Px(right);
+                node.top = Val::Px(top);
+            }
+        }
+    }
+}
+
+/// Every round touch control. An empty label spawns no text child, which is
+/// what the fire button wants; `label_marker` is for the one button whose
+/// text is rewritten later.
+pub(crate) fn spawn_touch_round_button(
+    commands: &mut Commands,
+    label: &'static str,
+    anchor: TouchAnchor,
+    size_px: f32,
+    color: Color,
+    marker: impl Bundle,
+    label_marker: impl Bundle,
+) {
+    let mut node = Node {
+        width: Val::Px(size_px),
+        height: Val::Px(size_px),
+        position_type: PositionType::Absolute,
+        border: UiRect::all(Val::Px(2.0)),
+        border_radius: BorderRadius::all(Val::Px(size_px / 2.0)),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        ..default()
+    };
+    anchor.apply(&mut node);
     commands
         .spawn((
-            Node {
-                width: Val::Px(size_px),
-                height: Val::Px(size_px),
-                position_type: PositionType::Absolute,
-                left: Val::Px(left_px),
-                bottom: Val::Px(bottom_px),
-                border: UiRect::all(Val::Px(2.0)),
-                border_radius: BorderRadius::all(Val::Px(size_px / 2.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
+            node,
             BackgroundColor(color),
             TouchButtonBaseColor(color),
             BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.6)),
@@ -514,13 +472,14 @@ pub(crate) fn spawn_touch_round_button(commands: &mut Commands, label: &'static 
             NativeUiRoot,
         ))
         .with_children(|btn| {
+            if label.is_empty() {
+                return;
+            }
             btn.spawn((
                 Text::new(label),
-                TextFont {
-                    font_size: FontSize::Px(10.0),
-                    ..default()
-                },
+                TextFont { font_size: FontSize::Px(10.0), ..default() },
                 TextColor(Color::WHITE),
+                label_marker,
             ));
         });
 }

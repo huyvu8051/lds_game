@@ -152,13 +152,23 @@ impl Loadout {
     }
 }
 
-/// One button each on the HUD, and the order the throw key walks.
-pub(crate) const THROWABLES: [ItemKind; 4] = [
-    ItemKind::FragGrenade,
-    ItemKind::SmokeGrenade,
-    ItemKind::StunGrenade,
-    ItemKind::Molotov,
+/// The throwables, in the shape the HUD lays them out: the two that only
+/// obscure on the left, the two that hurt on the right, so a hand reaching in
+/// a fight only has to be on the correct side to be harmless or not.
+///
+/// One list rather than a flat one here and a grid in the HUD. Two would have
+/// to be kept agreeing by hand, and a fifth throwable added to only one of
+/// them fails silently -- either unreachable, or thrown by a key but on no
+/// button.
+pub(crate) const THROWABLES: [[ItemKind; 2]; 2] = [
+    [ItemKind::StunGrenade, ItemKind::FragGrenade],
+    [ItemKind::SmokeGrenade, ItemKind::Molotov],
 ];
+
+/// Every throwable, left to right and top to bottom.
+pub(crate) fn throwables() -> impl Iterator<Item = ItemKind> {
+    THROWABLES.into_iter().flatten()
+}
 
 
 /// The items the heal selector cycles: everything that mends or boosts.
