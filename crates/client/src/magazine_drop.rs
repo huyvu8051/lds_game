@@ -5,10 +5,16 @@ use bevy::prelude::*;
 
 use crate::*;
 
-/// How far into the reload the fresh magazine appears. The gun spends the first
-/// part of the move with an empty well, which is what reads as a swap rather
-/// than a pause.
-const MAG_SWAP_AT: f32 = RELOAD_HAND_BACK_AT_MAG;
+/// Fractions of the reload at which the magazine changes hands.
+///
+/// The old one comes off into the hand, is let go partway to the pouch, and a
+/// fresh one is already in the hand on the way back. It seats well before the
+/// reload timer runs out on purpose: the gun is level again by then, and an
+/// empty well that late reads as a missing part rather than a reload.
+const MAG_TAKEN_AT: f32 = RELOAD_HAND_AT_MAG;
+const MAG_RELEASED_AT: f32 = 0.33;
+const MAG_FETCHED_AT: f32 = 0.56;
+const MAG_SEATED_AT: f32 = RELOAD_HAND_BACK_AT_MAG;
 
 const MAG_LIFETIME: f32 = 20.0;
 const MAG_DROP_SPEED: f32 = 0.8;
@@ -139,62 +145,134 @@ fn scatter(seed: f32) -> Vec3 {
     Vec3::new(ops::sin(seed * 1.7), ops::sin(seed * 2.3), ops::sin(seed * 3.1))
 }
 
-/// Pulls the magazine out of the viewmodel and leaves a real one on the floor.
+pub(crate) fn magazine_log_enabled() -> bool {
+    std::env::var("MAG_LOG").map(|value| value == "1").unwrap_or(false)
+}
+
+/// A magazine in the hand, on its way out of the weapon or back into it.
+#[derive(Component)]
+pub(crate) struct CarriedMagazine;
+
+/// How the magazine sat in the hand when it came off.
 ///
-/// Triggered on the edge where the reload starts, which is the only thing the
-/// two entry points — the R key and firing the last round — have in common.
-pub(crate) fn drop_magazine_on_reload(
-    active: Res<ActiveWeapon>,
+/// Kept because the fresh one has to be put back the same way, and by then
+/// the hand is at the pouch while the weapon's own magazine parts are still
+/// where they always were -- measuring it again at that moment would place
+/// the magazine wherever the gun is rather than in the hand.
+#[derive(Resource, Default)]
+pub(crate) struct MagazineInHand {
+    parts: Vec<(Transform, Handle<Mesh>, Handle<StandardMaterial>)>,
+    /// Where the magazine's middle sits in the hand's own frame.
+    centre: Vec3,
+    half: Vec3,
+}
+
+fn spawn_carried(commands: &mut Commands, held: &MagazineInHand, hand: &GlobalTransform) {
+    if held.parts.is_empty() {
+        return;
+    }
+    let at = hand.mul_transform(Transform::from_translation(held.centre)).compute_transform();
+    let body = commands
+        .spawn((Name::new("CarriedMagazine"), at, Visibility::default(), CarriedMagazine))
+        .id();
+    for (part, mesh, material) in &held.parts {
+        commands.spawn((
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(material.clone()),
+            *part,
+            ChildOf(body),
+        ));
+    }
+}
+
+/// Walks the magazine through the reload in the hand that is carrying it.
+///
+/// One system for the whole journey, because every step is the same question
+/// asked at a different fraction: the old one off the weapon, let go of, a
+/// fresh one fetched, and seated. It replaces two that read the same clock
+/// from opposite ends and had to agree about the middle of it.
+pub(crate) fn carry_reload_magazine(
     time: Res<Time>,
+    active: Res<ActiveWeapon>,
     mut commands: Commands,
+    mut held: ResMut<MagazineInHand>,
     gun: Query<&Gun>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
+    hand: Query<&GlobalTransform, With<ReloadHandTarget>>,
     mut magazines: Query<
         (&GlobalTransform, &Mesh3d, &MeshMaterial3d<StandardMaterial>, &Aabb, &mut Visibility),
         With<ViewmodelMagazine>,
     >,
-    mut was_reloading: Local<bool>,
+    mut carried: Query<(Entity, &mut Transform), With<CarriedMagazine>>,
+    mut last: Local<f32>,
 ) {
-    // When the hand arrives, not when the reload begins: a magazine falling
-    // while the hand is still on the fore grip reads as nothing pulled it.
-    let reached = gun
-        .single()
-        .map(|g| g.reload_remaining > 0.0 && 1.0 - g.reload_remaining / active.def().reload_duration >= RELOAD_HAND_AT_MAG)
-        .unwrap_or(false);
-    let started = reached && !*was_reloading;
-    *was_reloading = reached;
-    if !started {
+    let (Ok(gun), Ok(eye), Ok(hand)) = (gun.single(), camera.single(), hand.single()) else {
         return;
-    }
-    let Ok(eye) = camera.single() else { return };
+    };
+    // Idle sits at one, so a reload beginning drops the progress rather than
+    // raising it, and none of the marks below fire on the way down.
+    let now = if gun.reload_remaining > 0.0 {
+        1.0 - (gun.reload_remaining / active.def().reload_duration).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    let was = std::mem::replace(&mut *last, now);
+    let crossed = |mark: f32| was < mark && now >= mark;
 
-    // One body for the whole magazine, however many meshes it is drawn from.
-    // Two nested boxes given a collider each would spend their first frame
-    // shoving each other apart.
-    let mut taken: Vec<(Transform, Handle<Mesh>, Handle<StandardMaterial>)> = Vec::new();
-    let mut span: Option<(Vec3, Vec3)> = None;
-    for (global, mesh, material, aabb, mut visibility) in &mut magazines {
-        if *visibility == Visibility::Hidden {
-            continue;
-        }
-        *visibility = Visibility::Hidden;
-        let placed = global.compute_transform();
-        grow_to_part(&mut span, global, aabb);
-        taken.push((placed, mesh.0.clone(), material.0.clone()));
+    // In the hand for as long as it is out of the weapon.
+    let in_hand =
+        hand.mul_transform(Transform::from_translation(held.centre)).compute_transform();
+    for (_, mut at) in &mut carried {
+        *at = in_hand;
     }
-    let (Some((lo, hi)), false) = (span, taken.is_empty()) else { return };
-    {
-        let at = (lo + hi) * 0.5;
-        let half = (hi - lo) * 0.5;
+
+    if crossed(MAG_TAKEN_AT) {
+        let into_hand = hand.affine().inverse();
+        let mut span = None;
+        let mut taken = Vec::new();
+        for (global, mesh, material, aabb, mut visibility) in &mut magazines {
+            if *visibility == Visibility::Hidden {
+                continue;
+            }
+            *visibility = Visibility::Hidden;
+            grow_to_part(&mut span, global, aabb);
+            taken.push((
+                Transform::from_matrix((into_hand * global.affine()).into()),
+                mesh.0.clone(),
+                material.0.clone(),
+            ));
+        }
+        let (Some((lo, hi)), false) = (span, taken.is_empty()) else { return };
+        let centre = into_hand.transform_point3((lo + hi) * 0.5);
+        // Measured against the hand, then moved onto the magazine's own
+        // middle, so the body they hang off is centred where its collider is.
+        for (part, _, _) in &mut taken {
+            part.translation -= centre;
+        }
+        held.parts = taken;
+        held.centre = centre;
+        held.half = (hi - lo) * 0.5;
+        spawn_carried(&mut commands, &held, hand);
+        if magazine_log_enabled() {
+            debug!(
+                "[magazine] out of the well, {} part(s), middle {:.0}mm from the hand, {:.0}x{:.0}x{:.0}mm",
+                held.parts.len(),
+                held.centre.length() * 1000.0,
+                held.half.x * 2000.0, held.half.y * 2000.0, held.half.z * 2000.0,
+            );
+        }
+    }
+
+    if crossed(MAG_RELEASED_AT) {
+        // The same entity, let go of rather than swapped for another: it is
+        // already where the hand is, which is the whole point of carrying it.
         let seed = time.elapsed_secs();
         let away = (Vec3::NEG_Y + *eye.forward() * MAG_DROP_FORWARD).normalize_or_zero();
-        let body = commands
-            .spawn((
+        for (entity, _) in &carried {
+            commands.entity(entity).remove::<CarriedMagazine>().insert((
                 Name::new("DroppedMagazine"),
-                Transform::from_translation(at),
-                Visibility::default(),
                 RigidBody::Dynamic,
-                Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0),
+                Collider::cuboid(held.half.x * 2.0, held.half.y * 2.0, held.half.z * 2.0),
                 ColliderDensity(MAG_DENSITY),
                 // Map geometry is a trimesh with no thickness, and a magazine
                 // crosses its own depth in one step once gravity has it.
@@ -202,50 +280,25 @@ pub(crate) fn drop_magazine_on_reload(
                 LinearVelocity(away * MAG_DROP_SPEED),
                 AngularVelocity(scatter(seed * 1.9) * MAG_SPIN),
                 DroppedMagazine { remaining: MAG_LIFETIME },
-            ))
-            .id();
-
-        // Each part keeps the place it held on the weapon, expressed about
-        // the body's own middle, so they fall as the one object they look like.
-        for (part, mesh, material) in &taken {
-            commands.spawn((
-                Mesh3d(mesh.clone()),
-                MeshMaterial3d(material.clone()),
-                Transform::from_translation(part.translation - at)
-                    .with_rotation(part.rotation)
-                    .with_scale(part.scale),
-                ChildOf(body),
             ));
         }
+    }
 
-        if magazine_log_enabled() {
-            debug!("[magazine] dropped at {at:.3?} size {:.3?}m from {} part(s)", half * 2.0, taken.len());
+    if crossed(MAG_FETCHED_AT) {
+        spawn_carried(&mut commands, &held, hand);
+    }
+
+    if crossed(MAG_SEATED_AT) {
+        for (entity, _) in &carried {
+            commands.entity(entity).despawn();
         }
-    }
-}
-
-pub(crate) fn magazine_log_enabled() -> bool {
-    std::env::var("MAG_LOG").map(|value| value == "1").unwrap_or(false)
-}
-
-/// Puts the fresh magazine back partway through the move, not at the end: the
-/// gun is level again well before the reload timer is, and an empty well that
-/// late reads as a missing part rather than a reload.
-pub(crate) fn restore_magazine_after_reload(
-    active: Res<ActiveWeapon>,
-    gun: Query<&Gun>,
-    mut magazines: Query<&mut Visibility, With<ViewmodelMagazine>>,
-) {
-    let Ok(gun) = gun.single() else { return };
-    if gun.reload_remaining > active.def().reload_duration * (1.0 - MAG_SWAP_AT) {
-        return;
-    }
-    for mut visibility in &mut magazines {
-        if *visibility == Visibility::Hidden {
-            *visibility = Visibility::Inherited;
-            if magazine_log_enabled() {
-                debug!("[magazine] fresh one in, {:.2}s left on the reload", gun.reload_remaining);
+        for (_, _, _, _, mut visibility) in &mut magazines {
+            if *visibility == Visibility::Hidden {
+                *visibility = Visibility::Inherited;
             }
+        }
+        if magazine_log_enabled() {
+            debug!("[magazine] seated, {:.2}s left on the reload", gun.reload_remaining);
         }
     }
 }

@@ -920,7 +920,8 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-    app.init_resource::<sight_mount::FittedSight>()
+    app.init_resource::<MagazineInHand>()
+.init_resource::<sight_mount::FittedSight>()
 .init_resource::<sight_swap::ShownSight>()
 .init_resource::<sight_swap::SightSwap>()
 .init_resource::<sight_mount::SightDrop>()
@@ -1361,7 +1362,7 @@ impl Plugin for GamePlugin {
                 update_blood_particles,
                 (
                     (update_blood_bursts, update_bullet_holes, merge_coincident_holes, update_impact_dust, update_casings, update_port_smoke),
-                    (drop_magazine_on_reload, restore_magazine_after_reload, update_dropped_magazines),
+                    (carry_reload_magazine, update_dropped_magazines),
                 ),
                 (
                     update_muzzle_smoke,
