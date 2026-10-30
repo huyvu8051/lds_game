@@ -49,6 +49,110 @@ all: the AUG and the QBU wear a baked-in optic, the Groza has a carry
 handle, and the Mosin, the S686 and the revolver have no rail to speak
 of.
 
+## Decisions taken
+
+1. **Rails get built onto the guns that lack one.**
+2. **The optics already on the guns get harvested and reused.**
+3. **Irons are hidden under an optic**, not folded.
+4. **`aim_fov_multiplier` carries the magnification.** No scope camera.
+5. **Variants and skins come later.** Which mesh is which magnification
+   is decided below.
+6. **Attachments change the numbers, not just the look.**
+
+## We own no attachment meshes
+
+`zombie_assets` holds weapons, characters, maps and gore. There is no
+scope, no muzzle device, no foregrip, no stock. **Every optic we have is
+bolted to a gun**, which is why decision 2 is the whole supply.
+
+### What is bolted to what
+
+Read off the renders rather than a classifier -- a width test confuses
+an aperture's protective ears with an optic.
+
+| weapon | what it wears |
+|---|---|
+| `famas` | red dot, plus a suppressor |
+| `mk47_mutant` | red dot |
+| `vector` | holographic |
+| `p90` | holographic, plus a suppressor |
+| `m249` | holographic |
+| `aug_a3` | short prism, roughly 1.5x |
+| `svd` | PSO-pattern tube, **lenses already named** |
+| `qbu` | mid-power tube |
+| `awm` | long tube |
+| `lynx_amr` | long tube |
+
+`m16a4` is the useful control: its rail is empty and the measurement
+finds nothing at the sight line at all, which is what an empty rail
+should read.
+
+### Harvesting them
+
+Extracting a scope is the same job as aligning a gun, an order of
+magnitude smaller: move the origin to the mount foot, add
+`Socket_Mount`, `Socket_Eye` and `Socket_Objective`, name the lenses.
+
+It also **solves a problem we already have**. The QBU's, the AWM's and
+the Lynx's scopes are opaque in game because the geometric lens filter
+cannot find a lens buried in a forty-thousand-triangle gun. Once the
+scope is a small object on its own, the lens is obvious. Extraction is
+the fix, not a detour around it.
+
+Two caveats worth saying out loud. None of these were built to a shared
+mount standard, so each needs its own origin set by eye. And the ones
+that are integral -- the AUG's and the QBU's grow out of a carry handle
+rather than clamping to a rail -- have no mount foot at all, and need
+one modelled.
+
+### What that covers, and what it does not
+
+| `ItemKind` | taken from | note |
+|---|---|---|
+| `RedDot` | `famas` or `mk47_mutant` | two to choose between |
+| `Holographic` | `vector`, `p90` or `m249` | three, all EOTech-shaped |
+| `Scope2x` | `aug_a3` | short prism, the right length for 2x |
+| `Scope3x` | `qbu` | mid tube |
+| `Scope4x` | `svd` | the classic, and its lenses are already named |
+| `Scope6x` | `awm` | long tube |
+| `Scope8x` | `lynx_amr` | longest of them |
+| `Scope15x` | **nothing** | needs sourcing or modelling |
+| `CantedSight` | **nothing** | small, 45-degree mount; probably modelled |
+
+Seven of nine covered from what we already own.
+
+## Building the missing rails
+
+A rail is **one mesh placed many times**, not one mesh per gun: a
+Picatinny strip is 21.2mm wide with a 10.16mm slot pitch, and the only
+per-gun work is choosing where it sits and how long it runs.
+
+Needs one: `mosin_nagant`, `s686`, `r1895`, `tommy_gun`, `bizon`,
+`skorpion`, `mini14`, `sks`, `micro_uzi`, `mp5k`, `p1911`, `dp28`,
+`groza` (which has a carry handle instead), `vss` (which takes a side
+mount in reality -- a top rail is the simpler lie).
+
+The gun needs a flat to put it on. Where the receiver is round or
+ribbed, the strip either floats or has to be sunk, and that is a
+judgement per gun, not a rule.
+
+## Which slots each weapon takes
+
+Stats change, so the table is gameplay as much as geometry.
+
+| class | muzzle | grip | magazine | stock | sight |
+|---|---|---|---|---|---|
+| assault rifle | yes | yes | yes | yes | yes |
+| SMG | yes | yes | yes | yes | yes |
+| marksman rifle | yes | yes | yes | yes | yes |
+| bolt-action | yes | no | yes | yes | yes |
+| machine gun | yes | yes | no | no | yes |
+| shotgun | choke, duckbill | no | bullet loops | yes | yes |
+| pistol | yes | no | yes | no | yes |
+
+A slot a weapon does not have is not a greyed-out box: the gun simply
+has no socket for it.
+
 ## Part groups
 
 Five groups per weapon, each independently shown or hidden, plus a body
@@ -187,19 +291,13 @@ whole screen is the sight picture now". An 8x or a 15x through
 Phases 1 to 3 answer whether the whole idea holds together, on one
 weapon, before phase 5's grind is committed to.
 
-## Open questions
+## Still open
 
-1. **Weapons with no rail** -- Mosin, S686, R1895, Tommy Gun, and the
-   VSS which takes a side mount. Leave them iron-only, or model a rail
-   onto them?
-2. **Weapons wearing a baked-in optic** -- the FAMAS's red dot, the AUG,
-   the QBU, the AWM, the Lynx. Split the optic out as `part_sight` and
-   treat it as a default that can be swapped, or strip it so the slot
-   starts empty?
-3. **Co-witness.** Hide the irons under an optic, or fold them?
-4. **Magnification.** Is `aim_fov_multiplier` enough for an 8x and a
-   15x, or does a scope camera have to come back?
-5. **Variants and skins.** In scope now, or after the nine types work?
-6. **Does an attachment change the numbers**, or only the look? A
-   suppressor that does not change the sound, or an extended magazine
-   that does not change `magazine`, is a model and not an attachment.
+- **Which of the duplicates to keep.** Two red dots and three
+  holographics; the rest become spares or skins.
+- **`Scope15x` and `CantedSight`** have no source at all.
+- **What each attachment actually does to the numbers.** Decision 6 says
+  they change them; nobody has said by how much. That is a balance pass,
+  and it wants its own table next to the weapon one.
+- **Suppressors.** The FAMAS and the P90 wear one already. Harvest them
+  the same way, or model one?
