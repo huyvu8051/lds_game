@@ -1260,6 +1260,7 @@ impl Plugin for GamePlugin {
                     select_weapon_slot,
                     (begin_weapon_swap, advance_weapon_swap, switch_weapon).chain(),
                     use_consumable_key,
+                    loadout_hud::hud_consumable_buttons,
                     advance_use_cooldown,
                     advance_boost,
                     // Grouped only to stay inside the twenty this tuple

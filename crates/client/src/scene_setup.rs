@@ -467,6 +467,7 @@ pub(crate) fn setup_gameplay(
 
     spawn_crosshair(&mut commands);
     spawn_loadout_hud(&mut commands);
+    spawn_condition_hud(&mut commands);
     spawn_inventory_screen(&mut commands);
     spawn_flash_overlay(&mut commands);
     spawn_kill_ui(&mut commands);
@@ -475,7 +476,6 @@ pub(crate) fn setup_gameplay(
     spawn_damage_overlay(&mut commands, &mut overlay_materials);
     spawn_settings_menu(&mut commands);
     spawn_settings_toggle_button(&mut commands);
-    spawn_inventory_toggle_button(&mut commands);
     spawn_mouse_ui_lock_indicator(&mut commands);
     if touch_enabled.0 {
         spawn_touch_controls(&mut commands);

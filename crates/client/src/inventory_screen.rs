@@ -82,30 +82,29 @@ fn heading(text: &str) -> impl Bundle {
     )
 }
 
+/// One bag column: as tall as the row it sits in, and scrolled if its contents
+/// are taller than that.
+///
+/// Every column scrolls, and every column is told its height rather than
+/// growing to fit. Both halves of that matter, and neither worked alone:
+///
+/// Ground and pack were capped with `max_height: Vh(58)` and the other two had
+/// no bound at all. A cap is not a floor -- nothing held those columns open --
+/// and the unbounded weapons column, fifteen rows of it, is what actually set
+/// the row's height. The row is a flex item with the default `flex_shrink`, so
+/// once the three stacked children outgrew the screen it was squeezed, and with
+/// `align_items: Start` the columns sat in whatever box was left. On the phone
+/// the native renderer clips a scroll box to exactly its computed size, so a
+/// squeezed pack column showed half a row and nothing more.
+///
+/// `height: 100%` against a row that is told to fill the screen replaces a
+/// ceiling with a floor, and scrolling everywhere means the weapons column can
+/// be read on a phone at all.
 fn column(marker: impl Component) -> impl Bundle {
     (
         Node {
             width: Val::Px(230.0),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(3.0),
-            padding: UiRect::all(Val::Px(10.0)),
-            ..default()
-        },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-        marker,
-    )
-}
-
-/// A column whose contents are not bounded by anything.
-///
-/// The ground list is however much is lying within reach and the pack is
-/// however much has been picked up, so both can outgrow a phone held
-/// sideways. Capped at BAG_SCROLL_HEIGHT and dragged with a thumb.
-fn scrolling_column(marker: impl Component) -> impl Bundle {
-    (
-        Node {
-            width: Val::Px(230.0),
-            max_height: Val::Vh(BAG_SCROLL_HEIGHT_VH),
+            height: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(3.0),
             padding: UiRect::all(Val::Px(10.0)),
@@ -122,8 +121,6 @@ fn scrolling_column(marker: impl Component) -> impl Bundle {
 /// Marks a bag column a thumb may drag.
 #[derive(Component)]
 pub(crate) struct BagScrollable;
-
-const BAG_SCROLL_HEIGHT_VH: f32 = 58.0;
 
 /// Which column a drag caught, and where the finger was last frame.
 #[derive(Resource, Default)]
@@ -254,12 +251,19 @@ pub(crate) fn spawn_inventory_screen(commands: &mut Commands) {
                 .spawn(Node {
                     flex_direction: FlexDirection::Row,
                     column_gap: Val::Px(10.0),
-                    align_items: AlignItems::Start,
+                    align_items: AlignItems::Stretch,
+                    // Take what the screen has left after the two labels, and
+                    // let the columns be told that height. Without the zero
+                    // minimum a flex item refuses to shrink below its content,
+                    // which here is the tallest column, and the row would push
+                    // itself off the bottom of the screen instead of fitting.
+                    flex_grow: 1.0,
+                    min_height: Val::Px(0.0),
                     ..default()
                 })
                 .with_children(|row| {
-                    row.spawn(scrolling_column(GroundColumn));
-                    row.spawn(scrolling_column(PackColumn));
+                    row.spawn(column(GroundColumn));
+                    row.spawn(column(PackColumn));
                     row.spawn(column(GunColumn));
                     row.spawn(column(GearColumn));
                 });

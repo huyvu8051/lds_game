@@ -453,8 +453,22 @@ pub(crate) fn gun_view_animation(
 
         // The sights come down to reload. The weapon tilts 22 degrees and rolls
         // 20 to clear the magwell, which is not a thing to be looking through.
-        let ads_target =
-            if (aiming || force_ads()) && gun.reload_remaining <= 0.0 { 1.0 } else { 0.0 };
+        //
+        // And down to swap, for the same reason and by the same means: holding
+        // the aim button through a weapon change used to leave ads_blend at 1,
+        // so the view stayed zoomed and the depth of field stayed shallow while
+        // the viewmodel swung out of frame. Nothing is stored and nothing is
+        // restored -- the button is never touched, only the target the spring
+        // chases, so the sights come back up on their own the moment the swap
+        // ends, exactly as they do after a reload.
+        let ads_target = if (aiming || force_ads())
+            && gun.reload_remaining <= 0.0
+            && !swap.busy()
+        {
+            1.0
+        } else {
+            0.0
+        };
         // Latched on the rising edge of the request, not on ads_blend nearing
         // zero -- it decays towards zero and never arrives. ready_blend is
         // last frame's, before aiming drives it down. The max covers a raise

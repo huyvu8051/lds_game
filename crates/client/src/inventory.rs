@@ -413,6 +413,54 @@ pub(crate) fn advance_boost(
 
 /// Spends one of the selected item, if there is one and the last one has
 /// finished going down.
+/// Which `HEAL_ITEMS` slot a one-tap button should spend, given what is held
+/// and how much room there is to fill.
+///
+/// The rule is "just enough to top up": among the items of that category still
+/// in the pack, take the smallest one that is **not wasted** -- the amount it
+/// actually applies after its ceiling equals the amount it carries. If nothing
+/// qualifies, take whatever heals the most.
+///
+/// At 50 health a bandage lands all 25 of itself, so it goes first and the
+/// medkit stays in the pack. At 60 every option spills over its ceiling, so
+/// none is clean and the medkit wins on 40 points applied. Without the
+/// fallback a scratched-up player with only a medkit would tap and get nothing.
+pub(crate) fn best_consumable(
+    inventory: &Inventory,
+    category: crate::items::Category,
+    health: f32,
+    boost: f32,
+) -> Option<usize> {
+    let applied = |kind: ItemKind| -> Option<(f32, f32)> {
+        match effect_of(kind) {
+            Effect::HealTo { add, ceiling } => {
+                Some(((ceiling - health).clamp(0.0, add), add))
+            }
+            Effect::Boost(amount) => Some(((BOOST_MAX - boost).clamp(0.0, amount), amount)),
+            Effect::Nothing => None,
+        }
+    };
+
+    let mut clean: Option<(usize, f32)> = None;
+    let mut most: Option<(usize, f32)> = None;
+    for (index, kind) in HEAL_ITEMS.iter().copied().enumerate() {
+        if kind.category() != category || inventory.count(kind) == 0 {
+            continue;
+        }
+        let Some((gets, carries)) = applied(kind) else { continue };
+        if gets <= 0.0 {
+            continue;
+        }
+        if gets >= carries && clean.is_none_or(|(_, best)| carries < best) {
+            clean = Some((index, carries));
+        }
+        if most.is_none_or(|(_, best)| gets > best) {
+            most = Some((index, gets));
+        }
+    }
+    clean.or(most).map(|(index, _)| index)
+}
+
 pub(crate) fn use_selected_consumable(
     mut inventory: ResMut<Inventory>,
     mut boost: ResMut<Boost>,

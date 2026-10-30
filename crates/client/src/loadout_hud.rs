@@ -128,6 +128,145 @@ fn stat_cell(
     )
 }
 
+/// HP and BST are buttons: tapping one spends the best item of its kind.
+///
+/// Edge-triggered off the interaction's own state rather than `Changed<>`, the
+/// same way the bag toggle is and for the same reason -- a held thumb would
+/// otherwise fire on every frame it stays down, and the 1.2s cooldown inside
+/// `use_selected_consumable` would swallow the rest without saying so.
+///
+/// This picks the slot and then goes through the existing spend path rather
+/// than applying the effect itself, so the cooldown, the refusal to waste an
+/// item at full health, and the count bookkeeping all stay in one place.
+pub(crate) fn hud_consumable_buttons(
+    mut health_held: Local<bool>,
+    mut boost_held: Local<bool>,
+    health_button: Query<&Interaction, With<HealthUseButton>>,
+    boost_button: Query<&Interaction, With<BoostUseButton>>,
+    mut inventory: ResMut<crate::inventory::Inventory>,
+    boost: ResMut<crate::inventory::Boost>,
+    player: Query<&mut Health, With<Player>>,
+) {
+    let want_health = health_button.iter().any(|i| *i == Interaction::Pressed);
+    let want_boost = boost_button.iter().any(|i| *i == Interaction::Pressed);
+    let fire_health = want_health && !*health_held;
+    let fire_boost = want_boost && !*boost_held;
+    *health_held = want_health;
+    *boost_held = want_boost;
+
+    let category = if fire_health {
+        crate::items::Category::Healing
+    } else if fire_boost {
+        crate::items::Category::Boost
+    } else {
+        return;
+    };
+
+    let health_now = player.iter().next().map(|h| h.0).unwrap_or(0.0);
+    let Some(index) =
+        crate::inventory::best_consumable(&inventory, category, health_now, boost.0)
+    else {
+        return;
+    };
+    inventory.selected = index;
+    crate::inventory::use_selected_consumable(inventory, boost, player);
+}
+
+/// Marks the HP cell, which spends a healing item when tapped.
+#[derive(Component)]
+pub(crate) struct HealthUseButton;
+
+/// Marks the BST cell, which spends a boost item when tapped.
+#[derive(Component)]
+pub(crate) struct BoostUseButton;
+
+/// The condition cells, flanking the compass.
+///
+/// They used to sit in the bottom bar beside the weapons, which made that bar
+/// 970px of fixed-width cells on a phone 852pt wide -- every cell shrank, and
+/// `overflow: clip()` on the weapon slots started eating the gun names. Moving
+/// them up buys back 306px and puts "how much is left" next to the thing the
+/// eyes are already on.
+///
+/// Split either side of the compass rather than grouped: what you have left is
+/// on the left, what you are wearing is on the right, and neither reads as part
+/// of the other.
+///
+/// Both carry `NativeUiRoot`, without which they are invisible on the phone and
+/// only on the phone -- the extractor walks from those markers and nowhere else.
+pub(crate) fn spawn_condition_hud(commands: &mut Commands) {
+    const GAP: f32 = 4.0;
+    const EDGE_GAP: f32 = 8.0;
+    let half_compass = crate::COMPASS_WIDTH / 2.0;
+    let left_width = GEAR_CELL * 2.0 + GAP;
+
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(12.0),
+                left: Val::Percent(50.0),
+                margin: UiRect::left(Val::Px(-(half_compass + EDGE_GAP + left_width))),
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(GAP),
+                ..default()
+            },
+            GlobalZIndex(STATIC_UI_Z_INDEX),
+            NativeUiRoot,
+        ))
+        .with_children(|left| {
+            left.spawn((
+                stat_cell("HP", health_colour(1.0), HealthCellLabel, HealthBarFill),
+                Button,
+                Interaction::default(),
+                HealthUseButton,
+            ));
+            left.spawn((
+                stat_cell("BST", Color::srgb(0.95, 0.80, 0.25), BoostCellLabel, BoostBarFill),
+                Button,
+                Interaction::default(),
+                BoostUseButton,
+            ));
+        });
+
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(12.0),
+                left: Val::Percent(50.0),
+                margin: UiRect::left(Val::Px(half_compass + EDGE_GAP)),
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(GAP),
+                ..default()
+            },
+            // Above the bag's own scrim, which is STATIC_UI_Z_INDEX + 10 and
+            // covers the whole screen. PACK opens the bag, so PACK has to stay
+            // both visible and reachable while it is open or there is no way
+            // back out of it with a thumb.
+            GlobalZIndex(STATIC_UI_Z_INDEX + 20),
+            NativeUiRoot,
+        ))
+        .with_children(|gear| {
+            for slot in WearSlot::ALL {
+                let cell = gear.spawn(stat_cell(
+                    slot.label(),
+                    Color::srgb(0.6, 0.95, 0.7),
+                    GearCellLabel(slot),
+                    GearCellWear(slot),
+                ));
+                let mut cell = cell;
+                if slot == WearSlot::Backpack {
+                    cell.insert((
+                        Button,
+                        Interaction::default(),
+                        crate::inventory_screen::InventoryToggleButton,
+                    ));
+                }
+            }
+        });
+}
+
 pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
     commands
         .spawn((
@@ -150,38 +289,6 @@ pub(crate) fn spawn_loadout_hud(commands: &mut Commands) {
             NativeUiRoot,
         ))
         .with_children(|row| {
-            // Condition first, then what you can reach for: health, boost and
-            // the three plates all answer "how much is left", so they share a
-            // run of identical cells and the weapons follow on the same line.
-            row.spawn(Node {
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(4.0),
-                align_items: AlignItems::End,
-                ..default()
-            })
-            .with_children(|gear| {
-                gear.spawn(stat_cell(
-                    "HP",
-                    health_colour(1.0),
-                    HealthCellLabel,
-                    HealthBarFill,
-                ));
-                gear.spawn(stat_cell(
-                    "BST",
-                    Color::srgb(0.95, 0.80, 0.25),
-                    BoostCellLabel,
-                    BoostBarFill,
-                ));
-                for slot in WearSlot::ALL {
-                    gear.spawn(stat_cell(
-                        slot.label(),
-                        Color::srgb(0.6, 0.95, 0.7),
-                        GearCellLabel(slot),
-                        GearCellWear(slot),
-                    ));
-                }
-            });
-
             row.spawn(Node {
                 flex_direction: FlexDirection::Row,
                 column_gap: Val::Px(4.0),
