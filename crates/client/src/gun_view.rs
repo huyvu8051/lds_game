@@ -113,12 +113,19 @@ pub(crate) fn wire_weapon_sockets(
 pub(crate) struct GunPoseTimings {
     recoil_t: f32,
     dip: f32,
+    /// The snap of the bolt going home at the end of a reload.
+    charge: Vec3,
     bob_x: f32,
     bob_y: f32,
     bob_pitch: f32,
 }
 
-pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) -> GunPoseTimings {
+pub(crate) fn gun_pose_timings(
+    gun: &Gun,
+    weapon: WeaponId,
+    def: &WeaponDef,
+    cycle: &WalkCycle,
+) -> GunPoseTimings {
     let recoil_t = gun.recoil;
     let reload_t = gun.reload_remaining / def.reload_duration;
 
@@ -128,6 +135,8 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
     // back out of it. This one is flat at both ends: it eases in and eases
     // out, which is the curve the sights and the kick already use.
     let dip = ops::sin(std::f32::consts::PI * reload_t).powi(2);
+    let charge =
+        crate::charge_kick(weapon, if gun.reload_remaining > 0.0 { 1.0 - reload_t } else { 1.0 });
     let amount = cycle.amount();
     let bob_x = ops::sin(cycle.phase) * GUN_BOB_AMOUNT_X * amount;
     // abs() already doubles the rate: |sin| repeats every pi, not every tau.
@@ -143,7 +152,7 @@ pub(crate) fn gun_pose_timings(gun: &Gun, def: &WeaponDef, cycle: &WalkCycle) ->
     // so this pins the nose and swings the stock -- the muzzle stays the
     // steadiest thing on screen, which is what a carried weapon does.
     let bob_pitch = ops::sin(lagged).abs() * GUN_BOB_PITCH_DEG * amount;
-    GunPoseTimings { recoil_t, dip, bob_x, bob_y, bob_pitch }
+    GunPoseTimings { recoil_t, dip, charge, bob_x, bob_y, bob_pitch }
 }
 
 
@@ -706,7 +715,7 @@ pub(crate) fn gun_view_animation(
         gun.step_lean = lean + (lean_target - lean) * (GUN_STEP_LEAN_SPEED * dt).min(1.0);
 
         let kick = &active.def().recoil;
-        let timings = gun_pose_timings(&gun, active.def(), &cycle);
+        let timings = gun_pose_timings(&gun, active.0, active.def(), &cycle);
         if std::env::var("BOB_LOG").is_ok() {
             info!("[bob] amount={:.3} blend={:.3} gait={:.3} aim_damp={:.3} x={:.5} y={:.5} pitch={:.3} sway={:.3?}",
                 cycle.amount(), cycle.blend, cycle.gait, cycle.aim_damp,
@@ -771,6 +780,7 @@ pub(crate) fn gun_view_animation(
             .lerp(active.def().ready_offset, gun.ready_blend)
             .lerp(gun.base_offset, gun.inspect_blend);
         let resting = posture
+            + timings.charge
             + present_pull
             + gun.settle_current
             + active.def().sprint_carry.offset * gun.sprint_blend

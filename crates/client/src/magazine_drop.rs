@@ -82,6 +82,30 @@ const CHARGE_LIFT: f32 = 0.014;
 const CHARGE_REAR_BACK: f32 = 0.085;
 const CHARGE_REAR_DROP: f32 = 0.022;
 
+/// The jolt when the bolt goes home, back into the shoulder and a touch up.
+///
+/// The handle itself does not move: not one of these meshes carries it as a
+/// part of its own -- four were measured and every shard near where it should
+/// be is a hundred-millimetre strip of the receiver's shell. Cutting one out
+/// by a box would leave a hole in the receiver and a flake that is not a
+/// handle. What can be had honestly is the weapon feeling it.
+const CHARGE_KICK: Vec3 = Vec3::new(0.0, 0.0045, 0.009);
+
+/// How much of the jolt is showing, by the reload's own progress.
+pub(crate) fn charge_kick(weapon: WeaponId, progress: f32) -> Vec3 {
+    if charging_of(weapon) == Charging::None || progress < CHARGE_PULLED {
+        return Vec3::ZERO;
+    }
+    // Nothing until the handle is let go of, then all of it at once, then
+    // gone: a bolt closing is the sharpest thing the weapon does outside
+    // firing, and easing into it would read as a push rather than a snap.
+    let after = (progress - CHARGE_LET_GO) / (1.0 - CHARGE_LET_GO);
+    if after < 0.0 {
+        return Vec3::ZERO;
+    }
+    CHARGE_KICK * (1.0 - after.clamp(0.0, 1.0)).powi(2)
+}
+
 const MAG_LIFETIME: f32 = 20.0;
 const MAG_DROP_SPEED: f32 = 0.8;
 const MAG_DROP_FORWARD: f32 = 0.2;
