@@ -45,8 +45,8 @@ pub(crate) struct SightDef {
 static RED_DOT_A: SightDef = SightDef {
     name: "Red dot",
     mesh_path: "models/sights/reddot_a/reddot_a.glb",
-    eye_back: 0.041,
-    eye_rise: 0.053,
+    eye_back: 0.045,
+    eye_rise: 0.047,
     aim_fov_multiplier: 0.75,
 };
 
