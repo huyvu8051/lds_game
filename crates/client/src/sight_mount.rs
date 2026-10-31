@@ -85,7 +85,7 @@ static HOLO_C: SightDef = SightDef {
 static SCOPE_2X: SightDef = SightDef {
     name: "2x scope",
     mesh_path: "models/sights/scope_2x/scope_2x.glb",
-    eye_back: 0.127,
+    eye_back: 0.141,
     eye_rise: 0.044,
     aim_fov_multiplier: 0.620,
 };
