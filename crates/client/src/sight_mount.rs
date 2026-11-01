@@ -119,8 +119,8 @@ static SCOPE_6X: SightDef = SightDef {
 static SCOPE_8X: SightDef = SightDef {
     name: "8x scope",
     mesh_path: "models/sights/scope_8x/scope_8x.glb",
-    eye_back: 0.203,
-    eye_rise: 0.033,
+    eye_back: 0.198,
+    eye_rise: 0.053,
     aim_fov_multiplier: 0.380,
 };
 
