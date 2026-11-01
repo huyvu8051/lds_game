@@ -53,8 +53,8 @@ static RED_DOT_A: SightDef = SightDef {
 static RED_DOT_B: SightDef = SightDef {
     name: "Red dot II",
     mesh_path: "models/sights/reddot_b/reddot_b.glb",
-    eye_back: 0.032,
-    eye_rise: 0.032,
+    eye_back: 0.033,
+    eye_rise: 0.045,
     aim_fov_multiplier: 0.75,
 };
 
@@ -77,7 +77,7 @@ static HOLO_B: SightDef = SightDef {
 static HOLO_C: SightDef = SightDef {
     name: "Holographic III",
     mesh_path: "models/sights/holo_c/holo_c.glb",
-    eye_back: 0.014,
+    eye_back: 0.033,
     eye_rise: 0.048,
     aim_fov_multiplier: 0.75,
 };
