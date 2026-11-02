@@ -95,13 +95,19 @@ impl Plugin for SimPlugin {
             )
             .add_systems(
                 Update,
-                (tick_respawns.run_if(world_ready), decay_player_threat)
+                (
+                    tick_respawns
+                        .run_if(world_ready)
+                        .run_if(crate::waves::not_in_wave_mode),
+                    decay_player_threat,
+                )
                     .run_if(crate::ablation::group(crate::ablation::Group::Zombies)),
             )
             .add_observer(spawn_more_zombies)
             .add_observer(on_set_zombie_count)
             .add_observer(on_clear_all_zombies)
             .add_observer(on_set_auto_maintain_zombies)
+            .add_observer(on_spawn_wave_zombies)
             .add_observer(on_set_freeze_zombies)
             .add_systems(Update, freeze_zombies_after)
             .add_observer(on_set_damage_multiplier)
@@ -237,6 +243,15 @@ fn on_clear_all_zombies(
     respawns.0.clear();
 }
 
+fn on_spawn_wave_zombies(
+    trigger: On<crate::waves::SpawnWaveZombies>,
+    mut commands: Commands,
+) {
+    for (position, kind, health) in &trigger.event().0 {
+        spawn_zombie_as(&mut commands, *position, 0.0, ZOMBIE_AI_ENABLED, Some((*kind, *health)));
+    }
+}
+
 fn on_set_auto_maintain_zombies(trigger: On<SetAutoMaintainZombies>, mut auto_maintain: ResMut<AutoMaintainZombies>) {
     auto_maintain.0 = trigger.event().0;
 }
@@ -252,10 +267,28 @@ fn spawn_more_zombies(
 }
 
 fn spawn_zombie(commands: &mut Commands, position: Vec3, yaw: f32, ai_enabled: bool) {
+    spawn_zombie_as(commands, position, yaw, ai_enabled, None);
+}
+
+/// `chosen` is the wave mode asking for a particular kind at a particular
+/// health. The sandbox passes None and gets what it always got: the kind the
+/// entity's own phase picks, at the one health every zombie used to have.
+fn spawn_zombie_as(
+    commands: &mut Commands,
+    position: Vec3,
+    yaw: f32,
+    ai_enabled: bool,
+    chosen: Option<(shared::ZombieKind, f32)>,
+) {
     let mut zombie = commands.spawn_empty();
     let phase = entity_phase(zombie.id());
-    let kind = zombie_kind_for_phase(phase, ZOMBIE_KIND_WEIGHTS);
-    let max_health = ZOMBIE_MAX_HEALTH * kind.stats().health;
+    let (kind, max_health) = match chosen {
+        Some(pair) => pair,
+        None => {
+            let k = zombie_kind_for_phase(phase, ZOMBIE_KIND_WEIGHTS);
+            (k, ZOMBIE_MAX_HEALTH * k.stats().health)
+        }
+    };
     zombie.insert((
         Transform::from_translation(position).with_rotation(Quat::from_rotation_y(yaw)),
         Zombie,
@@ -307,6 +340,14 @@ fn spawn_initial_zombies(
         return;
     }
     *done = true;
+    // A wave mode starts empty. The first wave is the first thing that
+    // arrives, and a standing population it never budgeted for would have to
+    // be cleared before wave one could end -- which was exactly what happened
+    // the first time this ran: twelve budgeted, ten already there, twenty-two
+    // to kill before the banner.
+    if crate::waves::in_wave_mode() {
+        return;
+    }
     if points.0.is_empty() {
         error!("no zombie spawn points authored for this map — spawning nothing");
         return;

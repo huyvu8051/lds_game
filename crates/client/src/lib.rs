@@ -55,6 +55,7 @@ mod auto_lean;
 mod keybinds;
 mod sight_mount;
 mod sight_swap;
+mod waves;
 mod weak_hand;
 mod weapon_reset;
 mod lightmap;
@@ -1068,6 +1069,7 @@ app.init_resource::<MagazineInHand>()
         .init_resource::<PatrolRoute>()
         .init_resource::<Driven>()
         .init_resource::<Cooking>()
+        .init_resource::<waves::Wave>()
         .init_resource::<movement_combat::AimDistance>()
         .init_resource::<weak_hand::WeakHand>()
         .init_resource::<weapon_reset::WeaponChanged>()
@@ -1411,6 +1413,21 @@ app.init_resource::<MagazineInHand>()
                 .run_if(ablation::group(ablation::Group::Vfx)),
         )
             .chain(),
+    );
+
+    // Chained: the banner reads the flag advance_wave sets, in the frame it
+    // is set. Gated whole, so the sandbox never pays for any of it.
+    app.add_systems(
+        Update,
+        (
+            waves::advance_wave,
+            waves::refill_between_waves,
+            waves::announce_wave,
+            waves::fade_wave_banner,
+        )
+            .chain()
+            .run_if(waves::in_wave_mode)
+            .run_if(in_state(AppState::InGame)),
     );
 
     app.add_systems(

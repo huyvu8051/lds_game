@@ -15,6 +15,15 @@ impl GunshotSound {
 #[derive(Resource)]
 pub(crate) struct ReloadSound(pub(crate) Vec<Handle<seedling::AudioSample>>);
 
+/// What a cleared wave sounds like.
+///
+/// Inserted only when the files are actually on disk, so the wave mode can
+/// be played and tuned before anyone has gone and found a zombie screaming.
+/// `announce_wave` takes it as an Option and skips the sound when it is
+/// missing, rather than the asset server logging a failure every start.
+#[derive(Resource)]
+pub(crate) struct WaveScreams(pub(crate) Vec<Handle<seedling::AudioSample>>);
+
 impl ReloadSound {
     pub(crate) fn of(&self, weapon: WeaponId) -> Handle<seedling::AudioSample> {
         self.0[weapon.index()].clone()

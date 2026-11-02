@@ -71,6 +71,17 @@ pub(crate) fn setup_common(
     commands.insert_resource(ReloadSound(
         WeaponId::ALL.iter().map(|w| asset_server.load(w.def().sound.reload)).collect(),
     ));
+    // Only if they are there: see WaveScreams.
+    let screams: Vec<_> = ["wave_clear_1", "wave_clear_2", "wave_clear_3"]
+        .iter()
+        .map(|n| format!("audio/waves/{n}.ogg"))
+        .filter(|path| std::path::Path::new("crates/client/assets").join(path).exists())
+        .map(|path| asset_server.load(path))
+        .collect();
+    if !screams.is_empty() {
+        commands.insert_resource(crate::audio::WaveScreams(screams));
+    }
+
     commands.insert_resource(KillFeedbackSounds {
         headshot: asset_server.load("audio/feedback/headshot.wav"),
         kill: asset_server.load("audio/feedback/kill.wav"),

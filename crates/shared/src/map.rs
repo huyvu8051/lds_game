@@ -63,6 +63,22 @@ scenarios! {
         zombies: 10,
     }
 
+    /// The same town, played as waves. A separate entry rather than a flag on
+    /// the one above, so the sandbox everyone tests in is reachable exactly
+    /// as it was and nothing in its path had to change.
+    ///
+    /// `zombies` is what a wave mode never asks: the count comes from the
+    /// wave's budget. Left at the sandbox's figure so nothing that reads it
+    /// before the first wave starts divides by zero.
+    DesertSiege {
+        id: 2,
+        title: "DESERT CITY -- SIEGE",
+        subtitle: "ENDLESS WAVES, RISING HEALTH",
+        navmesh: "maps/desert_city/navmesh.nav",
+        scene: Some("maps/desert_city/scene.gltf"),
+        zombies: 10,
+    }
+
     Garage {
         id: 3,
         title: "PARKING GARAGE",
