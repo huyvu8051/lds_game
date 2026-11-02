@@ -636,7 +636,7 @@ static AK47: WeaponDef = WeaponDef {
     mesh_path: "models/ak47_scope/mesh/ak47_scope.glb",
     rest_offset: Vec3::new(0.160, -0.0905, -0.7094),
     ready_offset: Vec3::new(0.045, -0.1655, -0.6194),
-    ads_eye_relief: 0.12,
+    ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { from_ready: 8.0, from_rest: 5.5 },
     hold_ads_fraction: 0.192,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.03, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
