@@ -335,7 +335,7 @@ pub(crate) fn solve_grip_ik(
     reload_target: Query<Entity, With<ReloadHandTarget>>,
     gun: Query<&Gun>,
     active: Res<ActiveWeapon>,
-    sight_swap: Res<crate::sight_swap::SightSwap>,
+    weak_hand: Res<crate::weak_hand::WeakHand>,
     right_pole: Query<Entity, With<RightPoleTarget>>,
     left_pole: Query<Entity, With<LeftPoleTarget>>,
     child_of: Query<&ChildOf>,
@@ -361,7 +361,9 @@ pub(crate) fn solve_grip_ik(
     // road: the hand is not on the gun and has to be told where it is.
     // A sight swap is the third road to the same place: the hand is off the
     // gun carrying something, and has to be told where it is.
-    let off_the_weapon = crate::sight_swap::hand_busy_swapping(&sight_swap)
+    // One question now: has anything bid for that hand this frame. Three
+    // separate flags had to be kept in step with three separate systems.
+    let off_the_weapon = weak_hand.taken()
         || gun
             .single()
             .map(|g| {

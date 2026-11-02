@@ -172,11 +172,10 @@ pub(crate) fn drive_sight_hand(
     rear: Query<&GlobalTransform, With<RailRearSocket>>,
     front: Query<&GlobalTransform, With<RailFrontSocket>>,
     fore: Query<&GlobalTransform, With<crate::ForeGripSocket>>,
-    mut target: Query<&mut Transform, With<ReloadHandTarget>>,
+    mut hand_bids: ResMut<crate::weak_hand::WeakHand>,
 ) {
     let Some(kind) = swap.running else { return };
-    let (Ok(eye), Ok(mut target), Ok(fore)) = (camera.single(), target.single_mut(), fore.single())
-    else {
+    let (Ok(eye), Ok(fore)) = (camera.single(), fore.single()) else {
         return;
     };
     let (Ok(rear), Ok(front)) = (rear.single(), front.single()) else { return };
@@ -193,14 +192,14 @@ pub(crate) fn drive_sight_hand(
     };
 
     let t = swap.progress();
-    target.translation = if t < AT_RAIL {
+    let want = if t < AT_RAIL {
         eased(from, on_rail, t / AT_RAIL)
     } else if t < CHANGES_HANDS {
         on_rail
     } else {
         eased(on_rail, to, (t - CHANGES_HANDS) / (1.0 - CHANGES_HANDS))
     };
-    target.rotation = home.rotation;
+    hand_bids.claim(crate::weak_hand::SIGHT_SWAP, want, home.rotation);
 }
 
 /// Keeps a sight in the hand for the half of the gesture it is not bolted on.

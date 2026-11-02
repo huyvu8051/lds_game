@@ -330,6 +330,13 @@ pub(crate) struct MagazineInHand {
     half: Vec3,
 }
 
+impl MagazineInHand {
+    /// Lets go of whatever was measured out of a weapon that has gone away.
+    pub(crate) fn clear(&mut self) {
+        self.parts.clear();
+    }
+}
+
 fn spawn_carried(commands: &mut Commands, held: &MagazineInHand, hand: &GlobalTransform) {
     if held.parts.is_empty() {
         return;

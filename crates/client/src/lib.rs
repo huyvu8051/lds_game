@@ -55,6 +55,8 @@ mod auto_lean;
 mod keybinds;
 mod sight_mount;
 mod sight_swap;
+mod weak_hand;
+mod weapon_reset;
 mod lightmap;
 mod autopilot;
 mod patrol;
@@ -1055,6 +1057,8 @@ app.init_resource::<MagazineInHand>()
         .init_resource::<PatrolRoute>()
         .init_resource::<Driven>()
         .init_resource::<Cooking>()
+        .init_resource::<weak_hand::WeakHand>()
+        .init_resource::<weapon_reset::WeaponChanged>()
         .init_resource::<Flashed>()
         .init_resource::<ThrowPose>()
         .init_resource::<WeaponSwap>()
@@ -1326,7 +1330,15 @@ app.init_resource::<MagazineInHand>()
                         advance_grenades,
                         advance_smoke,
                         advance_flash,
+                        // Chained: the second reads the flag the first
+                        // sets, and this tuple is otherwise unordered.
+                        (
+                            weapon_reset::mark_weapon_change,
+                            weapon_reset::clear_weapon_state,
+                        )
+                            .chain(),
                         advance_throw_pose,
+                        grenade::carry_held_grenade,
                     ),
                     collect_pickups,
                     forget_gone_zombies.run_if(ui_tick()),
@@ -1404,10 +1416,13 @@ app.init_resource::<MagazineInHand>()
     app.add_systems(
         PostUpdate,
         (
+            // Bids, in any order: precedence is a number in weak_hand, not
+            // a position here.
+            weak_hand::open_bidding,
             drive_reload_hand,
-// After it: during a swap this is the one that decides where the
-// weak hand is, and the reload path would otherwise write last.
-sight_swap::drive_sight_hand,
+            sight_swap::drive_sight_hand,
+            grenade::drive_throw_hand,
+            weak_hand::settle_weak_hand,
             update_pole_targets,
             solve_grip_ik,
         )

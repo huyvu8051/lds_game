@@ -20,23 +20,31 @@ use crate::*;
 /// Seconds from the pin to the bang. PUBG's frag runs five.
 pub(crate) const FUSE_SECONDS: f32 = 5.0;
 /// How hard it leaves the hand, and the lob put on top.
-const THROW_SPEED: f32 = 16.0;
-const THROW_LIFT: f32 = 3.0;
+///
+/// 16 and 3 put it down at thirteen metres, which is a lob rather than a
+/// throw -- a grenade is meant to clear a street. These reach about
+/// eighteen, measured against the same damping the body gets.
+const THROW_SPEED: f32 = 22.0;
+const THROW_LIFT: f32 = 4.0;
 const GRENADE_RADIUS: f32 = 0.055;
 /// Avian takes density, and the collider is a 5.5cm ball, so this is what a
 /// 400g grenade works out to. Left at the default it weighed 0.7g, which is
 /// a ping-pong ball with a fuse in it.
 const GRENADE_DENSITY: f32 = 574.0;
 /// Averaged with the map's own 0.0, so the bounce it actually gets is half
-/// this. Steel on concrete does come back, just not far.
-const GRENADE_RESTITUTION: f32 = 0.2;
+/// this. Steel on concrete does come back, but a 400g casting full of
+/// filler is not a ball bearing: at 0.2 it skipped down the street like a
+/// thrown stone.
+const GRENADE_RESTITUTION: f32 = 0.07;
 /// A sphere has nothing to catch on, so the grip has to come from here or it
 /// skates away down the street.
 const GRENADE_FRICTION: f32 = 0.9;
-const GRENADE_LINEAR_DAMPING: f32 = 0.3;
+/// Up with the restitution down: what kills a bounce is not only the
+/// rebound but what is left of the speed afterwards.
+const GRENADE_LINEAR_DAMPING: f32 = 0.55;
 /// The heaviest hand here: a perfect ball rolls forever otherwise, and
 /// nothing in the solver models a lumpy casting scrubbing itself to a stop.
-const GRENADE_ANGULAR_DAMPING: f32 = 3.0;
+const GRENADE_ANGULAR_DAMPING: f32 = 4.5;
 
 /// Radius and shove of a frag. A molotov uses the same, weaker and wider.
 const FRAG_RADIUS: f32 = 6.5;
@@ -469,24 +477,45 @@ pub(crate) fn update_flash_overlay(
     *colour = BackgroundColor(Color::srgba(1.0, 1.0, 1.0, flashed.0 * flashed.0));
 }
 
-/// How the arm moves through a throw: cocked back while cooking, then over
-/// the top. PUBG's shape -- the weapon drops out of the way, the hand comes
-/// back past the ear, and the follow-through carries the whole view with it.
-const WIND_BACK: Vec3 = Vec3::new(0.10, -0.02, 0.22);
-const WIND_PITCH_DEG: f32 = -34.0;
-const WIND_YAW_DEG: f32 = 26.0;
-/// How long the follow-through runs after the hand opens.
+/// Where the weapon goes while a grenade is out: down and in, out of the
+/// way, and it stays there.
+///
+/// It used to be given the throw itself -- back over the shoulder, pitched
+/// up thirty-four degrees, yawed twenty-six -- so the rifle was the thing
+/// being thrown. A weapon held in one hand while the other hand works does
+/// not wind up; it drops and waits.
+const LOWER_DROP: Vec3 = Vec3::new(0.035, -0.115, 0.055);
+const LOWER_PITCH_DEG: f32 = 17.0;
+const LOWER_YAW_DEG: f32 = 7.0;
+/// The nudge the weapon takes when the throwing arm snaps forward, and how
+/// long it runs. Small: it is felt through the shoulder, not swung.
 const FOLLOW_SECONDS: f32 = 0.42;
-const FOLLOW_PITCH_DEG: f32 = 30.0;
-const FOLLOW_PUSH: f32 = 0.30;
+const FOLLOW_PITCH_DEG: f32 = -7.0;
+const FOLLOW_PUSH: f32 = 0.045;
 
-/// Where the throw is in its arc, so the weapon pose can read it.
+/// The grenade hand, in the eye's own frame.
+///
+/// Rest is where the weak hand already lives on the fore-grip; the rest are
+/// the beats of a throw -- it comes up, the pin is torn out, it is held
+/// cocked, then it goes back past the ear and over.
+const HAND_READY: Vec3 = Vec3::new(-0.17, -0.14, -0.30);
+const HAND_PIN_TUG: Vec3 = Vec3::new(-0.11, -0.17, -0.26);
+const HAND_COCKED: Vec3 = Vec3::new(-0.21, 0.02, -0.12);
+const HAND_RELEASE: Vec3 = Vec3::new(-0.10, 0.05, -0.52);
+/// How long the pin takes to come out, and how long the arm spends going
+/// over the top once the hand has opened.
+const PIN_SECONDS: f32 = 0.28;
+const THROW_SECONDS: f32 = 0.26;
+
+/// Where the throw is, so the weapon and the hand can both read it.
 #[derive(Resource, Default)]
 pub(crate) struct ThrowPose {
-    /// Zero to one as the arm winds back.
+    /// Zero to one as the weapon lowers and the grenade comes up.
     pub(crate) wind: f32,
     /// Counts down through the follow-through.
     pub(crate) follow: f32,
+    /// Counts down while the pin is being pulled.
+    pub(crate) pin: f32,
 }
 
 impl ThrowPose {
@@ -496,12 +525,40 @@ impl ThrowPose {
         // decelerates evenly reads as a machine returning to a rest position.
         let release = (self.follow / FOLLOW_SECONDS).clamp(0.0, 1.0);
         let swing = release * release;
-        let offset = WIND_BACK * self.wind - Vec3::Z * FOLLOW_PUSH * swing;
-        let pitch = (WIND_PITCH_DEG * self.wind + FOLLOW_PITCH_DEG * swing).to_radians();
-        let yaw = (WIND_YAW_DEG * self.wind).to_radians();
+        let offset = LOWER_DROP * self.wind - Vec3::Z * FOLLOW_PUSH * swing;
+        let pitch = (LOWER_PITCH_DEG * self.wind + FOLLOW_PITCH_DEG * swing).to_radians();
+        let yaw = (LOWER_YAW_DEG * self.wind).to_radians();
         (offset, pitch, yaw)
     }
 
+    /// Whether the weak hand is off the weapon holding a grenade.
+    pub(crate) fn hand_busy(&self) -> bool {
+        self.wind > 0.02 || self.follow > 0.0
+    }
+
+    /// Where that hand is, given where it rests on the weapon.
+    pub(crate) fn hand(&self, rest: Vec3) -> Vec3 {
+        let smooth = |t: f32| t * t * (3.0 - 2.0 * t);
+        if self.follow > 0.0 {
+            // Over the top: back past the ear first, then forward fast. The
+            // grenade is already gone by the time the arm is forward, which
+            // is why the release spawns it rather than this does.
+            let t = 1.0 - (self.follow / FOLLOW_SECONDS).clamp(0.0, 1.0);
+            let over = (t / (THROW_SECONDS / FOLLOW_SECONDS)).min(1.0);
+            let forward = HAND_COCKED.lerp(HAND_RELEASE, smooth(over));
+            return forward.lerp(rest, smooth(((t - 0.45) / 0.55).clamp(0.0, 1.0)));
+        }
+        let up = smooth(self.wind);
+        if self.pin > 0.0 {
+            // The tug is a there-and-back inside the raise, not a detour
+            // from it: the hand is still on its way up while it pulls.
+            let p = 1.0 - (self.pin / PIN_SECONDS).clamp(0.0, 1.0);
+            let yank = (p * std::f32::consts::PI).sin();
+            let base = rest.lerp(HAND_READY, up);
+            return base.lerp(HAND_PIN_TUG, yank * 0.8);
+        }
+        rest.lerp(HAND_COCKED, up)
+    }
 }
 
 /// Winds the arm while something is cooking and lets it go when it is not.
@@ -519,7 +576,11 @@ pub(crate) fn advance_throw_pose(
     if *was_cooking && !cooking_now && pose.wind > 0.2 {
         pose.follow = FOLLOW_SECONDS;
     }
+    if !*was_cooking && cooking_now {
+        pose.pin = PIN_SECONDS;
+    }
     *was_cooking = cooking_now;
+    pose.pin = (pose.pin - dt).max(0.0);
 
     // Fast to wind, because the pin is already out; slower to return.
     let target = if cooking_now { 1.0 } else { 0.0 };
@@ -586,3 +647,78 @@ pub(crate) fn shake_on_explosion(
 }
 
 
+
+/// The grenade in the weak hand, and that hand's path through the throw.
+///
+/// Spawned and moved rather than parented to the hand bone: the bone is
+/// solved by IK from this very target, so hanging the mesh off it would
+/// make the thing being aimed at depend on where the aiming landed.
+#[derive(Component)]
+pub(crate) struct HeldGrenade;
+
+/// Walks the weak hand through the throw, overriding the reload path.
+///
+/// The same target entity the reload and the sight swap use, because the
+/// solver takes one and three authorities writing it would fight. This runs
+/// after both, so while a grenade is out it is the one that decides.
+pub(crate) fn drive_throw_hand(
+    pose: Res<ThrowPose>,
+    camera: Query<&GlobalTransform, With<crate::FpsCamera>>,
+    fore: Query<&GlobalTransform, With<crate::ForeGripSocket>>,
+    mut hand_bids: ResMut<crate::weak_hand::WeakHand>,
+) {
+    if !pose.hand_busy() {
+        return;
+    }
+    let Ok(eye) = camera.single() else { return };
+    let (rest, turn) = fore
+        .single()
+        .map(|f| {
+            let local = f.reparented_to(eye);
+            (local.translation, local.rotation)
+        })
+        .unwrap_or((HAND_READY, Quat::IDENTITY));
+    hand_bids.claim(crate::weak_hand::THROW, pose.hand(rest), turn);
+}
+
+/// Keeps a grenade in that hand for as long as one is out.
+pub(crate) fn carry_held_grenade(
+    mut commands: Commands,
+    pose: Res<ThrowPose>,
+    cooking: Res<Cooking>,
+    assets: Option<Res<GrenadeAssets>>,
+    camera: Query<Entity, With<crate::FpsCamera>>,
+    target: Query<&Transform, With<crate::ReloadHandTarget>>,
+    held: Query<Entity, With<HeldGrenade>>,
+) {
+    let Ok(camera) = camera.single() else { return };
+    // Gone the instant the hand opens: the thrown one is a body in the world
+    // from that frame on, and two of them in the air reads as a duplicate.
+    let kind = cooking.kind.filter(|_| pose.follow <= 0.0);
+    let (Some(kind), Some(assets)) = (kind, assets.as_ref()) else {
+        for entity in &held {
+            commands.entity(entity).despawn();
+        }
+        return;
+    };
+    let Ok(hand) = target.single() else { return };
+    // Out of the palm rather than inside it, and turned so the fuse sits up.
+    let at = Transform::from_translation(hand.translation + Vec3::new(0.0, 0.015, -0.01))
+        .with_rotation(Quat::from_rotation_x(-0.35));
+    match held.single() {
+        Ok(entity) => {
+            commands.entity(entity).insert(at);
+        }
+        Err(_) => {
+            commands.spawn((
+                Name::new("HeldGrenade"),
+                Mesh3d(assets.mesh.clone()),
+                MeshMaterial3d(material_for(assets, kind)),
+                at,
+                crate::GunMeshPart,
+                HeldGrenade,
+                ChildOf(camera),
+            ));
+        }
+    }
+}
