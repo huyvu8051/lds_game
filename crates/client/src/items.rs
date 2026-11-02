@@ -153,6 +153,7 @@ pub(crate) enum ItemKind {
     Holographic,
     HoloCompact,
     HoloHeavy,
+    HoloWide,
     Scope2x,
     Scope3x,
     Scope4x,
@@ -187,7 +188,7 @@ pub(crate) enum ItemKind {
 }
 
 /// Everything, in the order the pack lists it.
-pub(crate) const ALL_ITEMS: [ItemKind; 54] = [
+pub(crate) const ALL_ITEMS: [ItemKind; 55] = [
     ItemKind::Ammo556,
     ItemKind::Ammo762,
     ItemKind::Ammo9mm,
@@ -217,6 +218,7 @@ pub(crate) const ALL_ITEMS: [ItemKind; 54] = [
     ItemKind::Holographic,
     ItemKind::HoloCompact,
     ItemKind::HoloHeavy,
+    ItemKind::HoloWide,
     ItemKind::Scope2x,
     ItemKind::Scope3x,
     ItemKind::Scope4x,
@@ -281,6 +283,7 @@ impl ItemKind {
             Holographic => "Holographic Sight",
             HoloCompact => "Compact Holographic",
             HoloHeavy => "Heavy Holographic",
+            HoloWide => "Wide Holographic",
             Scope2x => "2x Scope",
             Scope3x => "3x Scope",
             Scope4x => "4x Scope",
@@ -334,8 +337,8 @@ impl ItemKind {
             }
             QuickdrawMag | ExtendedMag | ExtendedQuickdrawMag => AttachSlot::Magazine,
             TacticalStock | CheekPad | BulletLoops => AttachSlot::Stock,
-            RedDot | TubeDot | Holographic | HoloCompact | HoloHeavy | Scope2x | Scope3x
-            | Scope4x | Scope6x | Scope8x | ScopeAk => AttachSlot::Sight,
+            RedDot | TubeDot | Holographic | HoloCompact | HoloHeavy | HoloWide | Scope2x
+            | Scope3x | Scope4x | Scope6x | Scope8x | ScopeAk => AttachSlot::Sight,
             _ => return None,
         })
     }

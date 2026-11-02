@@ -18,6 +18,7 @@ pub(crate) enum SightId {
     HoloA,
     HoloB,
     HoloC,
+    HoloD,
     Scope2x,
     Scope3x,
     Scope4x,
@@ -80,6 +81,14 @@ static HOLO_C: SightDef = SightDef {
     mesh_path: "models/sights/holo_c/holo_c.glb",
     eye_back: 0.033,
     eye_rise: 0.048,
+    aim_fov_multiplier: 0.75,
+};
+
+static HOLO_D: SightDef = SightDef {
+    name: "Holographic IV",
+    mesh_path: "models/sights/holo_d/holo_d.glb",
+    eye_back: 0.023,
+    eye_rise: 0.037,
     aim_fov_multiplier: 0.75,
 };
 
@@ -151,6 +160,7 @@ impl SightId {
             Holographic => SightId::HoloA,
             HoloCompact => SightId::HoloB,
             HoloHeavy => SightId::HoloC,
+            HoloWide => SightId::HoloD,
             Scope2x => SightId::Scope2x,
             Scope3x => SightId::Scope3x,
             Scope4x => SightId::Scope4x,
@@ -161,12 +171,13 @@ impl SightId {
         })
     }
 
-    pub(crate) const ALL: [SightId; 11] = [
+    pub(crate) const ALL: [SightId; 12] = [
         SightId::RedDotA,
         SightId::RedDotB,
         SightId::HoloA,
         SightId::HoloB,
         SightId::HoloC,
+        SightId::HoloD,
         SightId::Scope2x,
         SightId::Scope3x,
         SightId::Scope4x,
@@ -182,6 +193,7 @@ impl SightId {
             SightId::HoloA => &HOLO_A,
             SightId::HoloB => &HOLO_B,
             SightId::HoloC => &HOLO_C,
+            SightId::HoloD => &HOLO_D,
             SightId::Scope2x => &SCOPE_2X,
             SightId::Scope3x => &SCOPE_3X,
             SightId::Scope4x => &SCOPE_4X,
