@@ -2514,6 +2514,7 @@ dependencies = [
  "bevy_steam_audio",
  "big-brain",
  "bincode",
+ "cc",
  "core-graphics 0.25.0",
  "gltf",
  "image",

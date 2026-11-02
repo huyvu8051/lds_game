@@ -99,8 +99,17 @@ scripts/deploy_ios_simulator.sh
 
 ```bash
 cargo build -p client --target aarch64-apple-ios   # từ workspace root
-cp target/aarch64-apple-ios/debug/libclient.a crates/client/gen/apple/iOS/libs/debug/libclient.a
-cp target/aarch64-apple-ios/debug/libclient.a crates/client/gen/apple/iOS/libs/debug/libbevy_in_app.a
+
+# Xcode chỉ link một archive, và cờ link của cargo không tới được nó, nên gộp
+# libclient.a với Steam Audio: libphonon.a của Valve, cùng libpffft.a và
+# libmysofa.a mà build.rs biên dịch để bù mười ký hiệu Valve để trống.
+# Hash build thay đổi nên dùng glob.
+xcrun libtool -static -o crates/client/gen/apple/iOS/libs/debug/libbevy_in_app.a \
+  target/aarch64-apple-ios/debug/libclient.a \
+  target/aarch64-apple-ios/debug/build/audionimbus-sys-*/out/lib/libphonon.a \
+  target/aarch64-apple-ios/debug/build/client-*/out/lib{pffft,mysofa}.a
+cp crates/client/gen/apple/iOS/libs/debug/libbevy_in_app.a \
+   crates/client/gen/apple/iOS/libs/debug/libclient.a
 
 cd crates/client/gen/apple/iOS
 xcodebuild -project bevy_in_iOS.xcodeproj -scheme bevy_in_iOS -sdk iphoneos -configuration Debug \

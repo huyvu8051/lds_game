@@ -1,0 +1,7 @@
+# The floor the Xcode project targets, which rustc does not read. Its own
+# default for aarch64-apple-ios is 10.0, and libSystem.tbd hides
+# ___chkstk_darwin below 13.0 -- so the large stack frames in PFFFT link
+# against nothing at all. Set here rather than in build.rs so rustc, cc and
+# the app bundle agree on one number instead of three.
+[env]
+IPHONEOS_DEPLOYMENT_TARGET = "13.0"

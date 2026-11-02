@@ -34,16 +34,30 @@ if [ "${1:-}" = "--clean" ]; then
 fi
 NAME_FILTER="${1:-}"
 
-echo "==> cargo build -p client --target aarch64-apple-ios --profile dev-fast"
+echo "==> cargo build -p client --lib --target aarch64-apple-ios --profile dev-fast"
 cd "$REPO_ROOT"
-cargo build -p client --target aarch64-apple-ios --profile dev-fast
+cargo build -p client --lib --target aarch64-apple-ios --profile dev-fast
 
-echo "==> Copying libclient.a into the Xcode project"
+echo "==> Merging libclient.a and Steam Audio into the Xcode project"
+# Xcode links one archive, and cargo's link flags never reach it, so the three
+# libraries cargo would have passed are folded into that one archive here:
+# Valve's libphonon.a, and the PFFFT and libmysofa that build.rs compiles to
+# complete it. Both cargo artefacts are globbed because their build hash moves.
 LIB_SRC="$REPO_ROOT/target/aarch64-apple-ios/dev-fast/libclient.a"
 LIB_DIR="$IOS_PROJECT_DIR/libs/debug"
 mkdir -p "$LIB_DIR"
-cp "$LIB_SRC" "$LIB_DIR/libclient.a"
-cp "$LIB_SRC" "$LIB_DIR/libbevy_in_app.a"
+PHONON="$(ls "$REPO_ROOT"/target/aarch64-apple-ios/dev-fast/build/audionimbus-sys-*/out/lib/libphonon.a 2>/dev/null | head -1)"
+DEPS="$(ls "$REPO_ROOT"/target/aarch64-apple-ios/dev-fast/build/client-*/out/libpffft.a \
+           "$REPO_ROOT"/target/aarch64-apple-ios/dev-fast/build/client-*/out/libmysofa.a 2>/dev/null)"
+if [ -z "$PHONON" ] || [ -z "$DEPS" ]; then
+    echo "Steam Audio for arm64-ios is missing from the build output." >&2
+    echo "Expected libphonon.a from audionimbus-sys and libpffft.a/libmysofa.a from build.rs." >&2
+    exit 1
+fi
+# shellcheck disable=SC2086
+xcrun libtool -static -o "$LIB_DIR/libbevy_in_app.a" "$LIB_SRC" "$PHONON" $DEPS 2>&1 |
+    grep -v "has no symbols" || true
+cp "$LIB_DIR/libbevy_in_app.a" "$LIB_DIR/libclient.a"
 
 echo "==> Finding a connected iOS device"
 cd "$IOS_PROJECT_DIR"

@@ -1,0 +1,5 @@
+#ifndef MYSOFA_EXPORT_H
+#define MYSOFA_EXPORT_H
+#define MYSOFA_EXPORT
+#define MYSOFA_NO_EXPORT
+#endif

@@ -861,11 +861,12 @@ pub fn main() {
             // the map kept in step by hand.
             bevy_seedling::SeedlingPlugins,
         ))
-        // Not on iOS: see the note on the dependency in Cargo.toml.
+        // Not on the iOS simulator: see the note on the dependency in
+        // Cargo.toml.
         .add_plugins((
-            #[cfg(not(target_os = "ios"))]
+            #[cfg(not(all(target_os = "ios", target_abi = "sim")))]
             bevy_steam_audio::SteamAudioPlugin::default(),
-            #[cfg(not(target_os = "ios"))]
+            #[cfg(not(all(target_os = "ios", target_abi = "sim")))]
             avian_steam_audio::AvianSteamAudioScenePlugin,
         ))
         // Four, not Avian's default six: the solver was running at 384Hz for

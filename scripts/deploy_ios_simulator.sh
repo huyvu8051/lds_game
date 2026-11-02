@@ -35,9 +35,9 @@ if [ "${1:-}" = "--clean" ]; then
 fi
 NAME_FILTER="${1:-iPhone}"
 
-echo "==> cargo build -p client --target aarch64-apple-ios-sim --profile dev-fast"
+echo "==> cargo build -p client --lib --target aarch64-apple-ios-sim --profile dev-fast"
 cd "$REPO_ROOT"
-cargo build -p client --target aarch64-apple-ios-sim --profile dev-fast
+cargo build -p client --lib --target aarch64-apple-ios-sim --profile dev-fast
 
 echo "==> Copying libclient.a into the Xcode project"
 LIB_SRC="$REPO_ROOT/target/aarch64-apple-ios-sim/dev-fast/libclient.a"
