@@ -1055,6 +1055,7 @@ pub(crate) fn shoot(
         origin: muzzle_world_pos,
         direction: *direction,
         damage_scale: active.def().damage_scale,
+        range: active.def().class.range_damage(),
     });
 }
 

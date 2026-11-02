@@ -127,6 +127,10 @@ pub(crate) reticle: ReticleKind,
     /// decides where a shot counts for more; this decides what the weapon
     /// firing it is worth at all.
     pub(crate) damage_scale: f32,
+    /// Which falloff table over range this weapon reads. The only thing the
+    /// class decides so far, which is why it is a class and not a role: an
+    /// M249 is here for its round, not for what it is carried for.
+    pub(crate) class: WeaponClass,
     pub(crate) fire_rate: f32,
     pub(crate) magazine: u32,
 /// How this weapon fires, and the only way it fires.
@@ -141,6 +145,49 @@ pub(crate) fire_mode: FireMode,
 /// magazine is counting and what a reload draws from.
 pub(crate) ammo: crate::ItemKind,
     pub(crate) recoil: Recoil,
+}
+
+/// What a weapon is, for the one question that is answered by the kind rather
+/// than the weapon: what a shot is worth at the distance it lands.
+///
+/// Five rows. `Rifle` holds the two light machine guns alongside the assault
+/// rifles because they fire the same round at the same ranges, and `Marksman`
+/// holds the designated marksman rifles with the bolt guns for the same
+/// reason -- a Mini 14 and an M24 are both weapons for shooting a long way.
+/// `Shotgun` has one member and the steepest row of all, because here the
+/// falloff is the whole model: a single ray carries the shot, so nothing else
+/// is going to make buckshot stop working at a hundred metres.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WeaponClass {
+    Pistol,
+    Smg,
+    Shotgun,
+    Rifle,
+    Marksman,
+}
+
+impl WeaponClass {
+    /// The table, anchored so that eight out of ten is a whole shot.
+    ///
+    /// Authored as 8/7/6, 8/8/7, 8/9/9 and 8/3/1 out of ten, then multiplied
+    /// through by 1.25 so the eight becomes one. The ratios between every
+    /// pair of figures are the ones that were written down; what the anchor
+    /// decides is only whether the scale's eight means a whole shot or four
+    /// fifths of one. A whole shot, because a headshot is dealt exactly the
+    /// zombie's health -- taking a fifth off it would have cost ten weapons,
+    /// the AK-47 among them, the one-shot headshot they have today.
+    ///
+    /// Which is also why the marksman row passes one: nine out of ten on a
+    /// scale whose eight is whole is a ninth more than whole.
+    pub(crate) fn range_damage(self) -> shared::RangeDamage {
+        let (near, mid, far) = match self {
+            Self::Pistol | Self::Smg => (1.0, 0.875, 0.75),
+            Self::Rifle => (1.0, 1.0, 0.875),
+            Self::Marksman => (1.0, 1.125, 1.125),
+            Self::Shotgun => (1.0, 0.375, 0.125),
+        };
+        shared::RangeDamage { near, mid, far }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -498,6 +545,7 @@ static AK47: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/ak47_fire.wav", reload: "audio/weapons/ak47_reload.wav" },
     reload_duration: 2.3,
     damage_scale: 1.0,
+    class: WeaponClass::Rifle,
     fire_rate: 0.12,
     magazine: 50,
     fire_mode: FireMode::Auto,
@@ -580,6 +628,7 @@ static M4A1: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/m4a1_fire.wav", reload: "audio/weapons/m4a1_reload.wav" },
     reload_duration: 1.9,
     damage_scale: 0.85,
+    class: WeaponClass::Rifle,
     fire_rate: 0.105,
     magazine: 45,
     fire_mode: FireMode::Auto,
@@ -668,6 +717,7 @@ static SCAR_L: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/scar_l_fire.wav", reload: "audio/weapons/scar_l_reload.wav" },
     reload_duration: 2.2,
     damage_scale: 0.85,
+    class: WeaponClass::Rifle,
     // The real SCAR-L is 625rpm against the M416's 750. The M4 here runs at
     // 571, so holding that ratio puts this one at 476.
     fire_rate: 0.126,
@@ -748,6 +798,7 @@ static M16A4: WeaponDef = WeaponDef {
     reload_duration: 2.0,
     // A 20in barrel against the M4's 14.5: the same round, leaving faster.
     damage_scale: 0.90,
+    class: WeaponClass::Rifle,
     // 800rpm real against the M416's 750, so a shade quicker than the M4 here.
     fire_rate: 0.098,
     magazine: 45,
@@ -825,6 +876,7 @@ static FAMAS: WeaponDef = WeaponDef {
     // Bullpup: the magazine goes in behind the hand, which is slower.
     reload_duration: 2.4,
     damage_scale: 0.85,
+    class: WeaponClass::Rifle,
     // The fastest cyclic rate in the game. A real F1 runs about 1000rpm
     // against the M416's 750, and the M4 here is 571, so this lands at 761.
     fire_rate: 0.079,
@@ -902,6 +954,7 @@ static G36C: WeaponDef = WeaponDef {
     // A 228mm barrel: the same round, leaving slower than any other rifle
     // here.
     damage_scale: 0.80,
+    class: WeaponClass::Rifle,
     // 750rpm real, the same as the M416, so the same number the M4 carries.
     fire_rate: 0.105,
     magazine: 40,
@@ -976,6 +1029,7 @@ static QBZ95: WeaponDef = WeaponDef {
     // Bullpup: the magazine goes in behind the hand.
     reload_duration: 2.3,
     damage_scale: 0.85,
+    class: WeaponClass::Rifle,
     // 650rpm real against the M416's 750, which lands at 495 on the scale
     // the M4's 571 sets.
     fire_rate: 0.121,
@@ -1052,6 +1106,7 @@ static AUG_A3: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/aug_a3_fire.wav", reload: "audio/weapons/aug_a3_reload.wav" },
     reload_duration: 2.3,
     damage_scale: 0.85,
+    class: WeaponClass::Rifle,
     // 700rpm real, which is 533 on the scale the M4's 571 sets.
     fire_rate: 0.1125,
     magazine: 40,
@@ -1124,6 +1179,7 @@ static BERYL_M762: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/beryl_m762_fire.wav", reload: "audio/weapons/beryl_m762_reload.wav" },
     reload_duration: 2.3,
     damage_scale: 1.0,
+    class: WeaponClass::Rifle,
     // 700rpm real against the AK's 600, so a shade quicker than the AK's
     // 0.12 here.
     fire_rate: 0.103,
@@ -1194,6 +1250,7 @@ static ACE32: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/ace32_fire.wav", reload: "audio/weapons/ace32_reload.wav" },
     reload_duration: 2.2,
     damage_scale: 1.0,
+    class: WeaponClass::Rifle,
     // 650rpm real against the AK's 600.
     fire_rate: 0.111,
     magazine: 45,
@@ -1264,6 +1321,7 @@ static MK47_MUTANT: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/mk47_mutant_fire.wav", reload: "audio/weapons/mk47_mutant_reload.wav" },
     reload_duration: 2.3,
     damage_scale: 1.0,
+    class: WeaponClass::Rifle,
     // The AK's cyclic rate, which is all it shares with it.
     fire_rate: 0.12,
     magazine: 30,
@@ -1339,6 +1397,7 @@ static GROZA: WeaponDef = WeaponDef {
     // Bullpup: the magazine goes in behind the hand.
     reload_duration: 2.5,
     damage_scale: 1.0,
+    class: WeaponClass::Rifle,
     // 700rpm real against the AK's 600, and the heaviest round in the game
     // going out that fast.
     fire_rate: 0.103,
@@ -1413,6 +1472,7 @@ static VECTOR: WeaponDef = WeaponDef {
     // A short barrel and a pistol round: the least damage per shot here, and
     // it makes it up in how many of them arrive.
     damage_scale: 0.65,
+    class: WeaponClass::Smg,
     // 1200rpm real against the UMP's 600, so half the UMP's 0.10.
     fire_rate: 0.055,
     magazine: 25,
@@ -1486,6 +1546,7 @@ static MP5K: WeaponDef = WeaponDef {
     reload_duration: 2.0,
     // 9mm against the UMP's .45: lighter per shot, and more of them.
     damage_scale: 0.70,
+    class: WeaponClass::Smg,
     // 900rpm real against the UMP's 600.
     fire_rate: 0.067,
     magazine: 40,
@@ -1560,6 +1621,7 @@ static SKS: WeaponDef = WeaponDef {
     reload_duration: 2.9,
     // A longer barrel than the AK's, and one shot at a time to use it.
     damage_scale: 1.15,
+    class: WeaponClass::Marksman,
     fire_rate: 0.14,
     magazine: 20,
     fire_mode: FireMode::Single,
@@ -1632,6 +1694,7 @@ static P1911: WeaponDef = WeaponDef {
     // Half the Deagle's, which is the trade: a third again as many rounds and
     // nearly twice the rate.
     damage_scale: 1.05,
+    class: WeaponClass::Pistol,
     fire_rate: 0.14,
     magazine: 10,
     fire_mode: FireMode::Single,
@@ -1699,6 +1762,7 @@ static BIZON: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/bizon_fire.wav", reload: "audio/weapons/bizon_reload.wav" },
     reload_duration: 2.6,
     damage_scale: 0.7,
+    class: WeaponClass::Smg,
     fire_rate: 0.075,
     magazine: 53,
     fire_mode: FireMode::Auto,
@@ -1764,6 +1828,7 @@ static SKORPION: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/skorpion_fire.wav", reload: "audio/weapons/skorpion_reload.wav" },
     reload_duration: 1.9,
     damage_scale: 0.6,
+    class: WeaponClass::Smg,
     fire_rate: 0.06,
     magazine: 20,
     fire_mode: FireMode::Auto,
@@ -1829,6 +1894,7 @@ static TOMMY_GUN: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/tommy_gun_fire.wav", reload: "audio/weapons/tommy_gun_reload.wav" },
     reload_duration: 3.2,
     damage_scale: 0.8,
+    class: WeaponClass::Smg,
     fire_rate: 0.085,
     magazine: 50,
     fire_mode: FireMode::Auto,
@@ -1894,6 +1960,7 @@ static MICRO_UZI: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/micro_uzi_fire.wav", reload: "audio/weapons/micro_uzi_reload.wav" },
     reload_duration: 2.0,
     damage_scale: 0.6,
+    class: WeaponClass::Smg,
     fire_rate: 0.048,
     magazine: 35,
     fire_mode: FireMode::Auto,
@@ -1959,6 +2026,7 @@ static DP28: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/dp28_fire.wav", reload: "audio/weapons/dp28_reload.wav" },
     reload_duration: 4.5,
     damage_scale: 1.05,
+    class: WeaponClass::Rifle,
     fire_rate: 0.109,
     magazine: 47,
     fire_mode: FireMode::Auto,
@@ -2024,6 +2092,7 @@ static M249: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/m249_fire.wav", reload: "audio/weapons/m249_reload.wav" },
     reload_duration: 6.0,
     damage_scale: 0.9,
+    class: WeaponClass::Rifle,
     fire_rate: 0.075,
     magazine: 100,
     fire_mode: FireMode::Auto,
@@ -2089,6 +2158,7 @@ static MINI14: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/mini14_fire.wav", reload: "audio/weapons/mini14_reload.wav" },
     reload_duration: 2.6,
     damage_scale: 1.0,
+    class: WeaponClass::Marksman,
     fire_rate: 0.13,
     magazine: 20,
     fire_mode: FireMode::Single,
@@ -2154,6 +2224,7 @@ static MK12: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/mk12_fire.wav", reload: "audio/weapons/mk12_reload.wav" },
     reload_duration: 2.8,
     damage_scale: 1.05,
+    class: WeaponClass::Marksman,
     fire_rate: 0.13,
     magazine: 20,
     fire_mode: FireMode::Single,
@@ -2219,6 +2290,7 @@ static MK14_EBR: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/mk14_ebr_fire.wav", reload: "audio/weapons/mk14_ebr_reload.wav" },
     reload_duration: 2.9,
     damage_scale: 1.35,
+    class: WeaponClass::Marksman,
     fire_rate: 0.12,
     magazine: 20,
     fire_mode: FireMode::Auto,
@@ -2284,6 +2356,7 @@ static SLR: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/slr_fire.wav", reload: "audio/weapons/slr_reload.wav" },
     reload_duration: 2.9,
     damage_scale: 1.3,
+    class: WeaponClass::Marksman,
     fire_rate: 0.12,
     magazine: 20,
     fire_mode: FireMode::Single,
@@ -2349,6 +2422,7 @@ static VSS: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/vss_fire.wav", reload: "audio/weapons/vss_reload.wav" },
     reload_duration: 2.4,
     damage_scale: 0.95,
+    class: WeaponClass::Marksman,
     fire_rate: 0.086,
     magazine: 20,
     fire_mode: FireMode::Auto,
@@ -2414,6 +2488,7 @@ static SVD: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/svd_fire.wav", reload: "audio/weapons/svd_reload.wav" },
     reload_duration: 3.0,
     damage_scale: 1.4,
+    class: WeaponClass::Marksman,
     fire_rate: 0.13,
     magazine: 20,
     fire_mode: FireMode::Single,
@@ -2479,6 +2554,7 @@ static MOSIN_NAGANT: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/mosin_nagant_fire.wav", reload: "audio/weapons/mosin_nagant_reload.wav" },
     reload_duration: 3.4,
     damage_scale: 2.9,
+    class: WeaponClass::Marksman,
     fire_rate: 1.5,
     magazine: 5,
     fire_mode: FireMode::Single,
@@ -2544,6 +2620,7 @@ static R1895: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/r1895_fire.wav", reload: "audio/weapons/r1895_reload.wav" },
     reload_duration: 3.0,
     damage_scale: 1.3,
+    class: WeaponClass::Pistol,
     fire_rate: 0.3,
     magazine: 7,
     fire_mode: FireMode::Single,
@@ -2609,6 +2686,7 @@ static P90: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/p90_fire.wav", reload: "audio/weapons/p90_reload.wav" },
     reload_duration: 2.3,
     damage_scale: 0.65,
+    class: WeaponClass::Smg,
     fire_rate: 0.063,
     magazine: 50,
     fire_mode: FireMode::Auto,
@@ -2674,6 +2752,7 @@ static S686: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/s686_fire.wav", reload: "audio/weapons/s686_reload.wav" },
     reload_duration: 3.6,
     damage_scale: 2.6,
+    class: WeaponClass::Shotgun,
     fire_rate: 0.22,
     magazine: 2,
     fire_mode: FireMode::Single,
@@ -2755,6 +2834,7 @@ static M24: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/m24_fire.wav", reload: "audio/weapons/m24_reload.wav" },
     reload_duration: 3.1,
     damage_scale: 3.2,
+    class: WeaponClass::Marksman,
     fire_rate: 1.3,
     magazine: 5,
     fire_mode: FireMode::Single,
@@ -2849,6 +2929,7 @@ static UMP45: WeaponDef = WeaponDef {
     sound: WeaponSound { fire: "audio/weapons/ump45_fire.wav", reload: "audio/weapons/ump45_reload.wav" },
     reload_duration: 2.0,
     damage_scale: 0.80,
+    class: WeaponClass::Smg,
     fire_rate: 0.10,
     magazine: 35,
     fire_mode: FireMode::Auto,
@@ -2933,6 +3014,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     // Seven rounds of .50 AE. It trades everything else for what each one is
     // worth, which is a little over twice an AK round.
     damage_scale: 2.10,
+    class: WeaponClass::Pistol,
     // Semi-automatic: the ceiling is the trigger finger, not the action.
     fire_rate: 0.26,
     magazine: 7,
