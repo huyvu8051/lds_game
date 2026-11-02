@@ -9,7 +9,7 @@ use shared::{
     entity_phase, Chase, ClearAllZombies,
     GameOver, Health, KnockbackVelocity,
     Player,
-    SetAutoMaintainZombies, SetFreezeZombies, SetZombieCount, SpawnMoreZombies, Zombie, ZombieAttackTimer, ZombieHitboxBones, ZombieMotion, ZombiePose, ZombieWalkVariant, zombie_speed_for, 
+    SetAutoMaintainZombies, SetFreezeZombies, SetZombieCount, SpawnMoreZombies, Zombie, ZombieAttackTimer, ZombieHitboxBones, ZombieMotion, ZombiePose, ZombieWalkVariant, 
     GRAVITY, KNOCKBACK_DECAY_RATE, Scenario,
     
     ZOMBIE_AI_ENABLED, ZOMBIE_AVOID_ANGLES_DEG, ZOMBIE_AVOID_PROBE_DISTANCE, ZOMBIE_CHASE_RANGE,
@@ -254,19 +254,22 @@ fn spawn_more_zombies(
 fn spawn_zombie(commands: &mut Commands, position: Vec3, yaw: f32, ai_enabled: bool) {
     let mut zombie = commands.spawn_empty();
     let phase = entity_phase(zombie.id());
+    let kind = zombie_kind_for_phase(phase, ZOMBIE_KIND_WEIGHTS);
+    let max_health = ZOMBIE_MAX_HEALTH * kind.stats().health;
     zombie.insert((
         Transform::from_translation(position).with_rotation(Quat::from_rotation_y(yaw)),
         Zombie,
         shared::ZombieBody,
 
-        zombie_kind_for_phase(phase, ZOMBIE_KIND_WEIGHTS),
+        kind,
         ZombieMotion {
             path_recalc_timer: phase * ZOMBIE_PATH_RECALC_INTERVAL,
             ..default()
         },
         KnockbackVelocity::default(),
         ZombieAttackTimer::default(),
-        Health(ZOMBIE_MAX_HEALTH),
+        Health(max_health),
+        shared::MaxHealth(max_health),
 
         ZombieHitboxBones::default(),
 
@@ -431,6 +434,7 @@ fn move_zombies(
             Option<&mut AgentTarget3d>,
             Option<&AgentDesiredVelocity3d>,
             &ZombiePose,
+            Option<&shared::ZombieKind>,
         ),
         (With<Zombie>, With<Chase>),
     >,
@@ -488,17 +492,17 @@ fn move_zombies(
     // skipped unless at least one of them is due.
     let anyone_retargeting = zombies
         .iter()
-        .any(|(.., chase_target, _, _, _, _)| chase_target.reevaluate_timer - time.delta_secs() <= 0.0);
+        .any(|(.., chase_target, _, _, _, _, _)| chase_target.reevaluate_timer - time.delta_secs() <= 0.0);
     if anyone_retargeting {
         chase_load.clear();
-        for (.., chase_target, _, _, _, _) in &zombies {
+        for (.., chase_target, _, _, _, _, _) in &zombies {
             if let Some(target) = chase_target.entity {
                 *chase_load.entry(target).or_insert(0) += 1;
             }
         }
     }
 
-    for (entity, mut transform, mut motion, mut chase_target, mut knockback, mut agent_target, desired_velocity, pose) in
+    for (entity, mut transform, mut motion, mut chase_target, mut knockback, mut agent_target, desired_velocity, pose, kind) in
         &mut zombies
     {
 
@@ -596,7 +600,8 @@ fn move_zombies(
                     .map(|d| steer_around_obstacles(&mover.spatial_query, transform.translation, d, distance, &filter))
                     .unwrap_or(Vec3::ZERO);
             }
-            motion.cached_path_dir * zombie_speed_for(*pose)
+            motion.cached_path_dir
+                * shared::zombie_speed_for_kind(*pose, kind.copied().unwrap_or_default())
         } else {
             Vec3::ZERO
         };
@@ -690,7 +695,10 @@ fn move_zombies(
             // neither: stood still it took a second to come about, and at a
             // run it pivoted like a turret.
             let rate = if walk.turn_rate {
-                zombie_turn_rate_deg(horizontal_velocity.length(), zombie_speed_for(*pose))
+                zombie_turn_rate_deg(
+                horizontal_velocity.length(),
+                shared::zombie_speed_for_kind(*pose, kind.copied().unwrap_or_default()),
+            )
             } else {
                 shared::ZOMBIE_TURN_RATE_FLAT_DEG
             };

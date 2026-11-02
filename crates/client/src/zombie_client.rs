@@ -378,6 +378,7 @@ pub(crate) fn spawn_local_zombie(commands: &mut Commands, asset_server: &AssetSe
             Zombie,
 
             Health(ZOMBIE_MAX_HEALTH),
+            shared::MaxHealth(ZOMBIE_MAX_HEALTH),
             zombie_cosmetic_bundle(),
         ))
         .with_child(zombie_mesh_bundle(asset_server, ZombieKind::Classic))
@@ -434,7 +435,7 @@ pub(crate) fn spawn_zombie_health_bar(commands: &mut Commands, zombie: Entity) {
             ));
 
             bar.spawn((
-                Text::new(format!("{ZOMBIE_MAX_HEALTH}/{ZOMBIE_MAX_HEALTH}")),
+                Text::new(String::new()),
                 TextFont {
                     font_size: FontSize::Px(12.0),
                     ..default()
@@ -458,7 +459,7 @@ pub(crate) fn update_zombie_health_bars(
     mut timings: ResMut<PerfTimings>,
     hidden: Res<ZombieHealthBarsHidden>,
     camera: Query<(&Camera, &GlobalTransform), With<FpsCamera>>,
-    zombies: Query<(&Transform, &Health), With<Zombie>>,
+    zombies: Query<(&Transform, &Health, &shared::MaxHealth), With<Zombie>>,
     mut bars: Query<(Entity, &ZombieHealthBar, &mut Node, &Children)>,
     mut fills: Query<&mut Node, (With<ZombieHealthBarFill>, Without<ZombieHealthBar>)>,
     mut texts: Query<&mut Text, With<ZombieHealthBarText>>,
@@ -477,7 +478,7 @@ pub(crate) fn update_zombie_health_bars(
     }
 
     for (bar_entity, bar, mut node, children) in &mut bars {
-        let Ok((zombie_transform, health)) = zombies.get(bar.zombie) else {
+        let Ok((zombie_transform, health, max)) = zombies.get(bar.zombie) else {
 
             commands.entity(bar_entity).try_despawn();
             continue;
@@ -493,13 +494,13 @@ pub(crate) fn update_zombie_health_bars(
         node.left = Val::Px(screen_pos.x - ZOMBIE_HEALTH_BAR_WIDTH_PX / 2.0);
         node.top = Val::Px(screen_pos.y);
 
-        let fraction = (health.0 / ZOMBIE_MAX_HEALTH).clamp(0.0, 1.0);
+        let fraction = (health.0 / max.0.max(f32::EPSILON)).clamp(0.0, 1.0);
         for &child in children {
             if let Ok(mut fill_node) = fills.get_mut(child) {
                 fill_node.width = Val::Percent(fraction * 100.0);
             }
             if let Ok(mut text) = texts.get_mut(child) {
-                text.0 = format!("{:.1}/{ZOMBIE_MAX_HEALTH}", health.0.max(0.0));
+                text.0 = format!("{:.1}/{:.0}", health.0.max(0.0), max.0);
             }
         }
     }
@@ -831,6 +832,7 @@ pub(crate) fn update_zombie_animation(
             &Transform,
             &ZombieMotion,
             &Health,
+            &shared::MaxHealth,
             &ZombieAnimationPlayer,
             Option<&ZombieKind>,
             Option<&crate::dismember::SeveredParts>,
@@ -845,9 +847,9 @@ pub(crate) fn update_zombie_animation(
     let Ok(player_transform) = player.single() else {
         return;
     };
-    for (entity, zombie_transform, net_transform, health, link, kind, cuts, mut pose, mut walk) in &mut zombies {
+    for (entity, zombie_transform, net_transform, health, max, link, kind, cuts, mut pose, mut walk) in &mut zombies {
         let distance = zombie_transform.translation.distance(player_transform.translation);
-        let health_fraction = health.0 / ZOMBIE_MAX_HEALTH;
+        let health_fraction = health.0 / max.0.max(f32::EPSILON);
         let new_pose = zombie_pose_for(distance, health_fraction, net_transform.moving, cuts.is_some_and(crate::dismember::SeveredParts::lost_a_leg));
         let slot = anim.slot(kind.copied().unwrap_or_default());
         let seed = entity.to_bits() as usize;

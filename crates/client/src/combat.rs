@@ -129,9 +129,25 @@ pub(crate) fn handle_fire_shot(
             limb_damage.record(entity, limb, segment, damage);
         }
         let hit_distance = shot.origin.distance(hit_point);
-        let damage = damage * damage_multiplier.0 * shot.damage_scale
-            * path.damage_scale_at(shot.origin, hit_distance)
-            * shot.range.at(hit_distance);
+        // The head is the one hitbox that does not read the multipliers.
+        //
+        // HEAD_DAMAGE was written as ZOMBIE_MAX_HEALTH, which made a headshot
+        // lethal for exactly as long as every zombie had the same health.
+        // Once a wave-thirty zombie has four times as much, the same shot is
+        // a quarter of its health and the weak weapons stop killing with it
+        // at all -- the gun's own damage_scale, the range band and a wall all
+        // chip at it. A headshot that is only lethal on a good weapon at
+        // close range is not a headshot, so this is a rule rather than an
+        // arithmetic result: hit the head and the thing dies.
+        let headshot = hit.limb.is_none_or(|(part, _)| part == shared::ZombiePart::Head)
+            && damage >= shared::HEAD_DAMAGE;
+        let damage = if headshot {
+            f32::INFINITY
+        } else {
+            damage * damage_multiplier.0 * shot.damage_scale
+                * path.damage_scale_at(shot.origin, hit_distance)
+                * shot.range.at(hit_distance)
+        };
 
         if wall_distance.is_some_and(|w| w < hit_distance - 0.1) {
             info!(

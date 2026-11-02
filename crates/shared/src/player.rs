@@ -44,6 +44,18 @@ pub enum PlayerStance {
 #[derive(Component, Clone, Copy, Serialize, Deserialize)]
 pub struct Health(pub f32);
 
+/// What this one started with, which is not what every one of them starts
+/// with any more.
+///
+/// Eight places used to divide by the global ZOMBIE_MAX_HEALTH to get a
+/// fraction, and a wave-twenty zombie with three times the health would have
+/// read 3.0 at every one of them: never limping, never dropping below the
+/// stop-running threshold, and drawing a health bar off the end of its own
+/// box. The constant is still what a zombie is born with in the sandbox; it
+/// stopped being what every zombie is born with.
+#[derive(Component, Clone, Copy, Serialize, Deserialize)]
+pub struct MaxHealth(pub f32);
+
 #[derive(Resource, Default)]
 pub struct GameOver(pub bool);
 

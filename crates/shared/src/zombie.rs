@@ -132,12 +132,18 @@ pub const ZOMBIE_CRAWL_SPEED: f32 = 0.4;
 /// is not moving yet, and a zombie whose speed were zero for that reason could
 /// never start.
 pub fn zombie_speed_for(pose: ZombiePose) -> f32 {
-    match pose {
+    zombie_speed_for_kind(pose, ZombieKind::Classic)
+}
+
+pub fn zombie_speed_for_kind(pose: ZombiePose, kind: ZombieKind) -> f32 {
+    let base = match pose {
         ZombiePose::Run => ZOMBIE_RUN_SPEED,
         ZombiePose::Walk | ZombiePose::Idle => ZOMBIE_WALK_SPEED,
         ZombiePose::Crawl => ZOMBIE_CRAWL_SPEED,
-        ZombiePose::Bite => 0.0,
-    }
+        // Standing still to bite is standing still whatever the kind is.
+        ZombiePose::Bite => return 0.0,
+    };
+    base * kind.stats().speed
 }
 
 const ZOMBIE_WORLD_HEIGHT: f32 = 2.0367;
@@ -174,6 +180,38 @@ pub enum ZombieKind {
 }
 
 pub const ZOMBIE_KIND_WEIGHTS: [f32; 3] = [1.0, 0.0, 0.0];
+
+/// What each kind is, beyond which mesh it wears.
+///
+/// They were three models and nothing else: same hitbox slots, same health,
+/// same speed, and two of the three switched off in the weights above. A
+/// wave that can only ask for more of the same zombie can only get harder by
+/// getting longer, so the kinds have to differ before a budget is worth
+/// spending on them.
+///
+/// Cost is what a wave's budget pays for one. It is not derived from the
+/// other two; it is what the thing is worth to send.
+pub struct ZombieKindStats {
+    pub health: f32,
+    pub speed: f32,
+    pub cost: u32,
+}
+
+impl ZombieKind {
+    pub fn stats(self) -> ZombieKindStats {
+        match self {
+            // The one the game was built around. The others read as
+            // multipliers of it.
+            ZombieKind::Classic => ZombieKindStats { health: 1.0, speed: 1.0, cost: 1 },
+            // Twice the health at three quarters the pace: something you
+            // spend a magazine on while the rest keep coming.
+            ZombieKind::Soldier => ZombieKindStats { health: 2.0, speed: 0.75, cost: 3 },
+            // Dies to anything and arrives first. Cheap, so a wave that
+            // spends on these sends a great many.
+            ZombieKind::Female => ZombieKindStats { health: 0.6, speed: 1.35, cost: 1 },
+        }
+    }
+}
 
 pub fn zombie_kind_for_phase(phase: f32, weights: [f32; 3]) -> ZombieKind {
     let total: f32 = weights.iter().sum();
