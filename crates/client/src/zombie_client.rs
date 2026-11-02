@@ -69,6 +69,14 @@ pub(crate) struct Gun {
     pub(crate) ammo: u32,
 
     pub(crate) reload_remaining: f32,
+    /// How long this particular reload runs, which is not always the
+    /// weapon's own figure: holding the key stretches it. Every animation
+    /// reads progress against this rather than the definition, or a quiet
+    /// reload would start at a negative fraction and play backwards.
+    pub(crate) reload_total: f32,
+    /// Counts down the moment in which a tap and a hold are still the same
+    /// thing, because at the instant of the press they are.
+    pub(crate) reload_decide: f32,
 
     pub(crate) ads_blend: f32,
     /// How fast the sights are rising, in blend per second. A spring needs to

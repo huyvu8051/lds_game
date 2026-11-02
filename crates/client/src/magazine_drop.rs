@@ -70,10 +70,20 @@ const MAG_FETCHED_AT: f32 = 0.56;
 const MAG_SEATED_AT: f32 = RELOAD_HAND_BACK_AT_MAG;
 
 /// And then the charge, in the tail of the same move: the hand leaves the
-/// well, takes the handle, pulls it back, lets it go, and comes home.
-const CHARGE_AT_HANDLE: f32 = 0.83;
+/// well, takes the handle, settles on it, pulls it back, holds it there,
+/// lets it go, and comes home.
+///
+/// The two short beats are what the move was missing. Without them the hand
+/// arrived and yanked in the same instant, and let go and was gone in
+/// another: on a 2.3s reload the pull had 161ms and nothing either side of
+/// it, which reads as a twitch rather than a rack. A hand closing on a
+/// handle takes a moment to find it, and the arm is still travelling back
+/// when the bolt reaches its stop.
+const CHARGE_AT_HANDLE: f32 = 0.78;
+const CHARGE_GRIPPED: f32 = 0.81;
 const CHARGE_PULLED: f32 = 0.90;
-const CHARGE_LET_GO: f32 = 0.94;
+const CHARGE_HELD: f32 = 0.93;
+const CHARGE_LET_GO: f32 = 0.955;
 /// How far back the handle travels, and how far over the ejection port it
 /// sits. A handle rides the receiver's top edge, not the port itself.
 const CHARGE_TRAVEL: f32 = 0.055;
@@ -101,8 +111,8 @@ const CHARGE_KICK: Vec3 = Vec3::new(0.0, 0.0045, 0.009);
 const CHARGE_ROLL_DEG: f32 = 26.0;
 /// It leans over as the hand leaves the magazine well and is square again by
 /// the time the hand is home.
-const CHARGE_ROLL_IN: f32 = 0.80;
-const CHARGE_ROLL_OUT: f32 = 0.96;
+const CHARGE_ROLL_IN: f32 = 0.78;
+const CHARGE_ROLL_OUT: f32 = 0.97;
 
 pub(crate) fn charge_roll(weapon: WeaponId, progress: f32) -> f32 {
     let Charging::Side(sign) = charging_of(weapon) else { return 0.0 };
@@ -124,7 +134,7 @@ pub(crate) fn charge_roll(weapon: WeaponId, progress: f32) -> f32 {
 
 /// How much of the jolt is showing, by the reload's own progress.
 pub(crate) fn charge_kick(weapon: WeaponId, progress: f32) -> Vec3 {
-    if charging_of(weapon) == Charging::None || progress < CHARGE_PULLED {
+    if charging_of(weapon) == Charging::None || progress < CHARGE_HELD {
         return Vec3::ZERO;
     }
     // Nothing until the handle is let go of, then all of it at once, then
@@ -161,7 +171,7 @@ pub(crate) struct ReloadHandTarget;
 /// leaves when the hand is on it, not when the reload starts.
 const RELOAD_HAND_AT_MAG: f32 = 0.18;
 const RELOAD_HAND_AT_POUCH: f32 = 0.50;
-const RELOAD_HAND_BACK_AT_MAG: f32 = 0.74;
+const RELOAD_HAND_BACK_AT_MAG: f32 = 0.68;
 /// Off the eye, low and on the weak-hand side: where a spare magazine lives.
 const RELOAD_POUCH_FROM_EYE: Vec3 = Vec3::new(-0.16, -0.58, -0.26);
 
@@ -205,10 +215,10 @@ pub(crate) fn drive_reload_hand(
     eject: Query<&GlobalTransform, With<EjectSocket>>,
     irons: Query<&GlobalTransform, With<crate::sight_mount::IronAimSocket>>,
     magazine: Query<(&GlobalTransform, &Aabb), With<ViewmodelMagazine>>,
-    mut target: Query<&mut Transform, With<ReloadHandTarget>>,
+    mut hand_bids: ResMut<crate::weak_hand::WeakHand>,
 ) {
-    let (Ok((gun, gun_global)), Ok(eye), Ok(mut target), Ok(fore)) =
-        (gun.single(), camera.single(), target.single_mut(), fore.single())
+    let (Ok((gun, gun_global)), Ok(eye), Ok(fore)) =
+        (gun.single(), camera.single(), fore.single())
     else {
         return;
     };
@@ -263,9 +273,10 @@ pub(crate) fn drive_reload_hand(
     };
     let charge = handle.map(|at| (to_eye(at), to_eye(at + Vec3::Z * CHARGE_TRAVEL)));
 
-    let progress = 1.0 - (gun.reload_remaining / active.def().reload_duration).clamp(0.0, 1.0);
+    let progress =
+        1.0 - (gun.reload_remaining / gun.reload_total.max(f32::EPSILON)).clamp(0.0, 1.0);
     let span = |from: f32, to: f32| (progress - from) / (to - from);
-    target.translation = if progress < RELOAD_HAND_AT_MAG {
+    let want = if progress < RELOAD_HAND_AT_MAG {
         eased(home.translation, magwell, span(0.0, RELOAD_HAND_AT_MAG))
     } else if progress < RELOAD_HAND_AT_POUCH {
         eased(magwell, pouch, span(RELOAD_HAND_AT_MAG, RELOAD_HAND_AT_POUCH))
@@ -277,10 +288,14 @@ pub(crate) fn drive_reload_hand(
         // hand that was on it.
         if progress < CHARGE_AT_HANDLE {
             eased(magwell, held, span(RELOAD_HAND_BACK_AT_MAG, CHARGE_AT_HANDLE))
+        } else if progress < CHARGE_GRIPPED {
+            held
         } else if progress < CHARGE_PULLED {
-            eased(held, pulled, span(CHARGE_AT_HANDLE, CHARGE_PULLED))
+            eased(held, pulled, span(CHARGE_GRIPPED, CHARGE_PULLED))
+        } else if progress < CHARGE_HELD {
+            pulled
         } else if progress < CHARGE_LET_GO {
-            pulled.lerp(held, span(CHARGE_PULLED, CHARGE_LET_GO).clamp(0.0, 1.0).powi(2))
+            pulled.lerp(held, span(CHARGE_HELD, CHARGE_LET_GO).clamp(0.0, 1.0).powi(2))
         } else {
             eased(held, home.translation, span(CHARGE_LET_GO, 1.0))
         }
@@ -290,13 +305,15 @@ pub(crate) fn drive_reload_hand(
     // Running with a sidearm takes the free hand off the weapon altogether,
     // and it has to be somewhere: blended off the reload path rather than
     // replacing it, so a reload begun mid-sprint still wins.
-    if active.def().sprint_one_handed && gun.reload_remaining <= 0.0 {
+    let want = if active.def().sprint_one_handed && gun.reload_remaining <= 0.0 {
         let swing = SPRINT_FREE_HAND_FROM_EYE - Vec3::Z * view_pullback();
-        target.translation = target.translation.lerp(swing, gun.sprint_blend);
-    }
+        want.lerp(swing, gun.sprint_blend)
+    } else {
+        want
+    };
     // The grip's own turn throughout: the wrist has no business rolling just
     // because the hand went for a magazine.
-    target.rotation = home.rotation;
+    hand_bids.claim(crate::weak_hand::RELOAD, want, home.rotation);
 }
 
 #[derive(Component)]
@@ -363,7 +380,6 @@ fn spawn_carried(commands: &mut Commands, held: &MagazineInHand, hand: &GlobalTr
 /// from opposite ends and had to agree about the middle of it.
 pub(crate) fn carry_reload_magazine(
     time: Res<Time>,
-    active: Res<ActiveWeapon>,
     mut commands: Commands,
     mut held: ResMut<MagazineInHand>,
     gun: Query<&Gun>,
@@ -382,7 +398,7 @@ pub(crate) fn carry_reload_magazine(
     // Idle sits at one, so a reload beginning drops the progress rather than
     // raising it, and none of the marks below fire on the way down.
     let now = if gun.reload_remaining > 0.0 {
-        1.0 - (gun.reload_remaining / active.def().reload_duration).clamp(0.0, 1.0)
+        1.0 - (gun.reload_remaining / gun.reload_total.max(f32::EPSILON)).clamp(0.0, 1.0)
     } else {
         1.0
     };

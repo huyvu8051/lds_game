@@ -1232,6 +1232,8 @@ app.init_resource::<MagazineInHand>()
                     gun_view_animation,
                     shoot,
                     reload_gun,
+                    // After it: the grace period it opens is counted here.
+                    movement_combat::settle_quiet_reload,
                     // Grouped to stay inside the twenty the outer tuple
                     // takes; chained inside, because the suggestion has to
                     // be made before it is applied.

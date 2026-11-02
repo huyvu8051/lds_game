@@ -125,11 +125,10 @@ pub(crate) struct GunPoseTimings {
 pub(crate) fn gun_pose_timings(
     gun: &Gun,
     weapon: WeaponId,
-    def: &WeaponDef,
     cycle: &WalkCycle,
 ) -> GunPoseTimings {
     let recoil_t = gun.recoil;
-    let reload_t = gun.reload_remaining / def.reload_duration;
+    let reload_t = gun.reload_remaining / gun.reload_total.max(f32::EPSILON);
 
     // A raised cosine rather than the parabola 4t(1-t) it replaces. Both peak
     // at 1 halfway through and both end at 0, but the parabola arrives and
@@ -718,7 +717,7 @@ pub(crate) fn gun_view_animation(
         gun.step_lean = lean + (lean_target - lean) * (GUN_STEP_LEAN_SPEED * dt).min(1.0);
 
         let kick = &active.def().recoil;
-        let timings = gun_pose_timings(&gun, active.0, active.def(), &cycle);
+        let timings = gun_pose_timings(&gun, active.0, &cycle);
         if std::env::var("BOB_LOG").is_ok() {
             info!("[bob] amount={:.3} blend={:.3} gait={:.3} aim_damp={:.3} x={:.5} y={:.5} pitch={:.3} sway={:.3?}",
                 cycle.amount(), cycle.blend, cycle.gait, cycle.aim_damp,

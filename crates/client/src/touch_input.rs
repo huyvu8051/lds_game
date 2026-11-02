@@ -75,8 +75,18 @@ pub(crate) struct TouchAiming(pub(crate) bool);
 #[derive(Resource, Default)]
 pub(crate) struct TouchJump(pub(crate) bool);
 
+/// The reload button, as a press and as a hold.
+///
+/// Two fields because the two readers want different things: starting a
+/// reload wants the moment of the press, and deciding whether it is a quiet
+/// one wants to know, a tenth of a second later, whether the finger is still
+/// down. `Changed<Interaction>` reports only the moment, so the quiet reload
+/// read every hold as a release.
 #[derive(Resource, Default)]
-pub(crate) struct TouchReload(pub(crate) bool);
+pub(crate) struct TouchReload {
+    pub(crate) just_pressed: bool,
+    pub(crate) held: bool,
+}
 
 #[derive(Resource, Default)]
 pub(crate) struct TouchSprintHeld(pub(crate) bool);
@@ -481,8 +491,10 @@ pub(crate) fn touch_jump_button(mut jump: ResMut<TouchJump>, button: Query<&Inte
     jump.0 = button.iter().any(|interaction| *interaction == Interaction::Pressed);
 }
 
-pub(crate) fn touch_reload_button(mut reload: ResMut<TouchReload>, button: Query<&Interaction, (With<TouchReloadButton>, Changed<Interaction>)>) {
-    reload.0 = button.iter().any(|interaction| *interaction == Interaction::Pressed);
+pub(crate) fn touch_reload_button(mut reload: ResMut<TouchReload>, button: Query<&Interaction, With<TouchReloadButton>>) {
+    let down = button.iter().any(|interaction| *interaction == Interaction::Pressed);
+    reload.just_pressed = down && !reload.held;
+    reload.held = down;
 }
 
 pub(crate) fn touch_crouch_button(

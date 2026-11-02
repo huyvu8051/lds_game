@@ -854,8 +854,10 @@ pub(crate) fn shoot(
         GunshotVoice,
     ));
     if gun.ammo == 0 {
-
+        // Never quiet: the quiet reload is something the player asks for by
+        // holding the key, and nobody asked for this one.
         gun.reload_remaining = active.def().reload_duration;
+        gun.reload_total = gun.reload_remaining;
         commands.spawn((
             seedling::SamplePlayer::new(vfx_assets.reload_sound.of(active.0)),
             seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
@@ -1057,15 +1059,13 @@ pub(crate) fn shoot(
 }
 
 pub(crate) fn reload_gun(
-    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     touch_reload: Res<TouchReload>,
     game_over: Res<GameOver>,
-    reload_sound: Res<ReloadSound>,
     mut gun: Query<&mut Gun>,
     active: Res<ActiveWeapon>,
 ) {
-    if game_over.0 || !(Bind::Reload.just_pressed(&keys) || touch_reload.0) {
+    if game_over.0 || !(Bind::Reload.just_pressed(&keys) || touch_reload.just_pressed) {
         return;
     }
     let Ok(mut gun) = gun.single_mut() else {
@@ -1075,8 +1075,77 @@ pub(crate) fn reload_gun(
         return;
     }
     gun.reload_remaining = active.def().reload_duration;
+    gun.reload_total = gun.reload_remaining;
+    // The sound waits. A tap and a hold are the same thing at the instant of
+    // the press, and which one this is decides how loud the reload is.
+    gun.reload_decide = QUIET_DECIDE_SECONDS;
+}
+
+/// How long to wait before a reload commits to being loud or quiet.
+///
+/// A compromise in both directions, and worth knowing which way it is wrong.
+/// Too long and the reload sound lags the press; too short and a brisk tap
+/// reads as a hold, which at a tenth of a second some of them do. The lag is
+/// the cheaper mistake here, because the reload sample has nothing sharp at
+/// its head: the hand is still travelling at this point and the magazine
+/// does not leave the weapon until two thirds of the way through.
+const QUIET_DECIDE_SECONDS: f32 = 0.11;
+
+/// What holding the key costs and buys: the reload takes half again as long,
+/// and is a fifth as loud.
+///
+/// Both ends are feel, not tactics. Nothing in this game can hear -- the
+/// zombies score a target on distance alone -- so a quiet reload buys the
+/// player no stealth, only a reload that sounds like one. Give them ears and
+/// this becomes a real trade without touching these numbers.
+const QUIET_STRETCH: f32 = 1.5;
+const QUIET_VOLUME: f32 = 0.2;
+
+/// Decides, once, whether this reload is the quiet one, and plays it.
+///
+/// Separate from the keypress because it cannot be known there. Runs while
+/// the reload does, but acts in the single frame the grace period ends.
+pub(crate) fn settle_quiet_reload(
+    time: Res<Time>,
+    mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
+    touch_reload: Res<TouchReload>,
+    reload_sound: Res<ReloadSound>,
+    active: Res<ActiveWeapon>,
+    mut gun: Query<&mut Gun>,
+) {
+    let Ok(mut gun) = gun.single_mut() else { return };
+    if gun.reload_decide <= 0.0 {
+        return;
+    }
+    // A reload cancelled inside the grace period -- a weapon put away --
+    // leaves the countdown running, and it would otherwise come due and
+    // play a magazine going into a weapon that is no longer in frame.
+    if gun.reload_remaining <= 0.0 {
+        gun.reload_decide = 0.0;
+        return;
+    }
+    gun.reload_decide -= time.delta_secs();
+    if gun.reload_decide > 0.0 {
+        return;
+    }
+    gun.reload_decide = 0.0;
+    let quiet = Bind::Reload.pressed(&keys) || touch_reload.held;
+    if quiet {
+        // Both by the same factor, which is what keeps the hand where it
+        // is: every animation reads 1 - remaining/total, and scaling only
+        // one of them jumps that fraction backwards at the moment of the
+        // decision. Stretching both leaves it untouched.
+        gun.reload_remaining *= QUIET_STRETCH;
+        gun.reload_total *= QUIET_STRETCH;
+    }
     commands.spawn((
-        seedling::SamplePlayer::new(reload_sound.of(active.0)),
+        seedling::SamplePlayer::new(reload_sound.of(active.0))
+            .with_volume(seedling::Volume::Linear(if quiet {
+                QUIET_VOLUME
+            } else {
+                1.0
+            })),
         seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
     ));
 }
