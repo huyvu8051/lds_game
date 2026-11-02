@@ -23,6 +23,7 @@ pub(crate) enum SightId {
     Scope4x,
     Scope6x,
     Scope8x,
+    ScopeAk,
 }
 
 pub(crate) struct SightDef {
@@ -124,6 +125,20 @@ static SCOPE_8X: SightDef = SightDef {
     aim_fov_multiplier: 0.380,
 };
 
+/// The AK's own optic, which arrived bolted to the rifle.
+///
+/// Its mount is deeper than any of the others: the sight sits a hand's
+/// width above the rail on a bracket that reaches down the receiver's left
+/// side, which is how a Soviet side-rail optic mounts and why eye_rise is
+/// nearly double a red dot's.
+static SCOPE_AK: SightDef = SightDef {
+    name: "AK optic",
+    mesh_path: "models/sights/scope_ak/scope_ak.glb",
+    eye_back: 0.057,
+    eye_rise: 0.045,
+    aim_fov_multiplier: 0.62,
+};
+
 impl SightId {
     /// The item that is this sight. One each: a sight the player can carry
     /// and a sight the weapon can wear are the same object, so the bag and
@@ -141,11 +156,12 @@ impl SightId {
             Scope4x => SightId::Scope4x,
             Scope6x => SightId::Scope6x,
             Scope8x => SightId::Scope8x,
+            ScopeAk => SightId::ScopeAk,
             _ => return None,
         })
     }
 
-    pub(crate) const ALL: [SightId; 10] = [
+    pub(crate) const ALL: [SightId; 11] = [
         SightId::RedDotA,
         SightId::RedDotB,
         SightId::HoloA,
@@ -156,6 +172,7 @@ impl SightId {
         SightId::Scope4x,
         SightId::Scope6x,
         SightId::Scope8x,
+        SightId::ScopeAk,
     ];
 
     pub(crate) fn def(self) -> &'static SightDef {
@@ -170,6 +187,7 @@ impl SightId {
             SightId::Scope4x => &SCOPE_4X,
             SightId::Scope6x => &SCOPE_6X,
             SightId::Scope8x => &SCOPE_8X,
+            SightId::ScopeAk => &SCOPE_AK,
         }
     }
 }
