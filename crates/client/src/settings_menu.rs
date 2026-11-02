@@ -480,6 +480,45 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     }
                 });
                 page.spawn((
+                    Text::new("Attachments"),
+                    TextFont {
+                        font_size: FontSize::Px(16.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+                // Harder to come by than a weapon, and so more worth a menu:
+                // attachments fall off a corpse out of the same uniform roll
+                // as every round of ammunition and every bandage, so waiting
+                // for one particular sight is waiting for one of fifty-four.
+                //
+                // A row per socket rather than one wrapped heap of twenty-nine
+                // buttons. The labels are the ones the backpack screen puts
+                // over the same sockets.
+                for socket in AttachSlot::ALL {
+                    page.spawn((
+                        Text::new(socket.label()),
+                        TextFont {
+                            font_size: FontSize::Px(12.0),
+                            ..default()
+                        },
+                        TextColor(Color::srgb(0.6, 0.6, 0.6)),
+                    ));
+                    page.spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(6.0),
+                        flex_wrap: FlexWrap::Wrap,
+                        row_gap: Val::Px(4.0),
+                        ..default()
+                    })
+                    .with_children(|row| {
+                        for kind in ALL_ITEMS.into_iter().filter(|k| k.attach_slot() == Some(socket))
+                        {
+                            spawn_cheat_action_button(row, kind.label(), GiveAttachmentButton(kind));
+                        }
+                    });
+                }
+                page.spawn((
                     Text::new("Weapon drops"),
                     TextFont {
                         font_size: FontSize::Px(16.0),
@@ -988,6 +1027,33 @@ pub(crate) fn update_corpse_stage_buttons(
 /// rules say it should.
 #[derive(Component)]
 pub(crate) struct GiveWeaponButton(pub(crate) WeaponId);
+
+/// Hands over an attachment, through the same door one on the ground goes
+/// through: onto the weapon in hand if that socket is empty, onto the other
+/// weapon if it is not, into the pack if neither will take it.
+#[derive(Component)]
+pub(crate) struct GiveAttachmentButton(pub(crate) ItemKind);
+
+pub(crate) fn give_attachment_buttons(
+    mut inventory: ResMut<inventory::Inventory>,
+    mut equipment: ResMut<Equipment>,
+    mut attachments: ResMut<inventory::Attachments>,
+    loadout: Res<Loadout>,
+    buttons: Query<(&Interaction, &GiveAttachmentButton), Changed<Interaction>>,
+) {
+    for (interaction, button) in &buttons {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+        inventory::take_item(
+            &mut inventory,
+            &mut equipment,
+            &mut attachments,
+            &loadout,
+            button.0,
+        );
+    }
+}
 
 pub(crate) fn give_weapon_buttons(
     mut commands: Commands,

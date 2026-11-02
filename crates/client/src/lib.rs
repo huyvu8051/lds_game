@@ -1155,6 +1155,7 @@ app.init_resource::<MagazineInHand>()
                     // takes; nothing here is ordered against anything.
                     (
                         give_weapon_buttons,
+                    settings_menu::give_attachment_buttons,
                         corpse_stage_buttons,
                         update_corpse_stage_buttons,
                         weapon_spawn_buttons,
