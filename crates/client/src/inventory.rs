@@ -654,7 +654,8 @@ pub(crate) fn take_item(
         }
     }
 
-    inventory.add(kind, 1);
+    // A box of ammunition is a box, not a round. Everything else is one.
+    inventory.add(kind, kind.ammo_rounds().unwrap_or(1));
 }
 
 /// What a dropped thing is.

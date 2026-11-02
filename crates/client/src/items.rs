@@ -325,6 +325,26 @@ impl ItemKind {
         }
     }
 
+    /// How many rounds one of these off the ground is worth.
+    ///
+    /// The reserve is counted in rounds -- the starting kit is sixty of 7.62
+    /// -- but a pickup used to add exactly one of them. With a 45% chance of
+    /// a consumable and fifty-five kinds to draw from, the odds of a given
+    /// corpse yielding your own calibre are 0.82%, so one round per pickup is
+    /// about one magazine per three thousand kills. A box is a box.
+    ///
+    /// Twelve-gauge is smaller because a shell is bigger and the S686 holds
+    /// two of them.
+    pub(crate) fn ammo_rounds(self) -> Option<u32> {
+        use ItemKind::*;
+        Some(match self {
+            Ammo556 | Ammo762 => 30,
+            Ammo9mm | Ammo45 | Ammo57mm => 24,
+            Ammo12g => 8,
+            _ => return None,
+        })
+    }
+
     /// Which socket it goes in, for the ones that go in a socket.
     pub(crate) fn attach_slot(self) -> Option<AttachSlot> {
         use ItemKind::*;
