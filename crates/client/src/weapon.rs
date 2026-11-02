@@ -190,6 +190,124 @@ impl WeaponClass {
     }
 }
 
+/// How far off a shot can land, by band and by whether the sights are up.
+///
+/// Written as metres of miss rather than as an angle, because an angle lies
+/// about what it will do. A cone of fixed width already misses six times
+/// further at 150m than at 25m, for free, by geometry -- so a table of angle
+/// multipliers per band compounds with that and the figures stop meaning
+/// anything anyone can picture. These are measured at each band's own anchor
+/// distance and converted back to an angle there.
+///
+/// Two things to know about reading the numbers. They are a bound on one
+/// axis, so the diagonal corner is 1.41 times further out, and the wander
+/// that drives them is a sine -- it spends most of its time away from its
+/// peaks, so a typical shot lands about 64% of the figure off. For scale: a
+/// zombie's head is 21cm in radius and its chest 18cm.
+///
+/// What the class actually decides is how fast the cone opens with range,
+/// and the one rule is that it may never close: a figure must be at least
+/// the previous band's figure scaled by the ratio of their anchors, or a
+/// zombie that steps further away becomes easier to hit in absolute terms.
+/// That is not a theoretical worry -- the first draft of this table had the
+/// rifle at 0.22m at 60m and 0.35m at 150m, which made a target at 61m land
+/// 9cm off where one at 59m landed 14cm off. `debug_assert_opens` is why
+/// nobody has to notice that again.
+pub(crate) struct RangeAccuracy {
+    /// Metres of miss at RANGE_ANCHORS, sights up.
+    pub(crate) ads: [f32; 3],
+    /// The same from the hip.
+    pub(crate) hip: [f32; 3],
+    /// What being on the move costs this weapon.
+    pub(crate) moving: f32,
+}
+
+/// Where each band's figures are measured. The first two are the band edges
+/// the damage table already uses; the third is not the far band's end -- that
+/// is the 200m a ray travels -- but a distance someone might actually fight
+/// at, which is what the figure wants to describe.
+const RANGE_ANCHORS: [f32; 3] = [shared::RANGE_NEAR_LIMIT, shared::RANGE_MID_LIMIT, 150.0];
+
+impl RangeAccuracy {
+    /// The cone half-angle, in radians, for a shot going this far.
+    pub(crate) fn at(&self, distance: f32, aiming: bool) -> f32 {
+        let band = if distance <= shared::RANGE_NEAR_LIMIT {
+            0
+        } else if distance <= shared::RANGE_MID_LIMIT {
+            1
+        } else {
+            2
+        };
+        let miss = if aiming { self.ads[band] } else { self.hip[band] };
+        miss / RANGE_ANCHORS[band]
+    }
+
+    /// Panics in a debug build on a cone that closes as the target recedes.
+    fn debug_assert_opens(&self, name: &str) {
+        for row in [&self.ads, &self.hip] {
+            for band in 1..3 {
+                let before = row[band - 1] / RANGE_ANCHORS[band - 1];
+                let after = row[band] / RANGE_ANCHORS[band];
+                debug_assert!(
+                    after >= before - f32::EPSILON,
+                    "{name}: the cone closes between band {} and {band} ({before} to {after} rad)",
+                    band - 1
+                );
+            }
+        }
+    }
+}
+
+impl WeaponClass {
+    /// Standing, still, first shot of the magazine. Heat, stance and sprint
+    /// multiply on top of this; they are the same for every weapon and were
+    /// already tuned.
+    pub(crate) fn accuracy(self) -> RangeAccuracy {
+        let (accuracy, name) = match self {
+            // Tight up close with the sights up or down -- 6cm and 9cm at
+            // 25m against a head of 21cm -- and barely troubled by running,
+            // which is the whole of what they are for. The cone then opens
+            // faster than anything else here: 96cm at 150m is not a weapon,
+            // and a pistol at 150m should not be one.
+            Self::Pistol | Self::Smg | Self::Shotgun => (
+                RangeAccuracy {
+                    ads: [0.10, 0.45, 1.50],
+                    hip: [0.14, 0.70, 2.20],
+                    moving: 1.2,
+                },
+                "pistol/smg/shotgun",
+            ),
+            // As tight as an SMG up close, and the cone then opens about as
+            // slowly as it can without closing: 17cm at 60m, 45cm at 150m,
+            // which is a body hit more often than not. From the hip it is a
+            // different weapon entirely, and moving costs it twice an SMG.
+            Self::Rifle => (
+                RangeAccuracy {
+                    ads: [0.10, 0.26, 0.70],
+                    hip: [0.40, 0.96, 2.40],
+                    moving: 2.0,
+                },
+                "rifle",
+            ),
+            // The cone does not open at all: one angle, held from the muzzle
+            // to 150m, which is what reaching out means. 23cm at 150m is a
+            // head's radius, so a body is a certainty and a head is a
+            // question. From the hip it is exactly as bad as a rifle, and
+            // standing still matters more to it than to anything else.
+            Self::Marksman => (
+                RangeAccuracy {
+                    ads: [0.06, 0.144, 0.36],
+                    hip: [0.40, 0.96, 2.40],
+                    moving: 3.0,
+                },
+                "marksman",
+            ),
+        };
+        accuracy.debug_assert_opens(name);
+        accuracy
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReticleKind {
     /// One lit dot at infinity, as a holographic sight carries.

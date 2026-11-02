@@ -637,6 +637,7 @@ pub(crate) fn update_crosshair(
     local_sprinting: Res<LocalPlayerSprinting>,
     active: Res<ActiveWeapon>,
     keep_in_ads: Res<CrosshairInAds>,
+    aim_distance: Res<crate::movement_combat::AimDistance>,
 ) {
     let Ok(recoil) = camera.single() else {
         return;
@@ -648,7 +649,11 @@ pub(crate) fn update_crosshair(
         root.display = if aiming && !keep_in_ads.0 { Display::None } else { Display::Flex };
     }
 
+    // The same distance the shot will use, so the gap is a promise rather
+    // than a decoration: point at something far off and the crosshair opens.
     let spread = current_bullet_spread(
+        active.def().class,
+        aim_distance.0,
         recoil.climb,
         active.def().recoil.view.climb_max,
         aiming,
@@ -656,7 +661,7 @@ pub(crate) fn update_crosshair(
         stance,
         local_sprinting.0,
     );
-    let gap = CROSSHAIR_BASE_GAP_PX + spread * CROSSHAIR_GAP_SPREAD_SCALE;
+    let gap = (CROSSHAIR_BASE_GAP_PX + spread * CROSSHAIR_GAP_SPREAD_SCALE).min(CROSSHAIR_MAX_GAP_PX);
 
     for (line, mut node) in &mut lines {
         let near = Val::Px(CROSSHAIR_CENTER_PX - gap - CROSSHAIR_LINE_LENGTH_PX);

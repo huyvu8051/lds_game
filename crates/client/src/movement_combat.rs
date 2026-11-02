@@ -46,16 +46,63 @@ pub(crate) fn is_aiming(cursor: &CursorOptions, held: &AimHeld, touch_aiming: bo
     (cursor.grab_mode != CursorGrabMode::None && held.0) || touch_aiming
 }
 
+/// How far away whatever the player is pointing at is, in metres.
+///
+/// Measured once a frame rather than per shot, because two readers want it:
+/// the shot, which needs it to know which accuracy band it is in, and the
+/// crosshair, which widens to say so. Firing also used to cast this same ray
+/// on its own to find where a hip shot should converge, so for hip fire this
+/// costs nothing new.
+#[derive(Resource)]
+pub(crate) struct AimDistance(pub(crate) f32);
+
+impl Default for AimDistance {
+    fn default() -> Self {
+        Self(MAX_SHOT_DISTANCE)
+    }
+}
+
+pub(crate) fn measure_aim_distance(
+    spatial_query: SpatialQuery,
+    camera: Query<&GlobalTransform, With<FpsCamera>>,
+    mut distance: ResMut<AimDistance>,
+) {
+    let Ok(camera) = camera.single() else { return };
+    distance.0 = spatial_query
+        .cast_ray(
+            camera.translation(),
+            camera.forward(),
+            MAX_SHOT_DISTANCE,
+            true,
+            &SpatialQueryFilter::default(),
+        )
+        .map_or(MAX_SHOT_DISTANCE, |hit| hit.distance);
+}
+
 /// `climb_max` is the firing weapon's own ceiling: heat is how far into
 /// *this* weapon's climb the burst has got, or a gentler one reads as hot.
-pub(crate) fn current_bullet_spread(climb: f32, climb_max: f32, aiming: bool, moving: bool, stance: PlayerStance, sprinting: bool) -> f32 {
-    let heat = climb / climb_max;
-    let mut spread = BULLET_SPREAD * (0.3 + heat);
-    if aiming {
-        spread *= AIM_SPREAD_MULTIPLIER;
-    }
-    if !moving {
-        spread *= STATIONARY_SPREAD_MULTIPLIER;
+///
+/// `distance` picks the accuracy band, so the same weapon pointed across a
+/// courtyard and down an alley is not the same weapon.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn current_bullet_spread(
+    class: WeaponClass,
+    distance: f32,
+    climb: f32,
+    climb_max: f32,
+    aiming: bool,
+    moving: bool,
+    stance: PlayerStance,
+    sprinting: bool,
+) -> f32 {
+    let accuracy = class.accuracy();
+    let mut spread = accuracy.at(distance, aiming);
+    // Opens from the table rather than toward it: the figures in the table are
+    // the first shot of a magazine, and heat is what the burst does to them.
+    // The gain keeps the old hot-to-cold ratio, which was 0.3 against 1.3.
+    spread *= 1.0 + climb / climb_max * HEAT_SPREAD_GAIN;
+    if moving {
+        spread *= accuracy.moving;
     }
 
     if sprinting {
@@ -746,7 +793,14 @@ pub(crate) fn shoot(
     zombies: Query<(Entity, &ZombieHitboxBones), With<Zombie>>,
     globals: Query<&GlobalTransform>,
     spatial_query: SpatialQuery,
-    (touch_firing, casings, mouse): (Res<TouchFiring>, Res<CasingAssets>, Res<ButtonInput<MouseButton>>),
+    // Grouped because Bevy takes sixteen parameters and this is the
+    // seventeenth thing the shot needs.
+    (touch_firing, casings, mouse, aim_distance): (
+        Res<TouchFiring>,
+        Res<CasingAssets>,
+        Res<ButtonInput<MouseButton>>,
+        Res<AimDistance>,
+    ),
     (mut cooldown, mut burst_left, mut burst_gap): (Local<f32>, Local<u32>, Local<f32>),
     (mut smoke_materials, mut flash_materials, mut shock): (
         ResMut<Assets<MuzzleSmokeMaterial>>,
@@ -880,6 +934,8 @@ pub(crate) fn shoot(
 
     let aiming = is_aiming(cursor, &aim_held, touch_aiming.0);
     let spread = current_bullet_spread(
+        active.def().class,
+        aim_distance.0,
         recoil.climb,
         kick.view.climb_max,
         aiming,
@@ -909,16 +965,7 @@ pub(crate) fn shoot(
         bore * Vec3::NEG_Z
     } else {
         let view_axis = *camera_transform.forward();
-        let aim_point = spatial_query
-            .cast_ray(
-                camera_transform.translation,
-                camera_transform.forward(),
-                MAX_SHOT_DISTANCE,
-                true,
-                &SpatialQueryFilter::default(),
-            )
-            .map(|hit| camera_transform.translation + view_axis * hit.distance)
-            .unwrap_or(camera_transform.translation + view_axis * MAX_SHOT_DISTANCE);
+        let aim_point = camera_transform.translation + view_axis * aim_distance.0;
         (aim_point - muzzle_world_pos).normalize_or_zero()
     };
 

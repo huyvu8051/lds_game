@@ -531,7 +531,7 @@ const SPARK_PARTICLE_SIZE: f32 = 0.02;
 
 // Recoil is per weapon now: see WeaponDef::recoil in weapon.rs.
 
-const BULLET_SPREAD: f32 = 0.02;
+// Accuracy is per class now: see WeaponClass::accuracy in weapon.rs.
 
 const MOUSE_SENSITIVITY: f32 = 0.002;
 
@@ -597,6 +597,13 @@ const CROSSHAIR_LINE_LENGTH_PX: f32 = 6.0;
 const CROSSHAIR_LINE_THICKNESS_PX: f32 = 2.0;
 const CROSSHAIR_BASE_GAP_PX: f32 = 4.0;
 const CROSSHAIR_GAP_SPREAD_SCALE: f32 = 500.0;
+/// A ceiling on the gap, because the scale above was tuned when one spread
+/// figure served all thirty-five weapons and its worst case was 0.057 rad.
+/// A moving, sprinting, red-hot rifle fired from the hip now reaches 0.30,
+/// which that scale would draw as a cross 155px from the middle of the
+/// screen. Nothing past this point tells the player anything the gap at this
+/// point did not already: both mean the shot is going nowhere near the mark.
+const CROSSHAIR_MAX_GAP_PX: f32 = 40.0;
 
 const BASE_FOV: f32 = std::f32::consts::PI / 4.0;
 
@@ -661,7 +668,6 @@ const ADS_SPRING_DAMPING: f32 = 0.72;
 /// wobble.
 
 const AIM_ZOOM_SPEED: f32 = 12.0;
-const AIM_SPREAD_MULTIPLIER: f32 = 0.35;
 
 const AIM_DOF_FOCAL_DISTANCE_A: f32 = 0.2;
 const AIM_DOF_FOCAL_DISTANCE_B: f32 = 0.25;
@@ -712,7 +718,11 @@ const SCOPE_RETICLE_DOT_SIZE: f32 = 0.0011;
 const SCOPE_RETICLE_CENTRE_DOT_SIZE: f32 = 0.0013;
 const SCOPE_RETICLE_DOTS_PER_ARM: usize = 4;
 
-const STATIONARY_SPREAD_MULTIPLIER: f32 = 0.4;
+
+/// What a burst does to the figures in the accuracy table, which are the
+/// first shot of a magazine. 3.3 keeps the ratio the single global spread
+/// used to have between cold and hot, which was 0.3 against 1.3.
+const HEAT_SPREAD_GAIN: f32 = 3.3;
 
 const SPRINT_SPREAD_MULTIPLIER: f32 = 2.2;
 const CROUCH_SPREAD_MULTIPLIER: f32 = 0.6;
@@ -1058,6 +1068,7 @@ app.init_resource::<MagazineInHand>()
         .init_resource::<PatrolRoute>()
         .init_resource::<Driven>()
         .init_resource::<Cooking>()
+        .init_resource::<movement_combat::AimDistance>()
         .init_resource::<weak_hand::WeakHand>()
         .init_resource::<weapon_reset::WeaponChanged>()
         .init_resource::<Flashed>()
@@ -1231,7 +1242,10 @@ app.init_resource::<MagazineInHand>()
                     // takes; the chain still orders them.
                     (advance_walk_cycle, advance_fire_shock).chain(),
                     gun_view_animation,
-                    shoot,
+                    // Grouped only to stay inside the twenty this tuple
+                    // takes; chained because the shot reads the distance the
+                    // first one measures.
+                    (movement_combat::measure_aim_distance, shoot).chain(),
                     reload_gun,
                     // After it: the grace period it opens is counted here.
                     movement_combat::settle_quiet_reload,
