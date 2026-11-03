@@ -259,10 +259,10 @@ static SCOPE_M24: SightDef = SightDef {
     eye_rise: 0.030,
     aim_fov_multiplier: 0.280,
     ads_eye_relief: 0.12,
-    picture_feather: 0.0030,
-    picture_radius: 0.0125,
+    picture_feather: 0.0036,
+    picture_radius: 0.0155,
     window_forward: 0.073,
-    window_radius: Some(0.015),
+    window_radius: Some(0.0185),
 };
 
 impl SightId {
