@@ -2928,11 +2928,12 @@ static M24: WeaponDef = WeaponDef {
     mesh_path: "models/m24/mesh/m24.glb",
     rest_offset: Vec3::new(0.160, -0.0905, -0.9770),
     ready_offset: Vec3::new(0.045, -0.1655, -0.887),
-    // Closest of the three by a wide margin: the eye comes right up behind the
-    // rear glass, so the scope picture fills more of the view than either
-    // carbine's sight. The glass itself sits 55mm further down the tube, so
-    // there is still room before the near plane at 100mm.
-    ads_eye_relief: 0.02,
+    // Was 0.02, the closest of any weapon here: the eye came right up behind
+    // the rear glass and the tube filled the view it was aiming through.
+    // 0.10 stands the rifle off about where the AK holds its optic, and the
+    // glass sits 55mm further down the tube again, clear of the 100mm near
+    // plane either way.
+    ads_eye_relief: 0.10,
     ads_speed: AdsSpeed { from_ready: 5.5, from_rest: 2.575 },
     hold_ads_fraction: 0.096,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.02, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },

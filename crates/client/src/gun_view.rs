@@ -339,7 +339,7 @@ pub(crate) fn gun_view_animation(
     mut query: Query<(&mut Transform, &GlobalTransform, &mut Gun), Without<FpsCamera>>,
     aim: Query<&GlobalTransform, (With<AimSocket>, Without<Gun>, Without<FpsCamera>)>,
     local: LocalPlayerState,
-    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose, swap, infinite_ammo, sight_swap): (
+    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose, swap, infinite_ammo, sight_swap, fitted): (
         Res<ActiveWeapon>,
         Res<WalkCycle>,
         Res<crate::movement_combat::FireShock>,
@@ -351,6 +351,7 @@ pub(crate) fn gun_view_animation(
         Res<crate::WeaponSwap>,
         Res<crate::InfiniteAmmo>,
         Res<crate::sight_swap::SightSwap>,
+        Res<crate::sight_mount::FittedSight>,
     ),
 ) {
     // Taken, not read: the single consumer clearing it is what lets each
@@ -804,7 +805,12 @@ pub(crate) fn gun_view_animation(
             .single()
             .map(|aim_global| {
                 let in_gun = aim_global.reparented_to(gun_global);
-                Vec3::new(0.0, 0.0, -active.def().ads_eye_relief) - base_rotation * in_gun.translation
+                // The fitted sight's relief wins, the way its magnification
+                // does: what the eye is behind is the glass, not the rifle.
+                let relief = fitted
+                    .0
+                    .map_or(active.def().ads_eye_relief, |sight| sight.def().ads_eye_relief);
+                Vec3::new(0.0, 0.0, -relief) - base_rotation * in_gun.translation
             })
             .unwrap_or(resting);
         // Slides off the sight line and corrects on, without turning.

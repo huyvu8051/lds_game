@@ -43,6 +43,15 @@ pub(crate) struct SightDef {
     /// weapon sighting down irons uses, and 0.525 is the AK's four-power
     /// scope. The rest are spaced between and want a balance pass.
     pub(crate) aim_fov_multiplier: f32,
+    /// How far the eye sits behind this sight's own glass, overriding the
+    /// weapon's.
+    ///
+    /// Eye relief belongs to the optic, not to what it is bolted to: a tube
+    /// holds the eye the same distance back whichever rifle carries it. The
+    /// weapon's own number is for the irons it was drawn with, and it only
+    /// applies while nothing is fitted -- the same deal `aim_fov_multiplier`
+    /// already strikes.
+    pub(crate) ads_eye_relief: f32,
 }
 
 static RED_DOT_A: SightDef = SightDef {
@@ -51,6 +60,7 @@ static RED_DOT_A: SightDef = SightDef {
     eye_back: 0.045,
     eye_rise: 0.047,
     aim_fov_multiplier: 0.75,
+    ads_eye_relief: 0.11,
 };
 
 static RED_DOT_B: SightDef = SightDef {
@@ -59,6 +69,7 @@ static RED_DOT_B: SightDef = SightDef {
     eye_back: 0.033,
     eye_rise: 0.045,
     aim_fov_multiplier: 0.75,
+    ads_eye_relief: 0.11,
 };
 
 static HOLO_A: SightDef = SightDef {
@@ -67,6 +78,7 @@ static HOLO_A: SightDef = SightDef {
     eye_back: 0.052,
     eye_rise: 0.031,
     aim_fov_multiplier: 0.75,
+    ads_eye_relief: 0.11,
 };
 
 static HOLO_B: SightDef = SightDef {
@@ -75,6 +87,7 @@ static HOLO_B: SightDef = SightDef {
     eye_back: 0.043,
     eye_rise: 0.031,
     aim_fov_multiplier: 0.75,
+    ads_eye_relief: 0.11,
 };
 
 static HOLO_C: SightDef = SightDef {
@@ -83,6 +96,7 @@ static HOLO_C: SightDef = SightDef {
     eye_back: 0.033,
     eye_rise: 0.048,
     aim_fov_multiplier: 0.75,
+    ads_eye_relief: 0.11,
 };
 
 static HOLO_D: SightDef = SightDef {
@@ -91,6 +105,7 @@ static HOLO_D: SightDef = SightDef {
     eye_back: 0.023,
     eye_rise: 0.037,
     aim_fov_multiplier: 0.75,
+    ads_eye_relief: 0.11,
 };
 
 static SCOPE_2X: SightDef = SightDef {
@@ -99,6 +114,7 @@ static SCOPE_2X: SightDef = SightDef {
     eye_back: 0.141,
     eye_rise: 0.044,
     aim_fov_multiplier: 0.620,
+    ads_eye_relief: 0.12,
 };
 
 static SCOPE_3X: SightDef = SightDef {
@@ -107,6 +123,7 @@ static SCOPE_3X: SightDef = SightDef {
     eye_back: 0.092,
     eye_rise: 0.035,
     aim_fov_multiplier: 0.560,
+    ads_eye_relief: 0.12,
 };
 
 static SCOPE_4X: SightDef = SightDef {
@@ -117,6 +134,7 @@ static SCOPE_4X: SightDef = SightDef {
     // Not interpolated like the others: 0.525 is the number the AK's own
     // four-power scope has been shipping with since long before any of this.
     aim_fov_multiplier: 0.525,
+    ads_eye_relief: 0.12,
 };
 
 static SCOPE_6X: SightDef = SightDef {
@@ -125,6 +143,7 @@ static SCOPE_6X: SightDef = SightDef {
     eye_back: 0.105,
     eye_rise: 0.040,
     aim_fov_multiplier: 0.440,
+    ads_eye_relief: 0.12,
 };
 
 static SCOPE_8X: SightDef = SightDef {
@@ -133,6 +152,7 @@ static SCOPE_8X: SightDef = SightDef {
     eye_back: 0.198,
     eye_rise: 0.053,
     aim_fov_multiplier: 0.380,
+    ads_eye_relief: 0.12,
 };
 
 /// The AK's own optic, which arrived bolted to the rifle.
@@ -147,6 +167,7 @@ static SCOPE_AK: SightDef = SightDef {
     eye_back: 0.057,
     eye_rise: 0.045,
     aim_fov_multiplier: 0.62,
+    ads_eye_relief: 0.12,
 };
 
 /// The M24's own glass, which the rifle was drawn wearing.
@@ -166,6 +187,7 @@ static SCOPE_M24: SightDef = SightDef {
     eye_back: 0.203,
     eye_rise: 0.030,
     aim_fov_multiplier: 0.280,
+    ads_eye_relief: 0.12,
 };
 
 impl SightId {
