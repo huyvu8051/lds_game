@@ -362,15 +362,7 @@ pub fn extract_render_snapshot(
     // and the key has to be computed from world-space positions, which means
     // transforming the mesh -- cheap, but only worth doing for the map.
     let lightmap = world.get_resource::<crate::lightmap::Lightmap>().map(|l| l.by_key.clone());
-    // One query up front rather than a lookup per mesh: a handful of entities
-    // carry this and the hook runs for every mesh in the map.
-    let through_scope: std::collections::HashSet<bevy::ecs::entity::Entity> = world
-        .query_filtered::<bevy::ecs::entity::Entity, bevy::ecs::query::With<crate::sight_mount::ThroughScope>>()
-        .iter(world)
-        .collect();
-    let decorate = |entity: bevy::ecs::entity::Entity,
-                    mesh: &mut metal_renderer::snapshot::ExtractedMesh| {
-        mesh.through_scope = through_scope.contains(&entity);
+    let decorate = |mesh: &mut metal_renderer::snapshot::ExtractedMesh| {
         let Some(atlas) = lightmap.as_ref() else { return };
         if atlas.is_empty() || mesh.positions.is_empty() {
             return;

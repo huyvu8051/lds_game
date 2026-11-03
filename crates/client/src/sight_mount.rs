@@ -43,6 +43,15 @@ pub(crate) struct SightDef {
     /// weapon sighting down irons uses, and 0.525 is the AK's four-power
     /// scope. The rest are spaced between and want a balance pass.
     pub(crate) aim_fov_multiplier: f32,
+    /// How far down the bore from `Socket_Eye` the glass sits.
+    ///
+    /// Where the disc goes, and the one number that decides whether the
+    /// eyepiece survives. The socket is the rear mouth of the tube, so a
+    /// disc left there has the whole eyepiece body in front of it -- and
+    /// anything in front of the disc is what the circle takes away. Put it
+    /// at the glass instead and the housing the eye is behind stays, which
+    /// is the part a shooter sees around the picture.
+    pub(crate) window_forward: f32,
     /// The radius of the opening the eye looks through, if this sight has a
     /// tube at all. What the depth disc is cut to.
     pub(crate) window_radius: Option<f32>,
@@ -64,6 +73,7 @@ static RED_DOT_A: SightDef = SightDef {
     eye_rise: 0.047,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -74,6 +84,7 @@ static RED_DOT_B: SightDef = SightDef {
     eye_rise: 0.045,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -84,6 +95,7 @@ static HOLO_A: SightDef = SightDef {
     eye_rise: 0.031,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -94,6 +106,7 @@ static HOLO_B: SightDef = SightDef {
     eye_rise: 0.031,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -104,6 +117,7 @@ static HOLO_C: SightDef = SightDef {
     eye_rise: 0.048,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -114,6 +128,7 @@ static HOLO_D: SightDef = SightDef {
     eye_rise: 0.037,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -124,6 +139,7 @@ static SCOPE_2X: SightDef = SightDef {
     eye_rise: 0.044,
     aim_fov_multiplier: 0.620,
     ads_eye_relief: 0.12,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -134,6 +150,7 @@ static SCOPE_3X: SightDef = SightDef {
     eye_rise: 0.035,
     aim_fov_multiplier: 0.560,
     ads_eye_relief: 0.12,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -146,6 +163,7 @@ static SCOPE_4X: SightDef = SightDef {
     // four-power scope has been shipping with since long before any of this.
     aim_fov_multiplier: 0.525,
     ads_eye_relief: 0.12,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -156,6 +174,7 @@ static SCOPE_6X: SightDef = SightDef {
     eye_rise: 0.040,
     aim_fov_multiplier: 0.440,
     ads_eye_relief: 0.12,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -166,6 +185,7 @@ static SCOPE_8X: SightDef = SightDef {
     eye_rise: 0.053,
     aim_fov_multiplier: 0.380,
     ads_eye_relief: 0.12,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -182,6 +202,7 @@ static SCOPE_AK: SightDef = SightDef {
     eye_rise: 0.045,
     aim_fov_multiplier: 0.62,
     ads_eye_relief: 0.12,
+    window_forward: 0.000,
     window_radius: None,
 };
 
@@ -203,6 +224,7 @@ static SCOPE_M24: SightDef = SightDef {
     eye_rise: 0.030,
     aim_fov_multiplier: 0.280,
     ads_eye_relief: 0.12,
+    window_forward: 0.073,
     window_radius: Some(0.015),
 };
 
@@ -378,42 +400,10 @@ pub(crate) fn hide_sight_while_sighted(
     }
 }
 
-/// The half of a sight that sits in front of the glass.
-///
-/// Not hidden, unlike [`HideWhileSighted`]: the Metal path draws it after
-/// the world and against a depth disc stamped at the eyepiece, so inside the
-/// circle the world wins and outside it the tube is still solid. Looked
-/// through it is glass; looked at, it is a scope.
-#[derive(Component)]
-pub(crate) struct ThroughScope;
-
 /// The opening the eye looks through, as a disc: where it sits, which way it
 /// faces, and how wide it is.
 #[derive(Resource, Default)]
 pub(crate) struct ScopeWindow(pub(crate) Option<(Vec3, Vec3, f32)>);
-
-/// Tags every mesh under a node called `scope_far`.
-///
-/// By ancestry rather than on the node itself: the glTF loader hangs the
-/// primitives off the node, and it is the primitives that are drawn.
-pub(crate) fn wire_through_scope_meshes(
-    mut commands: Commands,
-    new_meshes: Query<Entity, Added<Mesh3d>>,
-    names: Query<&Name>,
-    child_of: Query<&ChildOf>,
-) {
-    for entity in &new_meshes {
-        let mut current = entity;
-        for _ in 0..8 {
-            if names.get(current).is_ok_and(|n| n.as_str().starts_with("scope_far")) {
-                commands.entity(entity).insert(ThroughScope);
-                break;
-            }
-            let Ok(parent) = child_of.get(current) else { break };
-            current = parent.0;
-        }
-    }
-}
 
 /// Where the disc goes this frame: the fitted sight's own eye socket, facing
 /// down the bore. Nothing fitted, or a sight with no tube, and there is no
@@ -426,7 +416,9 @@ pub(crate) fn track_scope_window(
 ) {
     window.0 = match (fitted.0.and_then(|sight| sight.def().window_radius), gun.single(), aim.single()) {
         (Some(radius), Ok(gun), Ok(glass)) => {
-            Some((glass.translation(), gun.rotation() * Vec3::NEG_Z, radius))
+            let forward = gun.rotation() * Vec3::NEG_Z;
+            let offset = fitted.0.map_or(0.0, |sight| sight.def().window_forward);
+            Some((glass.translation() + forward * offset, forward, radius))
         }
         _ => None,
     };

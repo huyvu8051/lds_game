@@ -1297,7 +1297,6 @@ app.init_resource::<MagazineInHand>()
                     sight_mount::follow_fitted_attachment,
                     sight_mount::wire_rail_nodes,
                     sight_mount::wire_ads_hidden_nodes,
-                    sight_mount::wire_through_scope_meshes,
                     // The gesture decides when the weapon actually wears it,
                     // so it has to have moved before fit_sight asks.
                     (
