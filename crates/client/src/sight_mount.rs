@@ -58,6 +58,11 @@ pub(crate) struct SightDef {
     /// and the gap between the two is what swells into a crescent when the
     /// eye comes off the axis. Zero leaves the opening clean.
     pub(crate) picture_radius: f32,
+    /// How deep the black fades in at the rim of the sight picture.
+    ///
+    /// The depth test that cuts it is all or nothing, so without this the
+    /// picture ends on a hard line. Zero keeps that line.
+    pub(crate) picture_feather: f32,
     /// The radius of the opening the eye looks through, if this sight has a
     /// tube at all. What the depth disc is cut to.
     pub(crate) window_radius: Option<f32>,
@@ -79,6 +84,7 @@ static RED_DOT_A: SightDef = SightDef {
     eye_rise: 0.047,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -91,6 +97,7 @@ static RED_DOT_B: SightDef = SightDef {
     eye_rise: 0.045,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -103,6 +110,7 @@ static HOLO_A: SightDef = SightDef {
     eye_rise: 0.031,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -115,6 +123,7 @@ static HOLO_B: SightDef = SightDef {
     eye_rise: 0.031,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -127,6 +136,7 @@ static HOLO_C: SightDef = SightDef {
     eye_rise: 0.048,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -139,6 +149,7 @@ static HOLO_D: SightDef = SightDef {
     eye_rise: 0.037,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -151,6 +162,7 @@ static SCOPE_2X: SightDef = SightDef {
     eye_rise: 0.044,
     aim_fov_multiplier: 0.620,
     ads_eye_relief: 0.12,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -163,6 +175,7 @@ static SCOPE_3X: SightDef = SightDef {
     eye_rise: 0.035,
     aim_fov_multiplier: 0.560,
     ads_eye_relief: 0.12,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -177,6 +190,7 @@ static SCOPE_4X: SightDef = SightDef {
     // four-power scope has been shipping with since long before any of this.
     aim_fov_multiplier: 0.525,
     ads_eye_relief: 0.12,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -189,6 +203,7 @@ static SCOPE_6X: SightDef = SightDef {
     eye_rise: 0.040,
     aim_fov_multiplier: 0.440,
     ads_eye_relief: 0.12,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -201,6 +216,7 @@ static SCOPE_8X: SightDef = SightDef {
     eye_rise: 0.053,
     aim_fov_multiplier: 0.380,
     ads_eye_relief: 0.12,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -219,6 +235,7 @@ static SCOPE_AK: SightDef = SightDef {
     eye_rise: 0.045,
     aim_fov_multiplier: 0.62,
     ads_eye_relief: 0.12,
+    picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
     window_radius: None,
@@ -242,6 +259,7 @@ static SCOPE_M24: SightDef = SightDef {
     eye_rise: 0.030,
     aim_fov_multiplier: 0.280,
     ads_eye_relief: 0.12,
+    picture_feather: 0.0030,
     picture_radius: 0.0125,
     window_forward: 0.073,
     window_radius: Some(0.015),

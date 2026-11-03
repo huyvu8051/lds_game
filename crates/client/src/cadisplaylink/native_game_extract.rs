@@ -293,6 +293,7 @@ pub fn extract_render_snapshot(
                     radius,
                     picture_centre: picture.to_array(),
                     picture_radius: sight.map_or(0.0, |s| s.def().picture_radius),
+                    picture_feather: sight.map_or(0.0, |s| s.def().picture_feather),
                 })
             }
             _ => None,

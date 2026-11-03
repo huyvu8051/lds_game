@@ -79,6 +79,12 @@ order:
 4. **the opening again**, into depth alone, which shuts the weapon out of
    all of it
 
+A fifth draw softens the rim: a band of black laid just inside the lens,
+opaque at the edge and clear a few millimetres in. The depth test that cuts
+the black is all or nothing, so without it the picture ends on a hard line.
+Blended, and it writes no depth -- it sits inside the opening, where the
+weapon loses anyway. `picture_feather` is how deep it reaches.
+
 Step 3 is the one that does the work, and it is why nothing has to be
 clamped: the black covers whatever the picture does not, wherever the
 picture happens to be, including nowhere.
@@ -102,7 +108,7 @@ limit on how dark it can ever get, which is the opposite of the point.
 
 | Where | What |
 |---|---|
-| `sight_mount.rs` | `window_radius`, `window_forward`, `picture_radius` |
+| `sight_mount.rs` | `window_radius`, `window_forward`, `picture_radius`, `picture_feather` |
 | `cadisplaylink/native_game_extract.rs` | works out the disc, flags the arms |
 | `metal_renderer/snapshot.rs` | `ScopeWindow`, `SkinnedRenderState::viewmodel` |
 | `metal_renderer/native_metal_renderer.rs` | `stamp_scope_disc`, `scope_picture_lens`, `draw_scope_shadow`, the late lists |
@@ -139,6 +145,9 @@ which is the picture before any of this. Only `scope_m24` has them today.
    show at rest: 12.5mm against the M24's 15mm. Closer to `window_radius`
    and the black only appears on a hard swing; further under and there is a
    permanent dark ring. Zero turns the shadow off.
+
+   `picture_feather` is how far the black fades in from that rim -- 3mm on
+   the M24, a fifth of the opening. Zero leaves a hard edge.
 
 5. **Run it and look.** The desktop binary draws through `metal_renderer`
    too, so this does not need a phone:
