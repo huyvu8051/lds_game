@@ -122,12 +122,22 @@ Both numbers are a rebuild, not an asset repack, since they live in the
   main pass uses. Hiding them with a threshold instead -- the first attempt
   -- popped them out of existence half way through the raise.
 
-- **The reticle is not part of the weapon.** It hangs off the eye like the
-  gun does, but it sits a metre down the barrel, past the disc, so on
-  `VIEWMODEL_LAYER` it lost the depth test inside the circle: the dot was
-  invisible until recoil kicked it out of the opening. It has
-  `RETICLE_LAYER` of its own now, which the extract does not treat as
-  viewmodel, so it draws with the world and ahead of the disc.
+- **The reticle is clipped to the circle, not masked by it** -- the one
+  thing on screen that works the opposite way round, because it belongs to
+  the picture rather than standing in front of it. It is drawn straight
+  after the disc with depth compare `Greater` and no write: inside the
+  circle the nearest stored depth is the disc, so the mark passes; outside,
+  it is the world, which is further than the mark, so the mark is cut. It
+  has `RETICLE_LAYER` of its own so the extract can tell it apart from the
+  weapon.
+
+- **A fitted sight has to override the weapon's own aperture.** `holo` on a
+  WeaponDef is the opening of the optic that gun was drawn wearing, and the
+  AK still carries one although that optic is a fitted sight now. With an
+  M24 scope on an AK the mark was tested against the AK's own 18mm window,
+  which the eye is nowhere near -- so the dot was gone until recoil swung
+  the gun through it, and then it flashed. A fitted sight means the sights
+  being up is the whole test.
 
 - **The decision belongs in the draw loop, not on the mesh.** Extraction is
   incremental: fitting a sight changes none of the weapon's meshes, so a flag

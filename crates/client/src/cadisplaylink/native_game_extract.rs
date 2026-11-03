@@ -427,6 +427,7 @@ pub fn extract_render_snapshot(
                 &geometry_already_uploaded,
                 &texture_already_uploaded,
                 on_viewmodel_layer(layers),
+                on_layer(layers, crate::RETICLE_LAYER),
                 &decorate,
             );
         }
@@ -448,6 +449,7 @@ pub fn extract_render_snapshot(
                 &geometry_already_uploaded,
                 &texture_already_uploaded,
                 on_viewmodel_layer(layers),
+                on_layer(layers, crate::RETICLE_LAYER),
                 &decorate,
             );
         }

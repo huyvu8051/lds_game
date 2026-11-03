@@ -190,6 +190,7 @@ pub(crate) struct Reticle(pub(crate) ReticleKind);
 /// dot away entirely.
 pub(crate) fn place_holo_reticle(
     active: Res<ActiveWeapon>,
+    fitted: Res<crate::sight_mount::FittedSight>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
     aim: Query<&GlobalTransform, With<AimSocket>>,
     gun: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<Reticle>)>,
@@ -207,8 +208,14 @@ pub(crate) fn place_holo_reticle(
     // A scope's mark answers to the sights being up, not to a window. There
     // is no window: past four times the glass is not what the player is
     // looking through, the screen is.
-    let visible = match def.holo.as_ref() {
-        Some(window) => {
+    let visible = match (fitted.0, def.holo.as_ref()) {
+        // What the eye is behind is the fitted sight, so the weapon's own
+        // window gets no say: it is the opening of an optic that has been
+        // taken off. Left in, an M24 scope on an AK was tested against the
+        // AK's own 18mm aperture -- the mark was gone until recoil swung the
+        // eye through it, and then it flashed.
+        (Some(_), _) => pose.sighted > SCOPED_RETICLE_SIGHTED,
+        (None, Some(window)) => {
             // Where the eye sits in the weapon's own frame. The bore runs down
             // -Z there, so this is also where the sight line crosses every
             // plane of the window, and the whole test is whether it lands
@@ -219,7 +226,7 @@ pub(crate) fn place_holo_reticle(
                 && in_weapon.y >= window.min.y
                 && in_weapon.y <= window.max.y
         }
-        None => def.scoped && pose.sighted > SCOPED_RETICLE_SIGHTED,
+        (None, None) => def.scoped && pose.sighted > SCOPED_RETICLE_SIGHTED,
     };
 
     // The same throw the scope mark takes, and for the same reason: only the
