@@ -173,9 +173,16 @@ pub(crate) fn view_pullback() -> f32 {
 /// muzzle-down, which is where a rifle hangs when its owner is waiting.
 const GUN_READY_SPEED: f32 = 7.0;
 const GUN_READY_LEAN_CUTOFF: f32 = 0.12;
-const GUN_SETTLE_JITTER: Vec3 = Vec3::new(0.030, 0.024, 0.020);
+/// How far the resting weapon may land from where it last rested.
+///
+/// A third of what it was -- 30mm sideways was enough to read as the weapon
+/// being put down somewhere new rather than coming back to the same place,
+/// and it is rerolled on every aim, lean and sprint, so the eye saw it
+/// constantly. The point is only that the pose is not a still image; 10mm
+/// does that and stops short of looking like a flinch.
+const GUN_SETTLE_JITTER: Vec3 = Vec3::new(0.010, 0.008, 0.007);
 /// Degrees about the bore the weapon can come to rest turned by.
-const GUN_SETTLE_TWIST_DEG: f32 = 3.0;
+const GUN_SETTLE_TWIST_DEG: f32 = 1.0;
 const GUN_SETTLE_SPEED: f32 = 3.0;
 const GUN_SHOULDER_SPEED: f32 = 9.0;
 
