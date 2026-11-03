@@ -50,6 +50,10 @@ pub struct ExtractQueries {
     /// The local player's own body. It is skinned, so the static mesh path
     /// skips it, and the skinned path only ever collected zombies and remote
     /// players -- which is why nobody drew it.
+    scope_window: SystemState<(
+        Q<'static, 'static, &'static GlobalTransform, With<crate::Gun>>,
+        Q<'static, 'static, &'static GlobalTransform, (With<crate::AimSocket>, Without<crate::Gun>)>,
+    )>,
     viewmodel_body: SystemState<(
         Q<'static, 'static, (bevy::ecs::entity::Entity, &'static GlobalTransform), With<crate::ViewmodelBody>>,
         Q<'static, 'static, &'static Children>,
@@ -85,6 +89,7 @@ impl ExtractQueries {
             camera: SystemState::new(world),
             zombies: SystemState::new(world),
             remote_players: SystemState::new(world),
+            scope_window: SystemState::new(world),
             viewmodel_body: SystemState::new(world),
             point_lights: SystemState::new(world),
             sun: SystemState::new(world),
@@ -252,22 +257,37 @@ pub fn extract_render_snapshot(
                 model: shared::zombie_kind_metal_model_name(kind.copied().unwrap_or_default()),
                 bounds_centre,
                 bounds_radius,
+                viewmodel: false,
             }
         })
         .collect();
 
-    // The arms go while the eye is behind a tube. They are a skinned actor,
-    // drawn in a pass of their own before the depth disc is stamped, so
-    // unlike the gun they cannot simply be held back and masked -- and this
-    // query reads no `Visibility`, so hiding them with a component does
-    // nothing here either. Not sending them is the whole of it.
-    let eye_in_the_tube = world
-        .get_resource::<crate::sight_mount::ScopeWindow>()
-        .is_some_and(|window| window.0.is_some())
-        && world
-            .get_resource::<crate::WeaponPose>()
-            .is_some_and(|pose| pose.sighted > crate::SCOPED_RETICLE_SIGHTED);
-    if !eye_in_the_tube {
+    // Worked out here rather than in a system, and the one-frame lag is why:
+    // a system runs in Update, so it reads transforms propagated at the end
+    // of the frame before, while the weapon's own mesh is read right here
+    // with this frame's. The disc then trailed the gun by a frame, which
+    // leaning or jumping made obvious. Read in the same place as the meshes
+    // and it cannot disagree with them.
+    let scope_window = {
+        let sight = world.get_resource::<crate::sight_mount::FittedSight>().and_then(|f| f.0);
+        let radius = sight.and_then(|s| s.def().window_radius);
+        let (gun, aim) =
+            queries.scope_window.get(world).expect("system param validation failed");
+        match (radius, gun.single(), aim.single()) {
+            (Some(radius), Ok(gun), Ok(glass)) => {
+                let forward = gun.rotation() * bevy::math::Vec3::NEG_Z;
+                let ahead = sight.map_or(0.0, |s| s.def().window_forward);
+                Some(metal_renderer::snapshot::ScopeWindow {
+                    centre: (glass.translation() + forward * ahead).to_array(),
+                    forward: forward.to_array(),
+                    radius,
+                })
+            }
+            _ => None,
+        }
+    };
+
+    {
         let (body_query, body_children, body_skinned, body_joints, body_bindposes) =
             queries.viewmodel_body.get(world).expect("system param validation failed");
         snapshot.skinned_actors.extend(body_query.iter().map(|(entity, transform)| {
@@ -285,6 +305,10 @@ pub fn extract_render_snapshot(
                 // a chance to wrongly drop the thing always on screen.
                 bounds_centre: [0.0; 3],
                 bounds_radius: 0.0,
+                // The arms are on the weapon's layer, so the scope's disc
+                // cuts them the way it cuts the gun. Nothing else skinned
+                // ever is.
+                viewmodel: true,
             }
         }));
     }
@@ -315,7 +339,10 @@ pub fn extract_render_snapshot(
                 shared::PLAYER_REST_HEIGHT * 2.0,
                 shared::PLAYER_RADIUS,
             );
-            SkinnedRenderState { transform, joint_matrices, model: "soldier", bounds_centre, bounds_radius }
+            SkinnedRenderState {
+                transform, joint_matrices, model: "soldier", bounds_centre, bounds_radius,
+                viewmodel: false,
+            }
         }),
     );
 
@@ -450,14 +477,7 @@ pub fn extract_render_snapshot(
     world.insert_resource(cache);
 
     snapshot.debug_lines = extract_hitbox_lines(world, &mut queries);
-    snapshot.scope_window = world
-        .get_resource::<crate::sight_mount::ScopeWindow>()
-        .and_then(|w| w.0)
-        .map(|(centre, forward, radius)| metal_renderer::snapshot::ScopeWindow {
-            centre: centre.to_array(),
-            forward: forward.to_array(),
-            radius,
-        });
+    snapshot.scope_window = scope_window;
     snapshot.generic_ui_nodes = extract_generic_ui_nodes(world, &mut queries, &texture_already_uploaded);
 
     world.insert_resource(queries);

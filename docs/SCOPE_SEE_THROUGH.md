@@ -16,141 +16,140 @@ extra render pass, which on a tile-based GPU means flushing tile memory to
 DRAM and loading it back. On the phone that is the most expensive thing a
 frame can be asked to do, and this frame is already warm.
 
-**Taking the weapon off the screen** (`hide_weapon_through_scope`, removed in
-this branch). One number -- `aim_fov_multiplier` -- deciding something that is
-really a judgement about which parts are in the way. It took the rifle, both
-arms and whatever was on the rail, and it took them in one frame, which reads
-as the gun vanishing rather than as looking down a tube.
+**Taking the weapon off the screen** (`hide_weapon_through_scope`, removed).
+One number -- `aim_fov_multiplier` -- deciding something that is really a
+judgement about which parts are in the way. It took the rifle, both arms and
+whatever was on the rail, and it took them in one frame, which reads as the
+gun vanishing rather than as looking down a tube. It also never worked on
+this renderer: the path draws the arms from a query that reads no
+`Visibility` at all.
 
-**Hiding the tube by a plane or a radius** (`ads_hide`, still in the tree).
-Better, because the asset says what goes rather than a formula. Still an
-on/off: the scope is there, then it is not.
+**Cutting the sight in two and hiding the far half** (`ads_hide`, still in
+the tree). Better, because the asset says what goes rather than a formula.
+Still an on/off: the scope is there, then it is not.
 
 ## What works
 
-Split the sight in two at the eyepiece. Draw the world. Stamp a **depth-only
-disc** at the eyepiece opening. Then draw the far half of the tube.
+Draw the world. Stamp a **depth-only disc** at the eyepiece glass. Then draw
+everything on the weapon's layer.
 
-Inside the circle the far half loses the depth test, and the world that is
+Inside the circle the weapon loses the depth test and the world that is
 already in the colour buffer stays. Outside the circle it draws exactly as it
-always did, so the scope is still a solid object when it is looked *at*
-rather than *through*.
+always did, so the gun is still a solid object when it is looked *at* rather
+than *through*.
 
 One extra draw of 32 triangles. No second pass, no stencil, no camera that
-has to be kept in agreement with the first one.
+has to be kept in agreement with the first one, and no asset work at all --
+the sight ships whole.
 
 The step that is *not* needed, and this is the whole saving: re-drawing the
 world inside the circle. With one camera and the magnification applied to its
 FOV, the world inside the circle is the same image, pixel for pixel, as the
-world already drawn. Only the tube has to be kept out of it.
+world already drawn. Only the weapon has to be kept out of it.
 
 It is also correct from any angle without being told the player is aiming:
 the disc is a real piece of geometry, so a line of sight that passes through
 the opening sees the world and one that does not sees tube. That is what an
-actual tube does.
+actual tube does, and it is why there is no threshold anywhere in this -- a
+threshold is what made the arms pop out of existence half way through the
+ADS raise, back when they were simply not sent.
 
 ## The pieces
 
 | Where | What |
 |---|---|
-| `zombie_assets/tools/split_ads_hide.py` | cuts the sight into two nodes |
-| `sight_mount.rs` | `ThroughScope`, `ScopeWindow`, `SightDef::window_radius` |
-| `cadisplaylink/native_game_extract.rs` | flags the meshes, sends the disc |
-| `metal_renderer/snapshot.rs` | `ExtractedMesh::through_scope`, `ScopeWindow` |
-| `metal_renderer/native_metal_renderer.rs` | `through_slots`, `stamp_scope_disc` |
+| `sight_mount.rs` | `SightDef::window_radius`, `SightDef::window_forward` |
+| `cadisplaylink/native_game_extract.rs` | works out the disc, flags the arms |
+| `metal_renderer/snapshot.rs` | `ScopeWindow`, `SkinnedRenderState::viewmodel` |
+| `metal_renderer/native_metal_renderer.rs` | `stamp_scope_disc`, the late lists |
 
-The node name is the contract. A node called **`scope_far`** is the half
-drawn late; a node called **`ads_hide`** is the older behaviour and is taken
-off the screen instead. A sight carries one or neither, never both -- hidden
-geometry cannot also be drawn late.
+Two numbers per sight, and their absence is meaningful: a sight with no
+`window_radius` gets no disc, and the weapon then draws with everything else,
+which is the picture before any of this. Only `scope_m24` has them today.
 
-`window_radius` on the `SightDef` is what the disc is cut to, and its absence
-is meaningful: a sight without one gets no disc, and its `scope_far` half
-then draws with everything else, which is the same picture as before any of
-this.
+`window_forward` is the one that is easy to get wrong -- see below.
 
 ## Doing it for the next scope
 
 1. **Lift the sight off the gun** if it is still welded to one, and run it
-   through the extractor. `tools/lift_node.py` then `tools/extract_optic.py`;
+   through the extractor: `tools/lift_node.py` then `tools/extract_optic.py`.
    `tools/harvest_sights.sh` has a row per sight showing how each was done.
-   Keep the uncut result as `<name>_whole.glb` -- every re-cut below starts
-   from it, and the extractor does not have to run again.
 
-2. **Find the eyepiece in the sight's own frame.** The extractor prints it:
-   `THONGSO dai=320 cao=64 rong=59 truc=30 mat=203 vat=117` means the eye end
-   is at y = -203mm, the objective at +117mm, and the optical axis sits 30mm
-   over the mount. Origin is the bottom of the mount foot, +Y towards the
+2. **Read the eyepiece off the extractor's own line.** `THONGSO dai=320
+   cao=64 rong=59 truc=30 mat=203 vat=117` means the eye end is at
+   y = -203mm, the objective at +117mm, and the optical axis sits 30mm over
+   the mount. Origin is the bottom of the mount foot, +Y towards the
    objective.
 
-3. **Cut just in front of the eyepiece.** For the M24 the eyepiece body runs
-   -203 to -134, so:
+3. **Find where the eyepiece body ends.** Walk the tube's radius along the
+   bore in Blender; the eyepiece is the stretch of narrow tube behind the
+   first flare. On the M24 it runs -203 to -134, so `window_forward` is
+   0.073: 73mm down the bore from `Socket_Eye`.
 
-   ```
-   blender -b --python tools/split_ads_hide.py -- \
-     attachments/sights/scope_m24/scope_m24_whole.glb \
-     attachments/sights/scope_m24/scope_m24.glb \
-     keep=-130 side=eye name=scope_far
-   ```
+4. **Measure the opening.** `window_radius` is the mouth the eye looks
+   through. The M24's tube waist reads 11mm and its eyepiece mouth 18mm, and
+   15mm is between them -- a starting point, not a measurement. Smaller is a
+   stricter hole, larger clears more tube.
 
-   Shards go by their centre, so rings do not get sliced; on the M24 exactly
-   one shard of eight hundred straddled the plane. The tool prints how many
-   faces went each way -- 1152 stay, 4574 are drawn late.
-
-4. **Pack it**: `node tools/pack_for_game.js <name>`, which needs a row in
-   that file pointing at the sight's glb.
-
-5. **Give the `SightDef` a `window_radius`.** The M24's is 15mm: its tube
-   waist reads 11mm and the eyepiece mouth 18mm, and the middle of those is a
-   starting point, not a measurement. Smaller is a stricter hole, larger
-   clears more tube.
-
-6. **Run it and look.** The desktop binary draws through `metal_renderer` as
-   well, so this does not need a phone:
+5. **Run it and look.** The desktop binary draws through `metal_renderer`
+   too, so this does not need a phone:
 
    ```
    MAP_ID=1 WEAPON=3 SIGHT=13 NO_AUTOPILOT=1 cargo run -p client --bin native_desktop --release
    ```
 
-Changing the cut or the radius is two commands and a restart -- no Rust
-build. The assets are read once at load, so the game has to be restarted
-rather than reloaded.
+Both numbers are a rebuild, not an asset repack, since they live in the
+`SightDef`.
 
 ## What bit us
 
-- **The split node must not be called `ads_hide`** if you want it drawn late.
-  That name is wired to `HideWhileSighted`, which takes it off the screen, so
-  the late draw would have nothing to draw.
+- **The disc belongs at the glass, not at `Socket_Eye`.** The socket is the
+  rear mouth of the tube, and everything *in front of* the disc is what the
+  circle takes away -- so a disc left at the socket ate the eyepiece housing
+  itself, and looking through the scope the tube behind the glass was simply
+  missing. That is what `window_forward` exists for.
 
-- **The world has to be in the buffer before the tube.** Opaque draws are
-  grouped by texture, not sorted by distance, but nothing guarantees the tube
-  comes last -- so it is held out of that loop entirely and drawn after the
-  blended pass, which is after everything else in the world.
+- **Anything that must line up with the picture has to be read where the
+  meshes are read.** The disc was first worked out in a system, which runs in
+  `Update`, so it saw transforms propagated at the end of the frame before
+  while the weapon's own mesh was read in the extract with this frame's. The
+  disc trailed the gun by one frame, which leaning or jumping made obvious.
+  It is computed in `extract_render_snapshot` now, and cannot disagree.
 
-- **`decorate` had to learn the entity.** The hook the host uses to attach
-  lightmaps only saw the mesh, and which node is a sight's far half is a fact
-  about the entity. It now takes both.
+- **The arms are a skinned actor**, drawn in a pass of their own, so they are
+  not covered by holding static meshes back. They carry `viewmodel: true` on
+  `SkinnedRenderState` and are drawn after the disc by the same closure the
+  main pass uses. Hiding them with a threshold instead -- the first attempt
+  -- popped them out of existence half way through the raise.
 
-- **The disc faces down the bore, not at the camera.** It is geometry, not a
-  billboard; a disc that turned to face the eye would stop being a hole in
-  the tube and start being a sprite stuck to the screen.
+- **The reticle is not part of the weapon.** It hangs off the eye like the
+  gun does, but it sits a metre down the barrel, past the disc, so on
+  `VIEWMODEL_LAYER` it lost the depth test inside the circle: the dot was
+  invisible until recoil kicked it out of the opening. It has
+  `RETICLE_LAYER` of its own now, which the extract does not treat as
+  viewmodel, so it draws with the world and ahead of the disc.
 
-- **Which end is which.** The first cut kept the objective end, because that
-  is the end that was picked in Blender. Looking through the sight, the half
-  that must survive is the one the eye is *behind*. `side=` exists because of
-  that mistake.
+- **The decision belongs in the draw loop, not on the mesh.** Extraction is
+  incremental: fitting a sight changes none of the weapon's meshes, so a flag
+  written at extract time would still say "draw me early" on every one of
+  them.
 
 ## Still open
 
-- **Desktop through `bevy_render`** does none of this. The windowed Bevy path
-  has its own phases, and the disc would have to go into `Transparent3d` with
-  the tube behind it on `depth_bias`, since Bevy 0.19 does not expose stencil
-  to a standard material. Nothing in the game runs that path today.
+- **Desktop through `bevy_render`** does none of this. That path has its own
+  phases, and the disc would have to go into `Transparent3d` with the weapon
+  behind it on `depth_bias`, since Bevy 0.19 does not expose stencil to a
+  standard material. Nothing in the game runs that path today -- the desktop
+  binary is `native_desktop`, which is this renderer.
 
 - **The iOS build does not link.** `cpal` wants `_AVAudioSession*` and
   nothing pulls in AVFoundation. One line next to the `c++` and `z` lines in
   `crates/client/build.rs` fixes it; it has not been done.
 
-- **Only `scope_m24` carries a `scope_far` node.** The 6x and 8x are the
-  obvious next two: both are long enough that the tube fills the frame, and
-  both already come out of the extractor as a single clean mesh.
+- **`HideWhileSighted` and `ads_hide` are inert.** No sight carries that node
+  any more. Kept because it costs a name comparison, and it is the only thing
+  the windowed Bevy path could use.
+
+- **Only `scope_m24` has a window.** The 6x and 8x are the obvious next two:
+  both are long enough that the tube fills the frame, and both already come
+  out of the extractor as a single clean mesh. Two numbers each.

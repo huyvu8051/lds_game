@@ -692,6 +692,15 @@ const FPS_CAP_PRESETS: [u32; 4] = [120, 80, 60, 30];
 const WORLD_LAYER: usize = 0;
 const VIEWMODEL_LAYER: usize = 1;
 
+/// The reticle marks, which are not part of the weapon even though they hang
+/// off the eye with it.
+///
+/// Their own layer because the weapon's is the one the scope's depth disc
+/// holds back and cuts: the marks sit a metre down the barrel, past the
+/// disc, so left on that layer they lose the depth test inside the circle --
+/// the dot was invisible until recoil kicked it out of the opening.
+const RETICLE_LAYER: usize = 2;
+
 /// The ring that blacks out everything outside the sight picture while the
 /// main camera is doing the magnifying itself. Its own layer because the
 /// viewmodel layer is exactly what gets switched off in that mode.
@@ -943,7 +952,6 @@ app.init_resource::<MagazineInHand>()
 .init_resource::<sight_swap::ShownSight>()
 .init_resource::<sight_swap::SightSwap>()
 .init_resource::<sight_mount::SightDrop>()
-.init_resource::<sight_mount::ScopeWindow>()
 .init_resource::<PlayerModelPoseOverride>()
         .register_type::<PlayerModelPose>()
         .register_type::<ZombiePose>()
@@ -1389,7 +1397,6 @@ app.init_resource::<MagazineInHand>()
             (
                 place_holo_reticle,
                 sight_mount::hide_sight_while_sighted,
-                sight_mount::track_scope_window,
                 (apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
                 update_weapon_slot_ammo.run_if(ui_tick()),
                 update_crosshair,

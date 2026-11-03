@@ -361,7 +361,7 @@ pub(crate) fn setup_gameplay(
                 Msaa::Off,
                 bevy::core_pipeline::prepass::DepthPrepass,
             ),
-            RenderLayers::from_layers(&[WORLD_LAYER, VIEWMODEL_LAYER]),
+            RenderLayers::from_layers(&[WORLD_LAYER, VIEWMODEL_LAYER, RETICLE_LAYER]),
             RenderTarget::from(scene_target.0.clone()),
         ))
         .id();
@@ -453,7 +453,7 @@ pub(crate) fn setup_gameplay(
         MeshMaterial3d(materials.add(mark_material(Color::linear_rgb(28.0, 0.6, 0.2)))),
         Transform::default(),
         Visibility::Hidden,
-        RenderLayers::layer(VIEWMODEL_LAYER),
+        RenderLayers::layer(RETICLE_LAYER),
         Reticle(ReticleKind::Dot),
         ChildOf(camera),
     ));
@@ -464,7 +464,7 @@ pub(crate) fn setup_gameplay(
         MeshMaterial3d(materials.add(mark_material(Color::BLACK))),
         Transform::default(),
         Visibility::Hidden,
-        RenderLayers::layer(VIEWMODEL_LAYER),
+        RenderLayers::layer(RETICLE_LAYER),
         Reticle(ReticleKind::Duplex),
         ChildOf(camera),
         // The red centre sits in the duplex's gap. A child, so it is carried
@@ -474,7 +474,7 @@ pub(crate) fn setup_gameplay(
             Mesh3d(meshes.add(Circle::new(SCOPE_RETICLE_CENTRE_DOT_SIZE / 2.0).mesh())),
             MeshMaterial3d(materials.add(mark_material(Color::linear_rgb(35.0, 0.0, 0.0)))),
             Transform::default(),
-            RenderLayers::layer(VIEWMODEL_LAYER),
+            RenderLayers::layer(RETICLE_LAYER),
         )],
     ));
 

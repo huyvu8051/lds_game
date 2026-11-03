@@ -400,30 +400,6 @@ pub(crate) fn hide_sight_while_sighted(
     }
 }
 
-/// The opening the eye looks through, as a disc: where it sits, which way it
-/// faces, and how wide it is.
-#[derive(Resource, Default)]
-pub(crate) struct ScopeWindow(pub(crate) Option<(Vec3, Vec3, f32)>);
-
-/// Where the disc goes this frame: the fitted sight's own eye socket, facing
-/// down the bore. Nothing fitted, or a sight with no tube, and there is no
-/// disc -- the far half is then drawn with everything else.
-pub(crate) fn track_scope_window(
-    fitted: Res<FittedSight>,
-    gun: Query<&GlobalTransform, With<crate::Gun>>,
-    aim: Query<&GlobalTransform, (With<crate::AimSocket>, Without<crate::Gun>)>,
-    mut window: ResMut<ScopeWindow>,
-) {
-    window.0 = match (fitted.0.and_then(|sight| sight.def().window_radius), gun.single(), aim.single()) {
-        (Some(radius), Ok(gun), Ok(glass)) => {
-            let forward = gun.rotation() * Vec3::NEG_Z;
-            let offset = fitted.0.map_or(0.0, |sight| sight.def().window_forward);
-            Some((glass.translation() + forward * offset, forward, radius))
-        }
-        _ => None,
-    };
-}
-
 /// Tags the rail and its ends. `wire_weapon_sockets` handles the sockets the
 /// rest of the weapon already had; these are the ones only a railed weapon
 /// carries, and the rail itself is a mesh node rather than a socket.
