@@ -362,7 +362,15 @@ pub fn extract_render_snapshot(
     // and the key has to be computed from world-space positions, which means
     // transforming the mesh -- cheap, but only worth doing for the map.
     let lightmap = world.get_resource::<crate::lightmap::Lightmap>().map(|l| l.by_key.clone());
-    let decorate = |mesh: &mut metal_renderer::snapshot::ExtractedMesh| {
+    // One query up front rather than a lookup per mesh: a handful of entities
+    // carry this and the hook runs for every mesh in the map.
+    let through_scope: std::collections::HashSet<bevy::ecs::entity::Entity> = world
+        .query_filtered::<bevy::ecs::entity::Entity, bevy::ecs::query::With<crate::sight_mount::ThroughScope>>()
+        .iter(world)
+        .collect();
+    let decorate = |entity: bevy::ecs::entity::Entity,
+                    mesh: &mut metal_renderer::snapshot::ExtractedMesh| {
+        mesh.through_scope = through_scope.contains(&entity);
         let Some(atlas) = lightmap.as_ref() else { return };
         if atlas.is_empty() || mesh.positions.is_empty() {
             return;
@@ -439,6 +447,14 @@ pub fn extract_render_snapshot(
     world.insert_resource(cache);
 
     snapshot.debug_lines = extract_hitbox_lines(world, &mut queries);
+    snapshot.scope_window = world
+        .get_resource::<crate::sight_mount::ScopeWindow>()
+        .and_then(|w| w.0)
+        .map(|(centre, forward, radius)| metal_renderer::snapshot::ScopeWindow {
+            centre: centre.to_array(),
+            forward: forward.to_array(),
+            radius,
+        });
     snapshot.generic_ui_nodes = extract_generic_ui_nodes(world, &mut queries, &texture_already_uploaded);
 
     world.insert_resource(queries);

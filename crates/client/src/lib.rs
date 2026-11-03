@@ -943,6 +943,7 @@ app.init_resource::<MagazineInHand>()
 .init_resource::<sight_swap::ShownSight>()
 .init_resource::<sight_swap::SightSwap>()
 .init_resource::<sight_mount::SightDrop>()
+.init_resource::<sight_mount::ScopeWindow>()
 .init_resource::<PlayerModelPoseOverride>()
         .register_type::<PlayerModelPose>()
         .register_type::<ZombiePose>()
@@ -1296,6 +1297,7 @@ app.init_resource::<MagazineInHand>()
                     sight_mount::follow_fitted_attachment,
                     sight_mount::wire_rail_nodes,
                     sight_mount::wire_ads_hidden_nodes,
+                    sight_mount::wire_through_scope_meshes,
                     // The gesture decides when the weapon actually wears it,
                     // so it has to have moved before fit_sight asks.
                     (
@@ -1388,6 +1390,7 @@ app.init_resource::<MagazineInHand>()
             (
                 place_holo_reticle,
                 sight_mount::hide_sight_while_sighted,
+                sight_mount::track_scope_window,
                 (apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
                 update_weapon_slot_ammo.run_if(ui_tick()),
                 update_crosshair,

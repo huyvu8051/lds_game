@@ -292,6 +292,12 @@ the AK's definition records that the optic camera was removed and "the
 whole screen is the sight picture now". An 8x or a 15x through
 `aim_fov_multiplier` alone may or may not be enough.
 
+What a long scope needs on top of the magnification is to stop being in
+the way of its own picture. That is done, for the M24, by cutting the
+sight in two at the eyepiece and drawing the far half after the world
+against a depth disc -- see `SCOPE_SEE_THROUGH.md`, which is the recipe
+for every scope after it.
+
 ## Phases
 
 1. **Audit.** Measure the rail on all thirty-three downloads and write
