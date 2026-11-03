@@ -240,13 +240,18 @@ pub(crate) fn on_request_restart(
         commands.entity(entity).despawn();
     }
 
-    let spawns: Vec<(Vec3, f32)> = points
-        .0
-        .iter()
-        .take(scenario.zombie_count())
-        .map(|p| (*p + Vec3::Y * ZOMBIE_REST_HEIGHT, 0.0))
-        .collect();
-    spawn_zombies(&mut commands, &spawns, true);
+    // The wave mode starts empty and lets wave one fill the street, the same
+    // way it does on a fresh run. A standing crowd here would be bodies no
+    // wave ever budgeted for.
+    if !crate::waves::in_wave_mode() {
+        let spawns: Vec<(Vec3, f32)> = points
+            .0
+            .iter()
+            .take(scenario.zombie_count())
+            .map(|p| (*p + Vec3::Y * ZOMBIE_REST_HEIGHT, 0.0))
+            .collect();
+        spawn_zombies(&mut commands, &spawns, true);
+    }
     let player_spawn = scenario.player_spawn();
 
     for (entity, mut transform, mut player) in &mut players {

@@ -70,7 +70,14 @@ pub(crate) fn not_in_wave_mode() -> bool {
 #[derive(Resource)]
 pub(crate) struct Wave {
     pub(crate) number: u32,
-    budget: u32,
+    /// Everything this wave will send, decided the moment it begins and
+    /// drained a burst at a time.
+    ///
+    /// A list rather than a running budget, because a budget cannot be
+    /// counted in zombies: a Soldier costs three and is still one of them,
+    /// so "12 left to spend" is anywhere between four and twelve bodies. The
+    /// HUD says how many are left to kill, and that number has to be true.
+    pending: Vec<shared::ZombieKind>,
     burst_timer: f32,
     /// Counts down the pause after a wave is cleared. Zero while a wave runs.
     break_timer: f32,
@@ -84,7 +91,7 @@ impl Default for Wave {
         // gets the same breath before the first wave as between any two.
         Self {
             number: 0,
-            budget: 0,
+            pending: Vec::new(),
             burst_timer: 0.0,
             break_timer: WAVE_BREAK_SECONDS,
             just_cleared: None,
@@ -97,6 +104,37 @@ impl Wave {
         WAVE_BUDGET_BASE + WAVE_BUDGET_GAIN * number.saturating_sub(1)
     }
 
+    /// How many are left to kill: the ones still standing plus the ones
+    /// this wave has not sent yet.
+    pub(crate) fn left(&self, alive: u32) -> u32 {
+        self.pending.len() as u32 + alive
+    }
+
+    /// Turns a budget into a crowd, once, when the wave starts.
+    fn roll(&mut self) {
+        let budget = Self::budget_for(self.number);
+        let weights = self.kind_weights();
+        let mut spent = 0;
+        let mut i = 0u32;
+        self.pending.clear();
+        while spent < budget {
+            // A number that walks rather than repeats, so the crowd is a mix
+            // rather than runs of one kind.
+            let phase = ((self.number * 31 + i * 7) as f32 * 0.6180339).fract();
+            let kind = shared::zombie_kind_for_phase(phase, weights);
+            let cost = kind.stats().cost;
+            // The cheap kinds all cost one, so the remainder always finds
+            // something to buy and this cannot spin.
+            if spent + cost > budget {
+                self.pending.push(shared::ZombieKind::Classic);
+                break;
+            }
+            spent += cost;
+            self.pending.push(kind);
+            i += 1;
+        }
+    }
+
     /// What a zombie born in this wave starts with.
     pub(crate) fn health(&self) -> f32 {
         let n = self.number.max(1) - 1;
@@ -106,16 +144,21 @@ impl Wave {
     /// What the wave is willing to send, as weights over the three kinds.
     ///
     /// Classic alone to begin with, because the first wave should read as the
-    /// game the player already knows. The quick one arrives at three and the
-    /// heavy one at five, and from there the mix shifts steadily towards the
-    /// heavy one without ever dropping the others -- a wave of nothing but
-    /// Soldiers is slow, and slow is not hard.
+    /// game the player already knows. The soldier joins at three and its
+    /// share keeps climbing without the classic ever dropping out -- a wave
+    /// of nothing but soldiers is slow, and slow is not hard.
+    ///
+    /// The female stays at zero. She carries three 4096 textures, 192 MB
+    /// decoded, and her rig is a different one: twenty-eight joints in a
+    /// different order, so she cannot borrow the classic's clips the way the
+    /// soldier does and would go on standing still while biting. Dropped
+    /// until she has clips of her own.
     fn kind_weights(&self) -> [f32; 3] {
         let n = self.number as f32;
         [
             1.0,
-            if self.number >= 5 { (n - 4.0) * 0.12 } else { 0.0 },
             if self.number >= 3 { (n - 2.0) * 0.20 } else { 0.0 },
+            0.0,
         ]
     }
 }
@@ -138,29 +181,20 @@ pub(crate) fn advance_wave(
             return;
         }
         wave.number += 1;
-        wave.budget = Wave::budget_for(wave.number);
+        wave.roll();
         wave.burst_timer = 0.0;
-        info!("[wave] {} begins, budget {}", wave.number, wave.budget);
+        info!("[wave] {} begins, {} zombies", wave.number, wave.pending.len());
         return;
     }
 
     let alive = zombies.iter().count() as u32;
 
-    if wave.budget == 0 {
+    if wave.pending.is_empty() {
         // Spent and empty: the wave is done. Nothing is spawned during the
         // break, so the field stays clear for as long as the banner is up.
-        if alive > 0 {
-            // Throttled by the burst timer, which is doing nothing else here.
-            wave.burst_timer -= dt;
-            if wave.burst_timer <= 0.0 {
-                wave.burst_timer = 5.0;
-                info!("[wave] {} spent, {} still alive", wave.number, alive);
-            }
-        }
         if alive == 0 {
             wave.just_cleared = Some(wave.number);
             wave.break_timer = WAVE_BREAK_SECONDS;
-            info!("[wave] {} cleared", wave.number);
         }
         return;
     }
@@ -176,30 +210,16 @@ pub(crate) fn advance_wave(
     }
 
     let room = shared::ZOMBIE_MAX_COUNT.saturating_sub(alive);
-    let mut sending = Vec::new();
-    let weights = wave.kind_weights();
+    let take = (WAVE_BURST_SIZE.min(room) as usize).min(wave.pending.len());
     let health = wave.health();
-    for i in 0..WAVE_BURST_SIZE.min(room) {
-        // The same phase trick the sandbox spawner uses to pick a kind: a
-        // number that walks rather than repeats, so a burst is a mix.
-        let phase = ((wave.number * 31 + i * 7) as f32 * 0.6180339).fract();
-        let kind = shared::zombie_kind_for_phase(phase, weights);
-        let cost = kind.stats().cost;
-        if cost > wave.budget {
-            break;
-        }
-        wave.budget -= cost;
+    let number = wave.number;
+    let mut sending = Vec::new();
+    for (i, kind) in wave.pending.drain(..take).enumerate() {
+        let phase = ((number * 17 + i as u32 * 7) as f32 * 0.6180339).fract();
         let point = points.0[(phase * points.0.len() as f32) as usize % points.0.len()];
         sending.push((point + Vec3::Y * shared::ZOMBIE_REST_HEIGHT, kind, health * kind.stats().health));
     }
     if !sending.is_empty() {
-        info!(
-            "[wave] {} burst of {}, budget {} left, {} alive",
-            wave.number,
-            sending.len(),
-            wave.budget,
-            alive
-        );
         commands.trigger(SpawnWaveZombies(sending));
     }
 }
@@ -212,43 +232,70 @@ pub(crate) struct SpawnWaveZombies(pub(crate) Vec<(Vec3, shared::ZombieKind, f32
 
 /// The banner that says a wave is done.
 ///
-/// Spawned on the clear and left to time itself out, the way a kill feed
-/// entry does -- there is no state to keep, so there is no resource for it.
+/// Built once at startup and hidden, rather than spawned on the clear. A
+/// runtime-spawned root node reported a laid-out 3190x106 box, Visibility
+/// Inherited and InheritedVisibility true, and still drew nothing -- even
+/// with an opaque background and the game-over z-index. Every other piece of
+/// UI in this game is built in the same startup pass; this one is now too,
+/// and all a cleared wave does is set a timer.
 #[derive(Component)]
 pub(crate) struct WaveBanner {
     remaining: f32,
 }
 
-const BANNER_SECONDS: f32 = 3.2;
-const BANNER_FADE: f32 = 1.0;
+#[derive(Component)]
+pub(crate) struct WaveBannerText;
+
+const BANNER_SECONDS: f32 = 5.0;
+const BANNER_FADE: f32 = 1.2;
+
+pub(crate) fn spawn_wave_banner(commands: &mut Commands) {
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Percent(26.0),
+                width: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            // Above the HUD, not below it: every HUD root carries
+            // STATIC_UI_Z_INDEX, so the 40 this started at put the banner
+            // underneath all of them.
+            GlobalZIndex(crate::STATIC_UI_Z_INDEX + 25),
+            Visibility::Hidden,
+            WaveBanner { remaining: 0.0 },
+            crate::NativeUiRoot,
+        ))
+        .with_children(|root| {
+            root.spawn((
+                Text::new(String::new()),
+                TextFont { font_size: FontSize::Px(44.0), ..default() },
+                TextColor(Color::srgb(0.92, 0.22, 0.14)),
+                WaveBannerText,
+            ));
+        });
+}
 
 pub(crate) fn announce_wave(
-    mut commands: Commands,
     wave: Res<Wave>,
     screams: Option<Res<crate::audio::WaveScreams>>,
+    mut commands: Commands,
+    mut banner: Query<(&mut WaveBanner, &mut Visibility)>,
+    mut text: Query<&mut Text, With<WaveBannerText>>,
 ) {
     let Some(cleared) = wave.just_cleared else { return };
 
-    commands.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Percent(26.0),
-            width: Val::Percent(100.0),
-            justify_content: JustifyContent::Center,
-            ..default()
-        },
-        // Nothing behind it: a plate would read as a menu, and this is meant
-        // to land over the fight rather than interrupt it.
-        GlobalZIndex(40),
-        WaveBanner { remaining: BANNER_SECONDS },
-        children![
-            (
-                Text::new(format!("WAVE {cleared} CLEARED")),
-                TextFont { font_size: FontSize::Px(44.0), ..default() },
-                TextColor(Color::srgb(0.92, 0.22, 0.14)),
-            ),
-        ],
-    ));
+    let Ok((mut banner, mut visibility)) = banner.single_mut() else {
+        warn!("[wave] no banner to show -- spawn_wave_banner did not run");
+        return;
+    };
+    banner.remaining = BANNER_SECONDS;
+    *visibility = Visibility::Visible;
+    if let Ok(mut text) = text.single_mut() {
+        text.0 = format!("WAVE {cleared} CLEARED");
+    }
+    info!("[wave] {cleared} cleared -- banner up");
 
     if let Some(screams) = screams {
         if let Some(sample) = screams.0.first() {
@@ -264,26 +311,25 @@ pub(crate) fn announce_wave(
 }
 
 pub(crate) fn fade_wave_banner(
-    mut commands: Commands,
     time: Res<Time>,
-    mut banners: Query<(Entity, &mut WaveBanner, &Children)>,
-    mut colours: Query<&mut TextColor>,
+    mut banner: Query<(&mut WaveBanner, &mut Visibility)>,
+    mut colours: Query<&mut TextColor, With<WaveBannerText>>,
 ) {
-    for (entity, mut banner, children) in &mut banners {
-        banner.remaining -= time.delta_secs();
-        if banner.remaining <= 0.0 {
-            commands.entity(entity).despawn();
-            continue;
-        }
-        let alpha = (banner.remaining / BANNER_FADE).clamp(0.0, 1.0);
-        for &child in children {
-            if let Ok(mut colour) = colours.get_mut(child) {
-                colour.0.set_alpha(alpha);
-            }
-        }
+    let Ok((mut banner, mut visibility)) = banner.single_mut() else { return };
+    if banner.remaining <= 0.0 {
+        return;
+    }
+    banner.remaining -= time.delta_secs();
+    if banner.remaining <= 0.0 {
+        banner.remaining = 0.0;
+        *visibility = Visibility::Hidden;
+        return;
+    }
+    let alpha = (banner.remaining / BANNER_FADE).clamp(0.0, 1.0);
+    for mut colour in &mut colours {
+        colour.0.set_alpha(alpha);
     }
 }
-
 
 /// Tops the reserves up when a wave is cleared.
 ///
@@ -306,4 +352,43 @@ pub(crate) fn refill_between_waves(
             info!("[wave] refilled {} from {} to {}", kind.label(), had, WAVE_AMMO_FLOOR);
         }
     }
+}
+
+/// Puts the siege back to wave one when the player dies and restarts.
+///
+/// A restart already clears the field, moves the player back and refills
+/// their health. What it did not do was touch the wave: dying on wave
+/// fourteen and pressing R left the counter on fourteen, so the next wave
+/// out of the gate was fifteen against a player who had just died.
+///
+/// The kit goes back too. Carrying a wave-fourteen arsenal into wave one is
+/// the opposite of a penalty -- dying would have been the fastest way to an
+/// easy fight with a full pack.
+pub(crate) fn reset_waves_on_restart(
+    trigger: On<shared::GameStateEvent>,
+    mut wave: ResMut<Wave>,
+    mut inventory: ResMut<crate::inventory::Inventory>,
+    mut loadout: ResMut<crate::inventory::Loadout>,
+    mut equipment: ResMut<crate::inventory::Equipment>,
+    mut attachments: ResMut<crate::inventory::Attachments>,
+    mut request: ResMut<crate::weapon::WeaponSwitchRequest>,
+    mut banner: Query<(&mut WaveBanner, &mut Visibility)>,
+) {
+    if !matches!(trigger.event(), shared::GameStateEvent::Restarted) || !in_wave_mode() {
+        return;
+    }
+    *wave = Wave::default();
+    *inventory = crate::inventory::Inventory::default();
+    *loadout = crate::inventory::Loadout::default();
+    *equipment = crate::inventory::Equipment::default();
+    *attachments = crate::inventory::Attachments::default();
+    // The viewmodel only follows a request, not the loadout: without this the
+    // player keeps holding whatever they died with while the pack says
+    // otherwise.
+    request.0 = loadout.get(loadout.active);
+    if let Ok((mut banner, mut visibility)) = banner.single_mut() {
+        banner.remaining = 0.0;
+        *visibility = Visibility::Hidden;
+    }
+    info!("[wave] restart -- back to wave one");
 }

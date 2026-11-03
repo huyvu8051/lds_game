@@ -163,10 +163,25 @@ pub const ZOMBIE_SOLDIER_PATH: &str = "characters/zombie_soldier/mesh/zombie_sol
 
 pub const ZOMBIE_FEMALE_PATH: &str = "characters/zombie_female/mesh/zombie_female.glb";
 
+/// Which file a kind's *clips* come from, which is not always its own.
+///
+/// The soldier reads the classic's. Its own glb carries three clips -- an
+/// idle, a walk and a run -- so it stood still while biting and had no crawl
+/// at all, and the classic beside it has forty-nine. The two rigs share
+/// twenty-three joints with the same names in the same order, which is what
+/// makes the loan work.
+///
+/// Their bind poses do *not* match: the inverse bind matrices differ by up
+/// to 104, an axis permutation rather than rounding, and the merge checklist
+/// in zombie_assets/CLIP_STATUS.md calls that a reason not to merge. It is
+/// the right rule for merging clips into a file. Here nothing is merged --
+/// the soldier mesh keeps its own skin and its own inverse bind matrices,
+/// and only the joint transforms are borrowed -- so the mismatch does not
+/// reach the deformation. Checked by looking: a dozen soldiers walking the
+/// classic's gait, undistorted.
 pub fn zombie_kind_anim_path(kind: ZombieKind) -> &'static str {
     match kind {
-        ZombieKind::Classic => ZOMBIE_PATH,
-        ZombieKind::Soldier => ZOMBIE_SOLDIER_PATH,
+        ZombieKind::Classic | ZombieKind::Soldier => ZOMBIE_PATH,
         ZombieKind::Female => ZOMBIE_FEMALE_PATH,
     }
 }
@@ -254,8 +269,8 @@ pub fn zombie_kind_mesh_path(kind: ZombieKind) -> &'static str {
 
 pub fn zombie_kind_clip_count(kind: ZombieKind) -> usize {
     match kind {
-        ZombieKind::Classic => 49,
-        ZombieKind::Soldier => 3,
+        // Borrowing the classic's file means borrowing its clip count too.
+        ZombieKind::Classic | ZombieKind::Soldier => 49,
         ZombieKind::Female => 4,
     }
 }
@@ -306,8 +321,12 @@ pub const ZOMBIE_LIE_STILL_SECONDS: f32 = 0.0;
 
 pub fn zombie_kind_pose_clips(kind: ZombieKind) -> [usize; ZombiePose::COUNT] {
     match kind {
-        ZombieKind::Classic => [20, 16, 0, 47, 2],
-        ZombieKind::Soldier | ZombieKind::Female => [2, 1, 0, 2, 2],
+        // The soldier reads the classic's file, so it reads its indices
+        // too. Leaving it on its own file's [2, 1, 0, 2, 2] pointed Idle at
+        // index 2 of the *classic*, which is Attack -- a soldier standing
+        // still was biting the air, and so was one crawling.
+        ZombieKind::Classic | ZombieKind::Soldier => [20, 16, 0, 47, 2],
+        ZombieKind::Female => [2, 1, 0, 2, 2],
     }
 }
 

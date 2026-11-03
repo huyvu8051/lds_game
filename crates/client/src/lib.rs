@@ -948,6 +948,7 @@ app.init_resource::<MagazineInHand>()
         .init_resource::<AfterLoading>()
         .init_resource::<AimToggleMode>()
         .init_resource::<AimHeld>()
+        .add_observer(waves::reset_waves_on_restart)
         .add_observer(on_zombie_replicated)
         .add_observer(on_zombie_kind_replicated)
         .add_observer(on_shot_fx)
@@ -1422,6 +1423,7 @@ app.init_resource::<MagazineInHand>()
         (
             waves::advance_wave,
             waves::refill_between_waves,
+            hud::update_wave_left_ui,
             waves::announce_wave,
             waves::fade_wave_banner,
         )

@@ -110,7 +110,42 @@ pub(crate) fn spawn_kill_ui(commands: &mut Commands) {
                 TextColor(Color::srgb(1.0, 0.85, 0.2)),
                 KillCountUi,
             ));
+            // Under the tally, not beside it: the two are different questions
+            // -- how many have died, how many are still coming -- and a
+            // second line keeps the left edge the only thing to read down.
+            //
+            // Empty and hidden outside the wave mode, where there is nothing
+            // to count towards: the sandbox refills forever.
+            root.spawn((
+                Text::new(String::new()),
+                TextFont {
+                    font_size: FontSize::Px(20.0),
+                    ..default()
+                },
+                TextColor(Color::srgb(0.92, 0.35, 0.2)),
+                WaveLeftUi,
+            ));
         });
+}
+
+#[derive(Component)]
+pub(crate) struct WaveLeftUi;
+
+pub(crate) fn update_wave_left_ui(
+    wave: Res<crate::waves::Wave>,
+    zombies: Query<(), With<shared::Zombie>>,
+    mut text: Query<&mut Text, With<WaveLeftUi>>,
+) {
+    let Ok(mut text) = text.single_mut() else { return };
+    let left = wave.left(zombies.iter().count() as u32);
+    let wanted = if wave.number == 0 {
+        String::new()
+    } else {
+        format!("WAVE {}   LEFT {}", wave.number, left)
+    };
+    if text.0 != wanted {
+        text.0 = wanted;
+    }
 }
 
 pub(crate) fn update_kill_count_ui(

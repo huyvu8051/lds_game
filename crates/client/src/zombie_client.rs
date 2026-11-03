@@ -198,9 +198,22 @@ pub(crate) fn load_zombie_anim_gltfs(
     asset_server: &AssetServer,
     tuning: &PlayerModelTuning,
 ) -> ZombieAnimGltfs {
+    // A kind whose glb is skipped still gets its mesh, but no clips: its
+    // animation graph is built empty, nothing ever poses its skeleton, and a
+    // skinned mesh whose joints are never driven is not a zombie anyone can
+    // see. That is what hid the soldier in the wave mode.
+    //
+    // The weights below are the sandbox's, where only the classic spawns.
+    // The wave mode sends the soldier too, and the soldier's clips come out
+    // of the classic's file -- so wanting it costs nothing that is not
+    // already loaded, and the female's 192 MB of texture is not pulled in
+    // for a kind neither mode spawns.
+    let wanted = |kind: ZombieKind| {
+        ZOMBIE_KIND_WEIGHTS[kind as usize] > 0.0
+            || (crate::waves::in_wave_mode() && kind != ZombieKind::Female)
+    };
     let load = |kind: ZombieKind| {
-        (ZOMBIE_KIND_WEIGHTS[kind as usize] > 0.0)
-            .then(|| asset_server.load(zombie_kind_anim_path(kind)))
+        wanted(kind).then(|| asset_server.load(zombie_kind_anim_path(kind)))
     };
     ZombieAnimGltfs {
         kinds: [

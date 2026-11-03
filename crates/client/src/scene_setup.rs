@@ -484,6 +484,7 @@ pub(crate) fn setup_gameplay(
     spawn_inventory_screen(&mut commands);
     spawn_flash_overlay(&mut commands);
     spawn_kill_ui(&mut commands);
+    crate::waves::spawn_wave_banner(&mut commands);
     spawn_compass_ui(&mut commands);
     spawn_radar_ui(&mut commands);
     spawn_damage_overlay(&mut commands, &mut overlay_materials);

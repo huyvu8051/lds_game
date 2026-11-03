@@ -35,41 +35,64 @@ of wiring a finished `.glb` in (clip index order, bone names, scale) are in
 
 ## Current state
 
-All 3 kinds were (re)generated on Meshy AI (Mixamo rig) as one mesh+anim
-`.glb` each. Soldier/Female landed with 3 bare clips (`0 = Running`, `1 =
-Walking`, `2 =` an auto-named idle/rest clip) — `zombie_kind_pose_clips`
-maps `[idle, walk, run, crawl, bite] = [2, 1, 0, 2, 2]` for both, i.e.
-Crawl and Bite fall back to playing Idle.
+Measured from the shipped files. `zombie_assets/CLIP_STATUS.md` is the
+asset-side ledger and goes into more detail; both have been wrong before,
+so read the `.glb` when it matters.
 
-Classic was regenerated with Meshy's full "infected" animation pack — 21
-clips, covering most of Tier 1-3 plus some of Tier 5 for free (`Attack`,
-`Hit_Reaction`, `Gunshot_Reaction`, `Dead`, `Knock_Down`,
-`Shot_and_Fall_Forward`/`Shot_in_the_Back_and_Fall`, `Zombie_Scream`,
-`Mummy_Stagger(_inplace)`, `Fast_Ladder_Climb`, `Jump_and_Grab_Wall`,
-several Run variants). No real Crawl clip in the pack, so Crawl still
-falls back to Idle. Current mapping: `[idle, walk, run, crawl, bite] =
-[20, 16, 0, 20, 2]` (20=`Armature|clip0|baselayer`, 16=`Unsteady_Walk`,
-0=`Running`, 2=`Attack`). The unused clips (Hit_Reaction, Dead, Scream,
-etc.) aren't wired to any game state yet — see Tier 2/3/5 below for the
-code hooks each one needs.
+| Kind | File | Clips | Spawns |
+|---|---|---|---|
+| Classic | `assets/characters/zombie/mesh/zombie.glb` | 49 | sandbox and siege |
+| Soldier | `assets/characters/zombie_soldier/mesh/zombie_soldier.glb` | 3 of its own, **plays the classic's 49** | siege, wave 3 on |
+| Female | `assets/characters/zombie_female/mesh/zombie_female.glb` | 4 | nowhere |
 
-| Kind | File |
-|---|---|
-| Classic | `assets/characters/zombie/mesh/zombie.glb` (21 clips) |
-| Soldier | `assets/characters/zombie_soldier/mesh/zombie_soldier.glb` (3 clips) |
-| Female | `assets/characters/zombie_female/mesh/zombie_female.glb` (4 clips) |
+**Classic** was generated from Meshy's full "infected" pack and merged
+from four exports. Mapping is `[idle, walk, run, crawl, bite] = [20, 16,
+0, 47|48, 2]` — 20 is `Armature|clip0|baselayer`, 16 `Unsteady_Walk`, 0
+`Running`, 2 `Attack`, and Crawl picks at random between `Crawl_01` and
+`Crawl_02`. Death draws from `death_01`…`death_08` at 21–28.
 
-Everything below is what to generate — same clip list, same prompts, for
-**every kind above**. Regenerate each kind's file as one Meshy export
-(mesh + all clips together, Mixamo rig) so the clips stay self-consistent
-with that kind's own rig; don't mix clips from one kind's file into
-another's.
+Idle is the one core pose still standing in: that clip is 0.04s, a single
+frame of rest pose on loop, so a waiting zombie is motionless.
+
+Plenty of clips are in the file and wired to nothing — `Hit_Reaction`,
+`Gunshot_Reaction`, `Dead`, `Knock_Down`, `Zombie_Scream`,
+`Shot_and_Fall_Forward`, eight run variants, ten walk variants. Each needs
+the code hook named in its tier below. **Wiring them costs code, not
+credits.**
+
+**Soldier** reads the classic's file. `zombie_kind_anim_path` sends both
+kinds to `ZOMBIE_PATH`; only the mesh comes from `zombie_soldier.glb`. Its
+own three clips are unused.
+
+This contradicts the rule that used to sit here — "don't mix clips from
+one kind's file into another's" — and the rule is still right for
+*merging*, where clips and skin end up in one file and have to agree. The
+soldier merges nothing: it keeps its own skin and its own inverse bind
+matrices and borrows joint transforms only. Those bind matrices differ
+from the classic's by up to 104, an axis permutation, and it still
+deforms correctly — checked by watching a dozen of them walk.
+
+What makes the loan possible is that the clip binds by **bone name** —
+`AnimationTargetId::from_names(path)` — not by joint order. The female's
+rig carries all twenty-three of the classic's bones too, plus five leaf
+bones, so she could borrow as well; she is spawned nowhere for her
+textures, 192 MB decoded, and nothing loads her.
+
+Borrowing also means borrowing the *indices*: `zombie_kind_pose_clips`
+has to give the borrower the lender's numbers. The soldier kept its own
+file's `[2, 1, 0, 2, 2]` for a while, which pointed Idle at index 2 of the
+classic — `Attack` — so a soldier standing still was biting the air.
+
+Everything below is what to generate. Produce a kind's clips against that
+kind's own rig; the soldier's loan is an exception that was measured, not
+a licence to mix files in general.
 
 ## Tier 1 — core, required
 
-The pose machine already dispatches all 5. Every kind is currently missing
-a real Crawl and a real attack (both fall back to Idle — see "Current
-state" above).
+The pose machine already dispatches all 5. Of the two kinds that spawn,
+only **Idle** is still standing in on a 0.04s rest frame; Crawl and Attack
+are real clips now and the soldier gets both through the loan. See
+"Current state" above.
 
 | # | Clip | Plays when | Loop | Length |
 |---|---|---|---|---|
