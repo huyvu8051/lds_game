@@ -256,7 +256,18 @@ pub fn extract_render_snapshot(
         })
         .collect();
 
-    {
+    // The arms go while the eye is behind a tube. They are a skinned actor,
+    // drawn in a pass of their own before the depth disc is stamped, so
+    // unlike the gun they cannot simply be held back and masked -- and this
+    // query reads no `Visibility`, so hiding them with a component does
+    // nothing here either. Not sending them is the whole of it.
+    let eye_in_the_tube = world
+        .get_resource::<crate::sight_mount::ScopeWindow>()
+        .is_some_and(|window| window.0.is_some())
+        && world
+            .get_resource::<crate::WeaponPose>()
+            .is_some_and(|pose| pose.sighted > crate::SCOPED_RETICLE_SIGHTED);
+    if !eye_in_the_tube {
         let (body_query, body_children, body_skinned, body_joints, body_bindposes) =
             queries.viewmodel_body.get(world).expect("system param validation failed");
         snapshot.skinned_actors.extend(body_query.iter().map(|(entity, transform)| {
