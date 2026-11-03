@@ -52,6 +52,13 @@ pub(crate) struct SightDef {
     /// at the glass instead and the housing the eye is behind stays, which
     /// is the part a shooter sees around the picture.
     pub(crate) window_forward: f32,
+    /// The mark this sight draws, if it carries one of its own.
+    ///
+    /// A scope's crosshair belongs to the scope: bolt the M24's glass to an
+    /// AK and what the eye sees through it is still a duplex, not the dot
+    /// the AK was drawn with. `None` leaves the weapon's own mark, which is
+    /// what a bare rail and a red dot both want.
+    pub(crate) reticle: Option<crate::weapon::ReticleKind>,
     /// The sight picture: how much of the opening the eye sees down the tube.
     ///
     /// Short of `window_radius` by the width of the rim a scope always shows,
@@ -84,6 +91,7 @@ static RED_DOT_A: SightDef = SightDef {
     eye_rise: 0.047,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -97,6 +105,7 @@ static RED_DOT_B: SightDef = SightDef {
     eye_rise: 0.045,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -110,6 +119,7 @@ static HOLO_A: SightDef = SightDef {
     eye_rise: 0.031,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -123,6 +133,7 @@ static HOLO_B: SightDef = SightDef {
     eye_rise: 0.031,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -136,6 +147,7 @@ static HOLO_C: SightDef = SightDef {
     eye_rise: 0.048,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -149,6 +161,7 @@ static HOLO_D: SightDef = SightDef {
     eye_rise: 0.037,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -162,6 +175,7 @@ static SCOPE_2X: SightDef = SightDef {
     eye_rise: 0.044,
     aim_fov_multiplier: 0.620,
     ads_eye_relief: 0.12,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -175,6 +189,7 @@ static SCOPE_3X: SightDef = SightDef {
     eye_rise: 0.035,
     aim_fov_multiplier: 0.560,
     ads_eye_relief: 0.12,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -190,6 +205,7 @@ static SCOPE_4X: SightDef = SightDef {
     // four-power scope has been shipping with since long before any of this.
     aim_fov_multiplier: 0.525,
     ads_eye_relief: 0.12,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -203,6 +219,7 @@ static SCOPE_6X: SightDef = SightDef {
     eye_rise: 0.040,
     aim_fov_multiplier: 0.440,
     ads_eye_relief: 0.12,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -216,6 +233,7 @@ static SCOPE_8X: SightDef = SightDef {
     eye_rise: 0.053,
     aim_fov_multiplier: 0.380,
     ads_eye_relief: 0.12,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -235,6 +253,7 @@ static SCOPE_AK: SightDef = SightDef {
     eye_rise: 0.045,
     aim_fov_multiplier: 0.62,
     ads_eye_relief: 0.12,
+    reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.000,
@@ -259,6 +278,7 @@ static SCOPE_M24: SightDef = SightDef {
     eye_rise: 0.030,
     aim_fov_multiplier: 0.280,
     ads_eye_relief: 0.12,
+    reticle: Some(crate::weapon::ReticleKind::Duplex),
     picture_feather: 0.0036,
     picture_radius: 0.0155,
     window_forward: 0.073,

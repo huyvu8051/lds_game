@@ -235,10 +235,12 @@ pub(crate) fn place_holo_reticle(
         Ok(aim) => gun_local.rotation * aim.reparented_to(gun_global).rotation * Vec3::NEG_Z,
         Err(_) => gun_local.rotation * Vec3::NEG_Z,
     };
-    // Which mark is the weapon's own business; whether it shows is not, so
-    // the rule above is asked once and only the matching shape hears a yes.
+    // The fitted sight's mark wins, the way its magnification and its eye
+    // relief already do: the crosshair is a part of the scope, so it goes
+    // wherever the scope goes. Whether it shows at all was settled above.
+    let drawn = fitted.0.and_then(|sight| sight.def().reticle).unwrap_or(def.reticle);
     for (kind, mut mark, mut visibility) in &mut marks {
-        let wanted = visible && kind.0 == def.reticle;
+        let wanted = visible && kind.0 == drawn;
         *visibility = if wanted { Visibility::Visible } else { Visibility::Hidden };
         if wanted {
             mark.translation = down_the_barrel;
