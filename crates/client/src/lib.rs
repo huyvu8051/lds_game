@@ -1295,6 +1295,7 @@ app.init_resource::<MagazineInHand>()
                 (
                     sight_mount::follow_fitted_attachment,
                     sight_mount::wire_rail_nodes,
+                    sight_mount::wire_ads_hidden_nodes,
                     // The gesture decides when the weapon actually wears it,
                     // so it has to have moved before fit_sight asks.
                     (
@@ -1386,6 +1387,7 @@ app.init_resource::<MagazineInHand>()
                 .run_if(ablation::group(ablation::Group::Items)),
             (
                 place_holo_reticle,
+                sight_mount::hide_sight_while_sighted,
                 (apply_bloom, apply_screen_effects_toggle, apply_fog).chain(),
                 update_weapon_slot_ammo.run_if(ui_tick()),
                 update_crosshair,

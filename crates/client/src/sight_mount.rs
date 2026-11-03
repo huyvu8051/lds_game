@@ -294,6 +294,52 @@ pub(crate) struct FittedFor {
 
 const SIGHT_CLAMP_MARGIN: f32 = 0.010;
 
+/// The length of tube between the eye and the glass, which is in the way.
+///
+/// There is one camera, so the magnification that blows up the world blows
+/// up the sight with it, and the eyepiece end fills the screen it is meant
+/// to be looking through. Authored in the mesh rather than worked out here:
+/// which rings frame the picture is a judgement made while looking at the
+/// sight, so the asset carries a node called `ads_hide` and this only reads
+/// it. A sight without one keeps every part up, which is what a red dot
+/// wants.
+#[derive(Component)]
+pub(crate) struct HideWhileSighted;
+
+/// Tags that node wherever it turns up. No parent walk, unlike the rail
+/// nodes below: nothing but a sight is called this, and the sight is
+/// spawned on the weapon rather than loaded with it.
+pub(crate) fn wire_ads_hidden_nodes(
+    mut commands: Commands,
+    new_names: Query<(Entity, &Name), Added<Name>>,
+) {
+    for (entity, name) in &new_names {
+        if name.as_str().starts_with("ads_hide") {
+            commands.entity(entity).insert(HideWhileSighted);
+        }
+    }
+}
+
+/// Takes it off the screen while the sights are up.
+///
+/// The same threshold the scope's mark appears at, so the tube clears in
+/// the frame the reticle arrives in rather than one on either side of it.
+pub(crate) fn hide_sight_while_sighted(
+    pose: Res<crate::WeaponPose>,
+    mut parts: Query<&mut Visibility, With<HideWhileSighted>>,
+) {
+    let wanted = if pose.sighted > crate::SCOPED_RETICLE_SIGHTED {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    };
+    for mut visibility in &mut parts {
+        if *visibility != wanted {
+            *visibility = wanted;
+        }
+    }
+}
+
 /// Tags the rail and its ends. `wire_weapon_sockets` handles the sockets the
 /// rest of the weapon already had; these are the ones only a railed weapon
 /// carries, and the rail itself is a mesh node rather than a socket.
