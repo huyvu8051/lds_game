@@ -17,9 +17,6 @@ pub(crate) enum SightId {
     RedDotB,
     HoloD,
     Scope2x,
-    Scope3x,
-    Scope4x,
-    Scope6x,
     ScopeAk,
     ScopeM24,
 }
@@ -139,49 +136,8 @@ static SCOPE_2X: SightDef = SightDef {
     window_radius: None,
 };
 
-static SCOPE_3X: SightDef = SightDef {
-    name: "3x scope",
-    mesh_path: "models/sights/scope_3x/scope_3x.glb",
-    eye_back: 0.092,
-    eye_rise: 0.035,
-    aim_fov_multiplier: 0.560,
-    ads_eye_relief: 0.12,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
 
-static SCOPE_4X: SightDef = SightDef {
-    name: "4x scope",
-    mesh_path: "models/sights/scope_4x/scope_4x.glb",
-    eye_back: 0.141,
-    eye_rise: 0.033,
-    // Not interpolated like the others: 0.525 is the number the AK's own
-    // four-power scope has been shipping with since long before any of this.
-    aim_fov_multiplier: 0.525,
-    ads_eye_relief: 0.12,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
 
-static SCOPE_6X: SightDef = SightDef {
-    name: "6x scope",
-    mesh_path: "models/sights/scope_6x/scope_6x.glb",
-    eye_back: 0.105,
-    eye_rise: 0.040,
-    aim_fov_multiplier: 0.440,
-    ads_eye_relief: 0.12,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
 
 
 /// The AK's own optic, which arrived bolted to the rifle.
@@ -240,23 +196,17 @@ impl SightId {
             TubeDot => SightId::RedDotB,
             HoloWide => SightId::HoloD,
             Scope2x => SightId::Scope2x,
-            Scope3x => SightId::Scope3x,
-            Scope4x => SightId::Scope4x,
-            Scope6x => SightId::Scope6x,
             ScopeAk => SightId::ScopeAk,
             ScopeM24 => SightId::ScopeM24,
             _ => return None,
         })
     }
 
-    pub(crate) const ALL: [SightId; 9] = [
+    pub(crate) const ALL: [SightId; 6] = [
         SightId::RedDotA,
         SightId::RedDotB,
         SightId::HoloD,
         SightId::Scope2x,
-        SightId::Scope3x,
-        SightId::Scope4x,
-        SightId::Scope6x,
         SightId::ScopeAk,
         SightId::ScopeM24,
     ];
@@ -267,9 +217,6 @@ impl SightId {
             SightId::RedDotB => &RED_DOT_B,
             SightId::HoloD => &HOLO_D,
             SightId::Scope2x => &SCOPE_2X,
-            SightId::Scope3x => &SCOPE_3X,
-            SightId::Scope4x => &SCOPE_4X,
-            SightId::Scope6x => &SCOPE_6X,
             SightId::ScopeAk => &SCOPE_AK,
             SightId::ScopeM24 => &SCOPE_M24,
         }
@@ -342,52 +289,6 @@ pub(crate) struct FittedFor {
 }
 
 const SIGHT_CLAMP_MARGIN: f32 = 0.010;
-
-/// The length of tube between the eye and the glass, which is in the way.
-///
-/// There is one camera, so the magnification that blows up the world blows
-/// up the sight with it, and the eyepiece end fills the screen it is meant
-/// to be looking through. Authored in the mesh rather than worked out here:
-/// which rings frame the picture is a judgement made while looking at the
-/// sight, so the asset carries a node called `ads_hide` and this only reads
-/// it. A sight without one keeps every part up, which is what a red dot
-/// wants.
-#[derive(Component)]
-pub(crate) struct HideWhileSighted;
-
-/// Tags that node wherever it turns up. No parent walk, unlike the rail
-/// nodes below: nothing but a sight is called this, and the sight is
-/// spawned on the weapon rather than loaded with it.
-pub(crate) fn wire_ads_hidden_nodes(
-    mut commands: Commands,
-    new_names: Query<(Entity, &Name), Added<Name>>,
-) {
-    for (entity, name) in &new_names {
-        if name.as_str().starts_with("ads_hide") {
-            commands.entity(entity).insert(HideWhileSighted);
-        }
-    }
-}
-
-/// Takes it off the screen while the sights are up.
-///
-/// The same threshold the scope's mark appears at, so the tube clears in
-/// the frame the reticle arrives in rather than one on either side of it.
-pub(crate) fn hide_sight_while_sighted(
-    pose: Res<crate::WeaponPose>,
-    mut parts: Query<&mut Visibility, With<HideWhileSighted>>,
-) {
-    let wanted = if pose.sighted > crate::SCOPED_RETICLE_SIGHTED {
-        Visibility::Hidden
-    } else {
-        Visibility::Inherited
-    };
-    for mut visibility in &mut parts {
-        if *visibility != wanted {
-            *visibility = wanted;
-        }
-    }
-}
 
 /// Tags the rail and its ends. `wire_weapon_sockets` handles the sockets the
 /// rest of the weapon already had; these are the ones only a railed weapon

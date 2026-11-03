@@ -8,7 +8,7 @@ thirty-five weapons, PUBG-style. Nothing below is built yet.
 - **`ItemKind` carries the whole attachment set** and no logic at all:
   six muzzles, six grips, three magazines, three stocks, and nine
   sights -- `RedDot`, `Holographic`, `Scope2x`, `Scope3x`, `Scope4x`,
-  `Scope6x`, `Scope15x`, `CantedSight`. They drop, they are
+  `Scope15x`, `CantedSight`. They drop, they are
   carried, they do nothing.
 - **Every weapon mesh carries six named sockets**: `Socket_Muzzle`,
   `Socket_Aim`, `Socket_SightFront`, `Socket_Eject`, `Socket_RearGrip`,
@@ -113,9 +113,6 @@ harvests rather than the two that needed a foot modelled.
 |---|---|---|
 | `RedDot` | `famas` or `mk47_mutant` | two to choose between |
 | `Scope2x` | `aug_a3` | short prism, the right length for 2x |
-| `Scope3x` | `qbu` | mid tube |
-| `Scope4x` | `svd` | **held back**, see below |
-| `Scope6x` | `awm` | long tube |
 | `Scope15x` | **nothing** | needs sourcing or modelling |
 | `CantedSight` | **nothing** | small, 45-degree mount; probably modelled |
 
@@ -124,8 +121,8 @@ Seven of nine covered from what we already own.
 ### Done so far
 
 Four are off and filed under `zombie_assets/attachments/scopes`:
-`scope_2x` from the AUG at 206mm, `scope_3x` from the QBU at 224mm,
-`scope_6x` from the AWM at 291mm.
+`scope_2x` from the AUG at 206mm,
+and that is all of them.
 Each carries `Socket_Mount` at the bottom of its foot, `Socket_Eye` and
 `Socket_Objective` on the axis, and between fourteen and twenty-seven
 blended lens discs.
