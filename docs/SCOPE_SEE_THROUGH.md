@@ -218,6 +218,8 @@ Both numbers are a rebuild, not an asset repack, since they live in the
   any more. Kept because it costs a name comparison, and it is the only thing
   the windowed Bevy path could use.
 
-- **Only `scope_m24` has a window.** The 6x and 8x are the obvious next two:
-  both are long enough that the tube fills the frame, and both already come
-  out of the extractor as a single clean mesh. Two numbers each.
+- **Only `scope_m24` has a window.** The 6x is the obvious next one: long
+  enough that the tube fills the frame, and it already comes out of the
+  extractor as a single clean mesh. Four numbers, read off the tube's own
+  radius profile. The 8x was measured for this and then cut from the game
+  altogether -- the mesh was not worth keeping.

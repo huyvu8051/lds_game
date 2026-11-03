@@ -15,15 +15,11 @@ use crate::{
 pub(crate) enum SightId {
     RedDotA,
     RedDotB,
-    HoloA,
-    HoloB,
-    HoloC,
     HoloD,
     Scope2x,
     Scope3x,
     Scope4x,
     Scope6x,
-    Scope8x,
     ScopeAk,
     ScopeM24,
 }
@@ -112,47 +108,8 @@ static RED_DOT_B: SightDef = SightDef {
     window_radius: None,
 };
 
-static HOLO_A: SightDef = SightDef {
-    name: "Holographic",
-    mesh_path: "models/sights/holo_a/holo_a.glb",
-    eye_back: 0.052,
-    eye_rise: 0.031,
-    aim_fov_multiplier: 0.75,
-    ads_eye_relief: 0.11,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
 
-static HOLO_B: SightDef = SightDef {
-    name: "Holographic II",
-    mesh_path: "models/sights/holo_b/holo_b.glb",
-    eye_back: 0.043,
-    eye_rise: 0.031,
-    aim_fov_multiplier: 0.75,
-    ads_eye_relief: 0.11,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
 
-static HOLO_C: SightDef = SightDef {
-    name: "Holographic III",
-    mesh_path: "models/sights/holo_c/holo_c.glb",
-    eye_back: 0.033,
-    eye_rise: 0.048,
-    aim_fov_multiplier: 0.75,
-    ads_eye_relief: 0.11,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
 
 static HOLO_D: SightDef = SightDef {
     name: "Holographic IV",
@@ -226,19 +183,6 @@ static SCOPE_6X: SightDef = SightDef {
     window_radius: None,
 };
 
-static SCOPE_8X: SightDef = SightDef {
-    name: "8x scope",
-    mesh_path: "models/sights/scope_8x/scope_8x.glb",
-    eye_back: 0.198,
-    eye_rise: 0.053,
-    aim_fov_multiplier: 0.380,
-    ads_eye_relief: 0.12,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
 
 /// The AK's own optic, which arrived bolted to the rifle.
 ///
@@ -294,33 +238,25 @@ impl SightId {
         Some(match item {
             RedDot => SightId::RedDotA,
             TubeDot => SightId::RedDotB,
-            Holographic => SightId::HoloA,
-            HoloCompact => SightId::HoloB,
-            HoloHeavy => SightId::HoloC,
             HoloWide => SightId::HoloD,
             Scope2x => SightId::Scope2x,
             Scope3x => SightId::Scope3x,
             Scope4x => SightId::Scope4x,
             Scope6x => SightId::Scope6x,
-            Scope8x => SightId::Scope8x,
             ScopeAk => SightId::ScopeAk,
             ScopeM24 => SightId::ScopeM24,
             _ => return None,
         })
     }
 
-    pub(crate) const ALL: [SightId; 13] = [
+    pub(crate) const ALL: [SightId; 9] = [
         SightId::RedDotA,
         SightId::RedDotB,
-        SightId::HoloA,
-        SightId::HoloB,
-        SightId::HoloC,
         SightId::HoloD,
         SightId::Scope2x,
         SightId::Scope3x,
         SightId::Scope4x,
         SightId::Scope6x,
-        SightId::Scope8x,
         SightId::ScopeAk,
         SightId::ScopeM24,
     ];
@@ -329,15 +265,11 @@ impl SightId {
         match self {
             SightId::RedDotA => &RED_DOT_A,
             SightId::RedDotB => &RED_DOT_B,
-            SightId::HoloA => &HOLO_A,
-            SightId::HoloB => &HOLO_B,
-            SightId::HoloC => &HOLO_C,
             SightId::HoloD => &HOLO_D,
             SightId::Scope2x => &SCOPE_2X,
             SightId::Scope3x => &SCOPE_3X,
             SightId::Scope4x => &SCOPE_4X,
             SightId::Scope6x => &SCOPE_6X,
-            SightId::Scope8x => &SCOPE_8X,
             SightId::ScopeAk => &SCOPE_AK,
             SightId::ScopeM24 => &SCOPE_M24,
         }
