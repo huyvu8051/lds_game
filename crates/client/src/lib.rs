@@ -704,10 +704,10 @@ const VIEWMODEL_LAYER: usize = 1;
 const HOLO_DOT_RADIANS: f32 = 0.0013;
 
 /// How far the sights have to be up before a scoped weapon hands the screen
-/// over to its reticle and steps out of the way. Not 1.0: the swap wants to
-/// happen while the view is still closing, or the rifle is still filling the
-/// frame when the magnification arrives.
+/// over to its reticle. Not 1.0: the swap wants to happen while the view is
+/// still closing, or the mark arrives after the magnification does.
 const SCOPED_RETICLE_SIGHTED: f32 = 0.6;
+
 
 /// The duplex reticle, in radians subtended -- hung a unit down the barrel
 /// like the holo dot, so the numbers are angles. Sized against a twelve times

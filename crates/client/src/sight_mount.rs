@@ -25,6 +25,7 @@ pub(crate) enum SightId {
     Scope6x,
     Scope8x,
     ScopeAk,
+    ScopeM24,
 }
 
 pub(crate) struct SightDef {
@@ -148,6 +149,25 @@ static SCOPE_AK: SightDef = SightDef {
     aim_fov_multiplier: 0.62,
 };
 
+/// The M24's own glass, which the rifle was drawn wearing.
+///
+/// A hunting scope rather than a military one: 320mm of tube on two rings
+/// that sit low, so the line of sight is 30mm over the rail -- lower than
+/// every other scope here and closer to a red dot's. The eyepiece reaches
+/// 203mm back from the rings, which is what puts the clamp so far forward
+/// on the rail.
+///
+/// Level with the 8x rather than with the rifle it came off: 0.425 is what
+/// the M24 carried when the glass was part of its mesh, and through a tube
+/// this long it read as less reach than the scope looks like it has.
+static SCOPE_M24: SightDef = SightDef {
+    name: "M24 scope",
+    mesh_path: "models/sights/scope_m24/scope_m24.glb",
+    eye_back: 0.203,
+    eye_rise: 0.030,
+    aim_fov_multiplier: 0.280,
+};
+
 impl SightId {
     /// The item that is this sight. One each: a sight the player can carry
     /// and a sight the weapon can wear are the same object, so the bag and
@@ -167,11 +187,12 @@ impl SightId {
             Scope6x => SightId::Scope6x,
             Scope8x => SightId::Scope8x,
             ScopeAk => SightId::ScopeAk,
+            ScopeM24 => SightId::ScopeM24,
             _ => return None,
         })
     }
 
-    pub(crate) const ALL: [SightId; 12] = [
+    pub(crate) const ALL: [SightId; 13] = [
         SightId::RedDotA,
         SightId::RedDotB,
         SightId::HoloA,
@@ -184,6 +205,7 @@ impl SightId {
         SightId::Scope6x,
         SightId::Scope8x,
         SightId::ScopeAk,
+        SightId::ScopeM24,
     ];
 
     pub(crate) fn def(self) -> &'static SightDef {
@@ -200,6 +222,7 @@ impl SightId {
             SightId::Scope6x => &SCOPE_6X,
             SightId::Scope8x => &SCOPE_8X,
             SightId::ScopeAk => &SCOPE_AK,
+            SightId::ScopeM24 => &SCOPE_M24,
         }
     }
 }

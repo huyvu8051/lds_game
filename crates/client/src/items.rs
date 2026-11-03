@@ -160,6 +160,7 @@ pub(crate) enum ItemKind {
     Scope6x,
     Scope8x,
     ScopeAk,
+    ScopeM24,
 
     // Armour, three levels apiece.
     Helmet1,
@@ -188,7 +189,7 @@ pub(crate) enum ItemKind {
 }
 
 /// Everything, in the order the pack lists it.
-pub(crate) const ALL_ITEMS: [ItemKind; 55] = [
+pub(crate) const ALL_ITEMS: [ItemKind; 56] = [
     ItemKind::Ammo556,
     ItemKind::Ammo762,
     ItemKind::Ammo9mm,
@@ -225,6 +226,7 @@ pub(crate) const ALL_ITEMS: [ItemKind; 55] = [
     ItemKind::Scope6x,
     ItemKind::Scope8x,
     ItemKind::ScopeAk,
+    ItemKind::ScopeM24,
     ItemKind::Helmet1,
     ItemKind::Helmet2,
     ItemKind::Helmet3,
@@ -290,6 +292,7 @@ impl ItemKind {
             Scope6x => "6x Scope",
             Scope8x => "8x Scope",
             ScopeAk => "AK Optic",
+            ScopeM24 => "M24 Scope",
             Helmet1 => "Helmet Lv1",
             Helmet2 => "Helmet Lv2",
             Helmet3 => "Helmet Lv3",
@@ -358,7 +361,7 @@ impl ItemKind {
             QuickdrawMag | ExtendedMag | ExtendedQuickdrawMag => AttachSlot::Magazine,
             TacticalStock | CheekPad | BulletLoops => AttachSlot::Stock,
             RedDot | TubeDot | Holographic | HoloCompact | HoloHeavy | HoloWide | Scope2x
-            | Scope3x | Scope4x | Scope6x | Scope8x | ScopeAk => AttachSlot::Sight,
+            | Scope3x | Scope4x | Scope6x | Scope8x | ScopeAk | ScopeM24 => AttachSlot::Sight,
             _ => return None,
         })
     }

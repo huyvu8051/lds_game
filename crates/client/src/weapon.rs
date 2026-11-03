@@ -95,13 +95,14 @@ pub(crate) struct WeaponDef {
     /// there is too much of it to swing off one wrist.
     pub(crate) sprint_one_handed: bool,
 
-    /// Whether this weapon's optic is deep enough that the sight picture is
-    /// the screen rather than something seen through the glass.
+    /// Whether a weapon with no holo window still shows its mark once the
+    /// sights are up.
     ///
-    /// Past about four times, the weapon model is magnified along with
-    /// everything else and fills the view, so it is taken away while sighted
-    /// and the reticle drawn on its own. Which is what looking through a
-    /// scope looks like: the rifle is not in the picture.
+    /// It used to claim more than that: the comment here said the weapon
+    /// model was taken away while sighted, and nothing anywhere did that --
+    /// `GunMeshPart` was only ever read to despawn it on a weapon change.
+    /// Nothing takes the weapon off the screen; this only decides whether a
+    /// mark is drawn.
     pub(crate) scoped: bool,
 
 /// Which mark this weapon's optic draws. Separate from `holo` and `scoped`,
@@ -642,10 +643,11 @@ static AK47: WeaponDef = WeaponDef {
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.03, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.028,
     ads_settle_miss_deg: 0.5,
-    // 8x, where the optic camera used to carry 12. The whole screen is the
-    // sight picture now, and a narrower field than this leaves nothing round
-    // the target to read.
-    aim_fov_multiplier: 0.525,
+    // Irons. The rifle's own optic is a fitted sight now, hidden until the
+    // bag puts one back on the rail, so bare this aims down the notch like
+    // every other weapon without glass -- 0.525 was the magnification of a
+    // scope that is no longer on it.
+    aim_fov_multiplier: 0.75,
     autopilot_ads_min_distance: 1.0,
     autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 22.0,
@@ -2936,9 +2938,11 @@ static M24: WeaponDef = WeaponDef {
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.02, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.040,
     ads_settle_miss_deg: 0.3,
-    // 12x, down from the optic camera's 24. Still the longest reach of the
-    // five, and still what this weapon is for.
-    aim_fov_multiplier: 0.425,
+    // Irons, for the same reason as the AK: the scope came off into
+    // SightId::ScopeM24, which carries the magnification this used to hold.
+    // Left at 0.425 the bare rifle zoomed twelve times down an empty
+    // receiver, which is not what a rifle without glass does.
+    aim_fov_multiplier: 0.75,
     autopilot_ads_min_distance: 3.0,
     autopilot_engage_range: 22.0,
     autopilot_sprint_approach_distance: 55.0,
