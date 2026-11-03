@@ -270,6 +270,10 @@ pub fn extract_render_snapshot(
     // and it cannot disagree with them.
     let scope_window = {
         let sight = world.get_resource::<crate::sight_mount::FittedSight>().and_then(|f| f.0);
+        let camera_eye = snapshot
+            .camera
+            .as_ref()
+            .map(|c| bevy::math::Vec3::from_array(c.eye));
         let radius = sight.and_then(|s| s.def().window_radius);
         let (gun, aim) =
             queries.scope_window.get(world).expect("system param validation failed");
@@ -277,10 +281,18 @@ pub fn extract_render_snapshot(
             (Some(radius), Ok(gun), Ok(glass)) => {
                 let forward = gun.rotation() * bevy::math::Vec3::NEG_Z;
                 let ahead = sight.map_or(0.0, |s| s.def().window_forward);
+                let centre = glass.translation() + forward * ahead;
+                // Straight ahead of the eye at the same depth. The opening
+                // rides the weapon and this does not, so sway slides one
+                // across the other, which is the crescent.
+                let eye = camera_eye.unwrap_or(centre);
+                let picture = eye + forward * (centre - eye).dot(forward);
                 Some(metal_renderer::snapshot::ScopeWindow {
-                    centre: (glass.translation() + forward * ahead).to_array(),
+                    centre: centre.to_array(),
                     forward: forward.to_array(),
                     radius,
+                    picture_centre: picture.to_array(),
+                    picture_radius: sight.map_or(0.0, |s| s.def().picture_radius),
                 })
             }
             _ => None,

@@ -54,14 +54,58 @@ actual tube does, and it is why there is no threshold anywhere in this -- a
 threshold is what made the arms pop out of existence half way through the
 ADS raise, back when they were simply not sent.
 
+## The black a scope shows
+
+A real scope goes dark when the head comes off the eyepiece: the picture
+slides across the opening and the rim swells into a crescent, and at a hard
+enough swing there is no picture left at all. Two circles in one plane give
+that for free.
+
+| Circle | Centred on | Radius |
+|---|---|---|
+| the opening | the glass, which rides the weapon | `window_radius` |
+| the picture | straight ahead of the eye, down the bore | `picture_radius` |
+
+They are concentric only while the eye is on the tube's axis. Sway slides
+one across the other, and the gap between them is the black.
+
+Four draws, each leaning on the one before through the depth buffer, in this
+order:
+
+1. **the picture**, into depth alone, 2mm nearer the eye
+2. **the mark**, depth compare `Greater` -- kept to what the picture covers
+3. **the opening**, painted black, depth compare `Less` -- which fails over
+   the picture and covers everything else in the circle
+4. **the opening again**, into depth alone, which shuts the weapon out of
+   all of it
+
+Step 3 is the one that does the work, and it is why nothing has to be
+clamped: the black covers whatever the picture does not, wherever the
+picture happens to be, including nowhere.
+
+**Step 1 has to be clipped to the opening.** This is the trap. It writes
+depth, and depth is what the weapon is tested against, so an unclipped
+picture stamps its circle across the tube wall as well -- the wall then
+loses the test and the world shows through the side of the scope. The clip
+is the lens where the two circles overlap: sample each circle, keep the
+points that fall inside the other, add the two places the rims cross, sort
+by angle and fan. The intersection of two discs is convex, so sorting is a
+polygon. It comes out empty once they come apart, which is the whole
+opening going black.
+
+The first attempt built a ring between the two circles instead, which is
+simpler and wrong: the inner circle has to stay inside the outer one or the
+ring folds through itself, so it had to be clamped -- and the clamp is a
+limit on how dark it can ever get, which is the opposite of the point.
+
 ## The pieces
 
 | Where | What |
 |---|---|
-| `sight_mount.rs` | `SightDef::window_radius`, `SightDef::window_forward` |
+| `sight_mount.rs` | `window_radius`, `window_forward`, `picture_radius` |
 | `cadisplaylink/native_game_extract.rs` | works out the disc, flags the arms |
 | `metal_renderer/snapshot.rs` | `ScopeWindow`, `SkinnedRenderState::viewmodel` |
-| `metal_renderer/native_metal_renderer.rs` | `stamp_scope_disc`, the late lists |
+| `metal_renderer/native_metal_renderer.rs` | `stamp_scope_disc`, `scope_picture_lens`, `draw_scope_shadow`, the late lists |
 
 Two numbers per sight, and their absence is meaningful: a sight with no
 `window_radius` gets no disc, and the weapon then draws with everything else,
@@ -90,6 +134,11 @@ which is the picture before any of this. Only `scope_m24` has them today.
    through. The M24's tube waist reads 11mm and its eyepiece mouth 18mm, and
    15mm is between them -- a starting point, not a measurement. Smaller is a
    stricter hole, larger clears more tube.
+
+   `picture_radius` goes under it by the width of the rim the scope should
+   show at rest: 12.5mm against the M24's 15mm. Closer to `window_radius`
+   and the black only appears on a hard swing; further under and there is a
+   permanent dark ring. Zero turns the shadow off.
 
 5. **Run it and look.** The desktop binary draws through `metal_renderer`
    too, so this does not need a phone:
