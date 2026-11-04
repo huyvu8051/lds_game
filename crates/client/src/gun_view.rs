@@ -254,36 +254,45 @@ pub(crate) fn place_holo_reticle(
         Ok(aim) => gun_local.rotation * aim.reparented_to(gun_global).rotation * Vec3::NEG_Z,
         Err(_) => gun_local.rotation * Vec3::NEG_Z,
     };
-    // And then some of the sway is taken back off it, by how much the sight
-    // magnifies.
+    // And then the sway is taken back off it: all of it once the sights are
+    // up, and a share of it on the way.
     //
-    // The dot sits on the bore, which is true and is also why it runs: the
-    // weapon lags a hard turn by degrees and the dot goes with it. Nothing
+    // The dot sits on the bore, which is true and is also why it ran: the
+    // weapon lags a hard turn by degrees and the dot went with it. Nothing
     // multiplies that by the zoom -- but the zoom is a narrower camera, so
-    // the same angle covers more of the screen, and a 2x sight shows twice
-    // the travel for the same wobble. Which is honest, and is also why a
-    // magnified sight read as looser than a red dot when both were cut by
-    // the same share.
+    // the same angle covers more of the screen, which is why a magnified
+    // sight read as looser than a red dot when both were cut by the same
+    // share. That share still follows the glass, anchored on the red dot's,
+    // and it is what the mark gets while the sights are coming up, so the
+    // dot settles as they arrive instead of locking the moment they move.
     //
-    // So the share follows the glass: enough taken off that what is left
-    // covers about as much screen whatever is fitted. The red dot's own
-    // figure anchors it.
+    // Behind the glass it gets all of it. A mark the eye is actually lined
+    // up on has nothing to gain from running: the player is reading it, not
+    // watching the weapon.
     //
     // Only the sway is taken. Recoil and the zeroing stay whole -- the dot
     // is still meant to say where the round is going, and one that
     // under-reported the climb would be a lie about the one thing it is for.
     //
-    // Not on a tube. The M24's mark is cut to a picture the renderer builds
-    // from the glass, so a mark pulled off the bore would slide about inside
-    // its own circle. A tube's answer is to sway the weapon less, not to
-    // move the mark.
+    // The tube gets it too.
+    //
+    // It was held back because its mark is cut to a picture the renderer
+    // builds from the glass and the eye, and that picture is centred on
+    // where the bore points -- so a mark taken off the bore slides about
+    // inside its own circle, and far enough out it is clipped away at the
+    // rim. That is still true. What changed is the answer to whether it
+    // matters more than a crosshair that runs: at four times, it does not,
+    // because four times is also what the running is multiplied by.
+    //
+    // If the crosshair is seen to drift off the middle of the scope picture
+    // on a hard swing, or to be cut at the edge of it, this is the line to
+    // take back out.
     let fitted_def = fitted.0.map(|sight| sight.def());
-    let down_the_barrel = if fitted_def.is_some_and(|sight| sight.masks_weapon) {
-        down_the_barrel
-    } else {
+    let down_the_barrel = {
         let fov = fitted_def.map_or(def.aim_fov_multiplier, |sight| sight.aim_fov_multiplier);
-        let cut = (1.0 - (1.0 - RETICLE_SWAY_CUT) * fov / RETICLE_SWAY_REFERENCE_FOV)
-            .clamp(0.0, 0.95);
+        let raised = (1.0 - (1.0 - RETICLE_SWAY_CUT) * fov / RETICLE_SWAY_REFERENCE_FOV)
+            .clamp(0.0, 1.0);
+        let cut = raised + (1.0 - raised) * pose.sighted.clamp(0.0, 1.0);
         (Quat::from_rotation_y(-gun_state.look_sway.x.to_radians() * cut)
             * Quat::from_rotation_x(-gun_state.look_sway.y.to_radians() * cut)
             * down_the_barrel)
