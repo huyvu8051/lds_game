@@ -307,6 +307,13 @@ const AIM_BOB_MULTIPLIER: f32 = 0.35;
 ///
 /// SENSITIVITY is degrees of lag per radian the view turned, so sway follows
 /// the view rather than the mouse and stays right at any sensitivity or zoom.
+/// Where a sighted shot stops running parallel to the sight line and starts
+/// converging on what the mark covers. Under the near distance the bullet
+/// lands low by the sight's height; over the far one it goes where the mark
+/// points.
+const SIGHT_CONVERGE_NEAR_M: f32 = 10.0;
+const SIGHT_CONVERGE_FAR_M: f32 = 25.0;
+
 const LOOK_SWAY_SENSITIVITY: f32 = 50.0;
 const LOOK_SWAY_MAX_DEG: f32 = 3.5;
 

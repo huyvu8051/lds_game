@@ -97,10 +97,9 @@ pub(crate) fn current_bullet_spread(
 ) -> f32 {
     let accuracy = class.accuracy();
     let mut spread = accuracy.at(distance, aiming);
-    // Opens from the table rather than toward it: the figures in the table are
-    // the first shot of a magazine, and heat is what the burst does to them.
-    // The gain keeps the old hot-to-cold ratio, which was 0.3 against 1.3.
-    spread *= 1.0 + climb / climb_max * HEAT_SPREAD_GAIN;
+    // Opens from the table rather than toward it: the figures there are the
+    // first shot of a magazine, and heat is what the burst does to them.
+    spread *= 1.0 + climb / climb_max * accuracy.heat;
     if moving {
         spread *= accuracy.moving;
     }
@@ -949,20 +948,21 @@ pub(crate) fn shoot(
     let muzzle_world_pos =
         camera_transform.translation + camera_transform.rotation * muzzle_in_cam.translation;
     let bore = camera_transform.rotation * muzzle_in_cam.rotation;
-    // Where it points is a different question from where it starts, and the
-    // answer differs by whether the player is using the sights.
-    //
-    // Sighted, the shot runs down the bore: the glass is lined up with the
-    // barrel, so every degree of sway and recoil has to show, or the sights
-    // are a decoration and no mark on them could tell the truth.
-    //
-    // From the hip there are no sights -- there is a cross painted on the
-    // middle of the screen, and it promises the middle of the screen. The
-    // muzzle sits right of and below the eye, so a bore-parallel shot misses
-    // that cross by the whole of that offset, at every range. Converging on
-    // what the cross covers is what makes it honest.
+    // Where it points is a different question from where it starts. Both
+    // branches end up converging on what the mark covers, because the muzzle
+    // sits right of and below the eye and a bore-parallel shot misses by that
+    // whole offset at every range. Sighted, the convergence fades in over the
+    // near band so the offset still shows where it can be seen.
     let bore_axis = if aiming {
-        bore * Vec3::NEG_Z
+        let sight_line = bore * Vec3::NEG_Z;
+        // Eased from the bore onto the mark across the near band.
+        let converge = ((aim_distance.0 - crate::SIGHT_CONVERGE_NEAR_M)
+            / (crate::SIGHT_CONVERGE_FAR_M - crate::SIGHT_CONVERGE_NEAR_M))
+            .clamp(0.0, 1.0);
+        // The mark hangs off the eye down the bore, so this is what it covers.
+        let marked = camera_transform.translation + sight_line * aim_distance.0;
+        let onto_mark = (marked - muzzle_world_pos).normalize_or_zero();
+        sight_line.lerp(onto_mark, converge).normalize_or_zero()
     } else {
         let view_axis = *camera_transform.forward();
         let aim_point = camera_transform.translation + view_axis * aim_distance.0;

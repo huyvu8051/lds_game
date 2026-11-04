@@ -221,6 +221,8 @@ pub(crate) struct RangeAccuracy {
     pub(crate) hip: [f32; 3],
     /// What being on the move costs this weapon.
     pub(crate) moving: f32,
+    /// What a held trigger costs it, at the top of the climb.
+    pub(crate) heat: f32,
 }
 
 /// Where each band's figures are measured. The first two are the band edges
@@ -265,41 +267,44 @@ impl WeaponClass {
     /// already tuned.
     pub(crate) fn accuracy(self) -> RangeAccuracy {
         let (accuracy, name) = match self {
-            // Tight up close with the sights up or down -- 6cm and 9cm at
-            // 25m against a head of 21cm -- and barely troubled by running,
-            // which is the whole of what they are for. The cone then opens
-            // faster than anything else here: 96cm at 150m is not a weapon,
-            // and a pistol at 150m should not be one.
+            // Tight up close, sights up or down, and barely troubled by
+            // running, which is the whole of what they are for. The cone then
+            // opens faster than anything else here: a pistol at 150m should
+            // not be a weapon.
             Self::Pistol | Self::Smg | Self::Shotgun => (
                 RangeAccuracy {
                     ads: [0.10, 0.45, 1.50],
                     hip: [0.14, 0.70, 2.20],
                     moving: 1.2,
+                    heat: HEAT_SPREAD_GAIN,
                 },
                 "pistol/smg/shotgun",
             ),
-            // As tight as an SMG up close, and the cone then opens about as
-            // slowly as it can without closing: 17cm at 60m, 45cm at 150m,
-            // which is a body hit more often than not. From the hip it is a
-            // different weapon entirely, and moving costs it twice an SMG.
+            // Exact through the sights out to the mid band: what the mark
+            // covers is what it hits, and only past 60m does it start to
+            // wander, by 5cm at 150m. A held trigger merely doubles that,
+            // where every other class is opened several times over -- the
+            // rifle is the one meant to be fired in bursts. From the hip it
+            // is a different weapon, and moving costs it twice an SMG.
             Self::Rifle => (
                 RangeAccuracy {
-                    ads: [0.10, 0.26, 0.70],
+                    ads: [0.0, 0.0, 0.05],
                     hip: [0.40, 0.96, 2.40],
                     moving: 2.0,
+                    heat: 1.0,
                 },
                 "rifle",
             ),
             // The cone does not open at all: one angle, held from the muzzle
-            // to 150m, which is what reaching out means. 23cm at 150m is a
-            // head's radius, so a body is a certainty and a head is a
-            // question. From the hip it is exactly as bad as a rifle, and
-            // standing still matters more to it than to anything else.
+            // to 150m, which is what reaching out means. From the hip it is
+            // exactly as bad as a rifle, and standing still matters more to
+            // it than to anything else.
             Self::Marksman => (
                 RangeAccuracy {
                     ads: [0.06, 0.144, 0.36],
                     hip: [0.40, 0.96, 2.40],
                     moving: 3.0,
+                    heat: HEAT_SPREAD_GAIN,
                 },
                 "marksman",
             ),
