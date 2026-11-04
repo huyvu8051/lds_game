@@ -3220,6 +3220,8 @@ pub(crate) fn switch_weapon(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut active: ResMut<ActiveWeapon>,
     mut request: ResMut<WeaponSwitchRequest>,
+    mut magazines: ResMut<crate::inventory::Magazines>,
+    loadout: Res<crate::inventory::Loadout>,
     mut gun: Query<(Entity, &mut Gun)>,
     mesh_parts: Query<Entity, With<GunMeshPart>>,
     sockets: Query<Entity, Or<(With<TriggerGripSocket>, With<ForeGripSocket>)>>,
@@ -3239,7 +3241,13 @@ pub(crate) fn switch_weapon(
     let def = wanted.def();
 
     gun.base_offset = def.rest_offset;
-    gun.ammo = def.magazine;
+    // Whatever this weapon was left holding, not a fresh magazine every time:
+    // a weapon put away mid-reload comes back with an empty well, and that is
+    // the whole cost of changing your mind halfway through one.
+    let slot = crate::inventory::slot_of(&loadout, wanted);
+    let rounds = magazines.draw(slot, wanted, def.magazine);
+    gun.ammo = rounds.unwrap_or(0);
+    gun.magazine_out = rounds.is_none();
     gun.reload_remaining = 0.0;
     // A sidearm comes out at the ready rather than level. It is short enough
     // that holding it out buys no sight picture, and one carried straight

@@ -385,6 +385,61 @@ impl Equipment {
     }
 }
 
+/// What each weapon slot has in its magazine.
+///
+/// Beside the loadout rather than on `Gun`, because only the weapon in hand
+/// has a `Gun` and the whole point of this is what the other two are holding
+/// while they are on the player's back.
+///
+/// `None` rounds mean no magazine at all -- what a reload abandoned halfway
+/// to reach for the other weapon leaves behind, which is not the same as one
+/// shot dry. The weapon is remembered beside them: a slot that changes hands
+/// changes magazines with it.
+#[derive(Resource, Default)]
+pub(crate) struct Magazines {
+    slots: [Option<(WeaponId, Option<u32>)>; 3],
+}
+
+impl Magazines {
+    /// What this weapon comes out of its slot holding. One the slot has not
+    /// carried before brings a full magazine with it.
+    pub(crate) fn draw(&mut self, slot: Slot, weapon: WeaponId, full: u32) -> Option<u32> {
+        let row = &mut self.slots[slot_index(slot)];
+        match row {
+            Some((carried, rounds)) if *carried == weapon => *rounds,
+            _ => {
+                *row = Some((weapon, Some(full)));
+                Some(full)
+            }
+        }
+    }
+
+    pub(crate) fn stow(&mut self, slot: Slot, weapon: WeaponId, rounds: Option<u32>) {
+        self.slots[slot_index(slot)] = Some((weapon, rounds));
+    }
+
+    /// What a slot is holding, without claiming it. For the HUD, which reads
+    /// every slot and owns none of them.
+    pub(crate) fn peek(&self, slot: Slot, weapon: WeaponId) -> Option<Option<u32>> {
+        match self.slots[slot_index(slot)] {
+            Some((carried, rounds)) if carried == weapon => Some(rounds),
+            _ => None,
+        }
+    }
+}
+
+/// Which slot is carrying this weapon, falling back to the one in hand.
+pub(crate) fn slot_of(loadout: &Loadout, weapon: WeaponId) -> Slot {
+    Slot::ALL.into_iter().find(|slot| loadout.get(*slot) == Some(weapon)).unwrap_or(loadout.active)
+}
+
+fn slot_index(slot: Slot) -> usize {
+    match slot {
+        Slot::Primary(i) => i.min(1),
+        Slot::Sidearm => 2,
+    }
+}
+
 /// What is bolted to each weapon, one set of five sockets per slot.
 #[derive(Resource)]
 pub(crate) struct Attachments {
@@ -412,20 +467,13 @@ impl Default for Attachments {
 }
 
 impl Attachments {
-    fn slot_index(slot: Slot) -> usize {
-        match slot {
-            Slot::Primary(i) => i.min(1),
-            Slot::Sidearm => 2,
-        }
-    }
-
     pub(crate) fn get(&self, slot: Slot, socket: AttachSlot) -> Option<ItemKind> {
-        self.fitted[Self::slot_index(slot)][AttachSlot::ALL.iter().position(|s| *s == socket)?]
+        self.fitted[slot_index(slot)][AttachSlot::ALL.iter().position(|s| *s == socket)?]
     }
 
     pub(crate) fn set(&mut self, slot: Slot, socket: AttachSlot, item: Option<ItemKind>) {
         if let Some(i) = AttachSlot::ALL.iter().position(|s| *s == socket) {
-            self.fitted[Self::slot_index(slot)][i] = item;
+            self.fitted[slot_index(slot)][i] = item;
         }
     }
 }

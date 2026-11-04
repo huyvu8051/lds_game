@@ -217,12 +217,14 @@ pub(crate) fn update_weapon_slots(
 
 /// The rounds, in the cell for the weapon they belong to.
 ///
-/// A slot that is not in hand has no `Gun` of its own -- switching to one
-/// hands it a full magazine -- so that is what its cell shows. The reserve is
-/// the real count either way, since it lives in the inventory by calibre.
+/// A slot that is not in hand has no `Gun` of its own, so what it is holding
+/// is read from the magazines the loadout keeps for it. A weapon that has
+/// never been held has none kept, and comes out full. The reserve is the
+/// real count either way, since it lives in the inventory by calibre.
 pub(crate) fn update_weapon_slot_ammo(
     loadout: Res<Loadout>,
     inventory: Res<Inventory>,
+    magazines: Res<inventory::Magazines>,
     gun: Query<&Gun>,
     mut labels: Query<(&WeaponSlotAmmo, &mut Text)>,
 ) {
@@ -237,12 +239,17 @@ pub(crate) fn update_weapon_slot_ammo(
         text.0 = match held {
             Some(gun) if active && gun.reload_remaining > 0.0 => "RELOADING".to_string(),
             _ => {
-                let mag = match held {
-                    Some(gun) if active => gun.ammo,
-                    _ => def.magazine,
+                let rounds = match held {
+                    Some(gun) if active => (!gun.magazine_out).then_some(gun.ammo),
+                    _ => magazines.peek(label.0, weapon).unwrap_or(Some(def.magazine)),
                 };
                 let reserve = inventory.count(def.ammo);
-                format!("{mag} / {reserve}")
+                match rounds {
+                    // No magazine at all, which is not the same as an empty
+                    // one and should not read as a weapon worth raising.
+                    None => format!("-- / {reserve}"),
+                    Some(mag) => format!("{mag} / {reserve}"),
+                }
             }
         };
     }

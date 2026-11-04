@@ -1092,6 +1092,7 @@ app.init_resource::<MagazineInHand>()
         .init_resource::<InventoryScreenOpen>()
         .init_resource::<Equipment>()
         .init_resource::<Attachments>()
+        .init_resource::<inventory::Magazines>()
         .init_resource::<Patrol>()
         .init_resource::<PatrolFire>()
         .init_resource::<PatrolRoute>()
@@ -1274,12 +1275,16 @@ app.init_resource::<MagazineInHand>()
                     // Grouped only to stay inside the twenty this tuple
                     // takes; the chain still orders them.
                     (advance_walk_cycle, advance_fire_shock).chain(),
-                    gun_view_animation,
+                    // Chained: the cancel has to land before the pose reads the reload
+
+                    // clock, or the press that asked for it would be eaten.
+
+                    (movement_combat::slap_magazine_back, gun_view_animation).chain(),
                     // Grouped only to stay inside the twenty this tuple
                     // takes; chained because the shot reads the distance the
                     // first one measures.
                     (movement_combat::measure_aim_distance, shoot).chain(),
-                    reload_gun,
+                    (movement_combat::reload_empty_well, reload_gun).chain(),
                     // After it: the grace period it opens is counted here.
                     movement_combat::settle_quiet_reload,
                     // Grouped to stay inside the twenty the outer tuple

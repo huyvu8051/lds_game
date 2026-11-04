@@ -87,6 +87,12 @@ pub(crate) fn announce_streak(commands: &mut Commands, sample: Handle<seedling::
 #[derive(Component)]
 pub(crate) struct GunshotVoice;
 
+/// The reload sample, tagged so a reload that stops early can take its own
+/// sound with it -- a magazine slapped back in while the clatter of changing
+/// it plays on is the one thing that would give the cancel away.
+#[derive(Component)]
+pub(crate) struct ReloadVoice;
+
 #[derive(Component)]
 pub(crate) struct ZombieFootstepVoice;
 

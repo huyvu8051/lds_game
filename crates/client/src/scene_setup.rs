@@ -386,6 +386,8 @@ pub(crate) fn setup_gameplay(
                 recoil: 0.0,
                 recoil_target: 0.0,
                 ammo: active.def().magazine,
+                magazine_out: false,
+                reload_cancelled: false,
                 reload_remaining: 0.0,
                 reload_total: 0.0,
                 reload_decide: 0.0,

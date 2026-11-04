@@ -43,6 +43,7 @@ pub(crate) fn clear_weapon_state(
     mut swap: ResMut<SightSwap>,
     carried_mag: Query<Entity, With<CarriedMagazine>>,
     carried_sight: Query<Entity, With<CarriedSight>>,
+    gun: Query<&crate::Gun>,
     mut magazines: Query<&mut Visibility, With<ViewmodelMagazine>>,
 ) {
     if !changed.0 {
@@ -58,10 +59,14 @@ pub(crate) fn clear_weapon_state(
     swap.running = None;
     swap.elapsed = 0.0;
     // Whatever was hidden belonged to the weapon that is gone, and the one
-    // arriving must not come up missing its magazine.
-    for mut visibility in &mut magazines {
-        if *visibility == Visibility::Hidden {
-            *visibility = Visibility::Inherited;
+    // arriving must not come up missing its magazine -- unless it was put
+    // away halfway through a reload, which is exactly what an empty well
+    // means and the one case where showing one would be the lie.
+    if !gun.single().is_ok_and(|gun| gun.magazine_out) {
+        for mut visibility in &mut magazines {
+            if *visibility == Visibility::Hidden {
+                *visibility = Visibility::Inherited;
+            }
         }
     }
 }

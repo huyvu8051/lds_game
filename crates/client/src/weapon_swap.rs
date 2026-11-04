@@ -152,6 +152,8 @@ pub(crate) fn begin_weapon_swap(
     active: Res<ActiveWeapon>,
     mut request: ResMut<weapon::WeaponSwitchRequest>,
     mut swap: ResMut<WeaponSwap>,
+    mut magazines: ResMut<inventory::Magazines>,
+    mut gun: Query<&mut Gun>,
 ) {
     if swap.phase != Phase::Idle {
         return;
@@ -162,14 +164,22 @@ pub(crate) fn begin_weapon_swap(
         return;
     }
     request.0 = None;
-    let from = inventory::Slot::ALL
-        .into_iter()
-        .find(|slot| loadout.get(*slot) == Some(active.0))
-        .unwrap_or(loadout.active);
-    let to = inventory::Slot::ALL
-        .into_iter()
-        .find(|slot| loadout.get(*slot) == Some(wanted))
-        .unwrap_or(loadout.active);
+    let from = inventory::slot_of(&loadout, active.0);
+    let to = inventory::slot_of(&loadout, wanted);
+    // What the weapon being put away is holding goes with it, and a reload
+    // caught half done does not survive the trip: the magazine is out of the
+    // well or on its way there, and either way the hand lets go of it to
+    // reach for the other weapon.
+    if let Ok(mut gun) = gun.single_mut() {
+        let abandoned = gun.reload_remaining > 0.0;
+        magazines.stow(from, active.0, (!abandoned).then_some(gun.ammo));
+        if abandoned {
+            gun.reload_remaining = 0.0;
+            gun.reload_decide = 0.0;
+            gun.magazine_out = true;
+            gun.reload_cancelled = true;
+        }
+    }
     swap.phase = Phase::Holster;
     swap.elapsed = 0.0;
     // Shortened by whichever end is the sidearm, including the rifle being

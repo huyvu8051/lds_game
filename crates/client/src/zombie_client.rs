@@ -68,6 +68,19 @@ pub(crate) struct Gun {
     pub(crate) recoil_target: f32,
     pub(crate) ammo: u32,
 
+    /// Whether the well is empty.
+    ///
+    /// Not a magazine with nothing in it: one shot dry stays in the weapon
+    /// until the player changes it, and only a reload left half done takes
+    /// the magazine away with it.
+    pub(crate) magazine_out: bool,
+    /// Set the frame a reload stops before its time.
+    ///
+    /// The clock landing on zero is how every stage of the reload is timed,
+    /// so a reload cut short would cross all the marks it had left in one
+    /// frame -- dropping the magazine, fetching another and seating it, in
+    /// the frame the player asked for none of it.
+    pub(crate) reload_cancelled: bool,
     pub(crate) reload_remaining: f32,
     /// How long this particular reload runs, which is not always the
     /// weapon's own figure: holding the key stretches it. Every animation

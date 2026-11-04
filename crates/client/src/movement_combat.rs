@@ -922,6 +922,7 @@ pub(crate) fn shoot(
         commands.spawn((
             seedling::SamplePlayer::new(vfx_assets.reload_sound.of(active.0)),
             seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
+            ReloadVoice,
         ));
     }
 
@@ -1114,6 +1115,85 @@ pub(crate) fn shoot(
     });
 }
 
+/// Puts the magazine straight back when the player asks for the weapon again
+/// mid-reload, so the same press that cancels also shoots or aims.
+///
+/// Only while the old magazine is still in the hand, and only while there is
+/// something in it: once the hand has opened there is nothing to put back,
+/// and a magazine shot dry is not worth changing your mind over.
+///
+/// A press, not a hold. Holding the aim button through a deliberate reload is
+/// how most people reload, and a held test would cancel it on the frame after
+/// the R key -- so the button has to go down *during* the reload to count,
+/// which is also what makes a weapon that ran dry under a held trigger
+/// reload in peace.
+///
+/// Before `gun_view_animation` and `shoot` on purpose: both read the reload
+/// clock, and a cancel they only saw next frame would eat the press that
+/// caused it.
+///
+/// The player's hands only. The autopilot holds the trigger down, so letting
+/// it in here would cancel every reload it ever started.
+pub(crate) fn slap_magazine_back(
+    game_over: Res<GameOver>,
+    aim_held: Res<AimHeld>,
+    touch_aiming: Res<TouchAiming>,
+    touch_firing: Res<TouchFiring>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    cursor: Query<&CursorOptions, With<PrimaryWindow>>,
+    mut gun: Query<&mut Gun>,
+    mut asked: Local<bool>,
+) {
+    let wants = cursor.single().is_ok_and(|cursor| {
+        let grabbed = cursor.grab_mode != CursorGrabMode::None;
+        (grabbed && mouse.pressed(MouseButton::Left))
+            || touch_firing.0
+            || is_aiming(cursor, &aim_held, touch_aiming.0)
+    });
+    if std::mem::replace(&mut *asked, wants) || !wants || game_over.0 {
+        return;
+    }
+    let Ok(mut gun) = gun.single_mut() else { return };
+    if gun.ammo == 0 || !crate::magazine_drop::magazine_in_hand(&gun) {
+        return;
+    }
+    gun.reload_remaining = 0.0;
+    gun.reload_decide = 0.0;
+    gun.magazine_out = false;
+    gun.reload_cancelled = true;
+}
+
+/// Loads a weapon drawn with nothing in the well, without being asked.
+///
+/// The cost of abandoning a reload is the magazine, not the player's
+/// attention: the weapon comes up empty and starts filling itself, and the
+/// reload it runs skips the half that pulls a magazine out of a well that
+/// has none.
+pub(crate) fn reload_empty_well(
+    mut commands: Commands,
+    game_over: Res<GameOver>,
+    swap: Res<crate::WeaponSwap>,
+    active: Res<ActiveWeapon>,
+    reload_sound: Res<ReloadSound>,
+    mut gun: Query<&mut Gun>,
+) {
+    if game_over.0 || swap.busy() {
+        return;
+    }
+    let Ok(mut gun) = gun.single_mut() else { return };
+    if !gun.magazine_out || gun.reload_remaining > 0.0 {
+        return;
+    }
+    crate::magazine_drop::reload_into_empty_well(&mut gun, active.def().reload_duration);
+    // Loud, like the dry reload: the quiet one is something the player asks
+    // for by holding the key, and nobody asked for this one either.
+    commands.spawn((
+        seedling::SamplePlayer::new(reload_sound.of(active.0)),
+        seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
+        ReloadVoice,
+    ));
+}
+
 pub(crate) fn reload_gun(
     keys: Res<ButtonInput<KeyCode>>,
     touch_reload: Res<TouchReload>,
@@ -1130,8 +1210,15 @@ pub(crate) fn reload_gun(
     if gun.ammo == active.def().magazine || gun.reload_remaining > 0.0 {
         return;
     }
-    gun.reload_remaining = active.def().reload_duration;
-    gun.reload_total = gun.reload_remaining;
+    // Nothing to pull out of a well that has none, so the hand goes straight
+    // for a fresh magazine -- the same shortened move the weapon runs on its
+    // own, for the player who asks for it before it gets there.
+    if gun.magazine_out {
+        crate::magazine_drop::reload_into_empty_well(&mut gun, active.def().reload_duration);
+    } else {
+        gun.reload_remaining = active.def().reload_duration;
+        gun.reload_total = gun.reload_remaining;
+    }
     // The sound waits. A tap and a hold are the same thing at the instant of
     // the press, and which one this is decides how loud the reload is.
     gun.reload_decide = QUIET_DECIDE_SECONDS;
@@ -1203,6 +1290,7 @@ pub(crate) fn settle_quiet_reload(
                 1.0
             })),
         seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
+        ReloadVoice,
     ));
 }
 

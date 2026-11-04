@@ -456,6 +456,10 @@ pub(crate) fn gun_view_animation(
         if gun.reload_remaining > 0.0 {
             gun.reload_remaining = (gun.reload_remaining - time.delta_secs()).max(0.0);
             if gun.reload_remaining == 0.0 {
+                // The magazine is in long before this -- carry_reload_magazine
+                // seats it two thirds of the way through -- but the clock
+                // running out is the one mark that cannot be missed.
+                gun.magazine_out = false;
                 // Drawn from the pack rather than conjured. Partial if the
                 // pack is short, which is what makes the reserve count
                 // beside the magazine worth reading.
