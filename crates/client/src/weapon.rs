@@ -3244,7 +3244,11 @@ pub(crate) fn switch_weapon(
     // Whatever this weapon was left holding, not a fresh magazine every time:
     // a weapon put away mid-reload comes back with an empty well, and that is
     // the whole cost of changing your mind halfway through one.
-    let slot = crate::inventory::slot_of(&loadout, wanted);
+    //
+    // By slot, not by a search for the weapon: taking one always holds its
+    // slot, and both primaries can hold the same weapon -- a search then
+    // hands the second of them the first one's magazine.
+    let slot = loadout.active;
     let rounds = magazines.draw(slot, wanted, def.magazine);
     gun.ammo = rounds.unwrap_or(0);
     gun.magazine_out = rounds.is_none();
@@ -3271,6 +3275,14 @@ pub(crate) fn switch_weapon(
         commands.entity(entity).try_despawn();
     }
     spawn_gun_mesh_parts(&mut commands, &asset_server, &mut materials, gun_entity, def.mesh_path);
-    debug!("[weapon] switched to {}", def.name);
+    debug!(
+        "[weapon] switched to {} in slot {}, {}",
+        def.name,
+        slot.label(),
+        match rounds {
+            Some(n) => format!("{n} rounds"),
+            None => "no magazine".to_string(),
+        },
+    );
 }
 

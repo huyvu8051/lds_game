@@ -164,8 +164,11 @@ pub(crate) fn begin_weapon_swap(
         return;
     }
     request.0 = None;
-    let from = inventory::slot_of(&loadout, active.0);
-    let to = inventory::slot_of(&loadout, wanted);
+    // Where the weapon in hand actually came from, and where the next one is
+    // going: taking a weapon always holds its slot, so the loadout already
+    // knows the destination and does not have to be searched for it.
+    let from = magazines.held_slot(inventory::slot_of(&loadout, active.0));
+    let to = loadout.active;
     // What the weapon being put away is holding goes with it, and a reload
     // caught half done does not survive the trip: the magazine is out of the
     // well or on its way there, and either way the hand lets go of it to
@@ -213,10 +216,7 @@ pub(crate) fn advance_weapon_swap(
                 return;
             };
             request.0 = Some(wanted);
-            let to = inventory::Slot::ALL
-                .into_iter()
-                .find(|slot| loadout.get(*slot) == Some(wanted))
-                .unwrap_or(loadout.active);
+            let to = loadout.active;
             swap.phase = Phase::Draw;
             swap.elapsed = 0.0;
             swap.direction = direction_of(to);

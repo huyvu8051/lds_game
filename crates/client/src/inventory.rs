@@ -398,12 +398,20 @@ impl Equipment {
 #[derive(Resource, Default)]
 pub(crate) struct Magazines {
     slots: [Option<(WeaponId, Option<u32>)>; 3],
+    /// Which slot the weapon in hand was drawn from.
+    ///
+    /// Tracked rather than looked up: both primary slots can hold the same
+    /// weapon, and a search by weapon answers with the first of them however
+    /// the other one got into the hand -- so the rounds fired out of slot two
+    /// were put back into slot one.
+    in_hand: Option<Slot>,
 }
 
 impl Magazines {
     /// What this weapon comes out of its slot holding. One the slot has not
     /// carried before brings a full magazine with it.
     pub(crate) fn draw(&mut self, slot: Slot, weapon: WeaponId, full: u32) -> Option<u32> {
+        self.in_hand = Some(slot);
         let row = &mut self.slots[slot_index(slot)];
         match row {
             Some((carried, rounds)) if *carried == weapon => *rounds,
@@ -416,6 +424,13 @@ impl Magazines {
 
     pub(crate) fn stow(&mut self, slot: Slot, weapon: WeaponId, rounds: Option<u32>) {
         self.slots[slot_index(slot)] = Some((weapon, rounds));
+    }
+
+    /// The slot the weapon in hand came out of, before anything has been
+    /// drawn -- the first swap of a run, where the fallback is exact because
+    /// nothing has had a chance to be carried twice yet.
+    pub(crate) fn held_slot(&self, fallback: Slot) -> Slot {
+        self.in_hand.unwrap_or(fallback)
     }
 
     /// What a slot is holding, without claiming it. For the HUD, which reads
