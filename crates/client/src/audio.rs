@@ -15,6 +15,33 @@ impl GunshotSound {
 #[derive(Resource)]
 pub(crate) struct ReloadSound(pub(crate) Vec<Handle<seedling::AudioSample>>);
 
+/// What a shot sounds like with a can on it.
+///
+/// Two recordings, not one per weapon: once the muzzle blast is bottled,
+/// what is left to hear is the calibre and the action rather than which
+/// receiver they belong to. Both were cut from Pole Position takes on the
+/// same microphone at the same metre as the rest of the weapons, so a
+/// suppressed shot arrives in the same room as a bare one.
+#[derive(Resource)]
+pub(crate) struct SuppressedSound {
+    /// A De Lisle in .45 ACP: spent in a third of a second, because a
+    /// subsonic round leaves no crack behind once the blast is gone.
+    pub(crate) pistol: Handle<seedling::AudioSample>,
+    /// A Sako TRG in .308: it rings on, because a rifle round goes
+    /// supersonic whatever is screwed to the muzzle and the crack travels
+    /// with the bullet, out where no can reaches it.
+    pub(crate) rifle: Handle<seedling::AudioSample>,
+}
+
+impl SuppressedSound {
+    pub(crate) fn of(&self, class: WeaponClass) -> Handle<seedling::AudioSample> {
+        match class {
+            WeaponClass::Pistol | WeaponClass::Smg => self.pistol.clone(),
+            _ => self.rifle.clone(),
+        }
+    }
+}
+
 /// What a cleared wave sounds like.
 ///
 /// Inserted only when the files are actually on disk, so the wave mode can
@@ -84,8 +111,15 @@ pub(crate) fn announce_streak(commands: &mut Commands, sample: Handle<seedling::
     announce(commands, sample, MULTI_KILL_VOLUME);
 }
 
+/// A shot still ringing, and how loud it was.
+///
+/// The level is carried rather than inferred: what ducks the rest of the mix
+/// has to know a suppressed shot from a bare one, and a tag alone cannot.
+/// Quieting the sample while still cutting the room to a third is how a
+/// suppressor ends up sounding loud -- the ear hears a small noise and the
+/// whole world holding its breath around it.
 #[derive(Component)]
-pub(crate) struct GunshotVoice;
+pub(crate) struct GunshotVoice(pub(crate) f32);
 
 /// The reload sample, tagged so a reload that stops early can take its own
 /// sound with it -- a magazine slapped back in while the clatter of changing
@@ -205,7 +239,7 @@ pub(crate) fn play_zombie_footsteps(
     graphs: Res<Assets<AnimationGraph>>,
     clips: Res<Assets<AnimationClip>>,
     live_voices: Query<(), With<ZombieFootstepVoice>>,
-    gunshots: Query<(), With<GunshotVoice>>,
+    gunshots: Query<&GunshotVoice>,
     mut last_phase: Local<std::collections::HashMap<Entity, f32>>,
     mut last_step_at: Local<f32>,
     mut commands: Commands,
@@ -249,7 +283,9 @@ pub(crate) fn play_zombie_footsteps(
     }
 
     due.sort_by(|(a, _), (b, _)| a.total_cmp(b));
-    let ducked = !gunshots.is_empty();
+    // The loudest shot still ringing decides, and a silent one decides nothing.
+    let loudest = gunshots.iter().fold(0.0f32, |most, shot| most.max(shot.0));
+    let duck = 1.0 - (1.0 - GUNSHOT_DUCK_FACTOR) * loudest.clamp(0.0, 1.0);
 
     for (_, entity) in due.into_iter().take(budget) {
         let Ok((_, transform, _, _)) = zombies.get(entity) else {
@@ -259,7 +295,7 @@ pub(crate) fn play_zombie_footsteps(
         let Some(sample) = pick_sample(&sounds.zombie, seed) else {
             continue;
         };
-        let volume = if ducked { ZOMBIE_FOOTSTEP_VOLUME * GUNSHOT_DUCK_FACTOR } else { ZOMBIE_FOOTSTEP_VOLUME };
+        let volume = ZOMBIE_FOOTSTEP_VOLUME * duck;
         commands.spawn((
             // Into the spatial pool, which is where Steam Audio is wired in:
             // a footstep behind a wall now arrives through the wall rather

@@ -910,11 +910,18 @@ pub(crate) fn shoot(
     gun.recoil_target = fx.recoil;
 
     gun.recoil_jitter = Vec2::new(shot_jitter(&mut gun.recoil_rng), shot_jitter(&mut gun.recoil_rng));
+    // A can does not quieten the weapon's own recording, it replaces it: the
+    // crack is the loud part and turning it down leaves the same gun further
+    // away rather than a different gun.
+    let report = if fx.suppressed {
+        vfx_assets.suppressed.of(active.def().class)
+    } else {
+        vfx_assets.gunshot.of(active.0)
+    };
     commands.spawn((
-        seedling::SamplePlayer::new(vfx_assets.gunshot.of(active.0))
-            .with_volume(seedling::Volume::Linear(fx.report)),
+        seedling::SamplePlayer::new(report).with_volume(seedling::Volume::Linear(fx.report)),
         seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
-        GunshotVoice,
+        GunshotVoice(fx.report),
     ));
     if gun.ammo == 0 {
         // Never quiet: the quiet reload is something the player asks for by

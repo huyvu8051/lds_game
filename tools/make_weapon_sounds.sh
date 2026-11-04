@@ -34,6 +34,15 @@ AR15="$BPP/EFX INT AR-15 M4 Charging Handle With Mag 01_A.flac"
 MP5="$B16 -  Heckler & Koch MP5 9mm/HK_MP5_9mm_2m_behind_clean_Double_shots_x_1.flac"
 P50="$BPP/EFX EXT .50 Cal Pistol Shots 02 A.flac"
 P38="Sonniss.com - GDC 2020 - Game Audio Bundle/Pole Position - Walther P38 semi automatic pistol/P38, Handling, Removing Magazine, 1m, Right, MKH8060.flac"
+# Suppressed, for whatever has a can screwed to it. Two takes and not thirty-
+# four: once the muzzle blast is gone, what is left to hear is the calibre and
+# the action, not which receiver it came out of.
+#
+# Both are Pole Position on the same mic at the same metre as the Remington
+# the M24's shot was cut from, so they normalise into the same room as
+# everything else rather than arriving from a different one.
+DELISLE="$B16 - De Lisle Carbine .45ACP suppressed/De_Lisle_Carbine_.45ACP_suppressed_1m_right_MKH8040_1_clean_Single_shots_x_14.flac"
+SAKO="$B16 - Sako TRG 22/Sako_TRG_22_TRG_silencer_1m_right_MKH8040_1_clean_Single_shots_x_6.flac"
 
 fetch() {
   local dst="$work/src/$(basename "$1")"
@@ -87,6 +96,7 @@ reload() {
 ak=$(fetch "$AKM"); hk=$(fetch "$HK"); rem=$(fetch "$REM")
 g36=$(fetch "$G36"); saiga=$(fetch "$SAIGA"); ar15=$(fetch "$AR15")
 mp5=$(fetch "$MP5"); p50=$(fetch "$P50"); p38=$(fetch "$P38")
+delisle=$(fetch "$DELISLE"); sako=$(fetch "$SAKO")
 
 # The last shot of each burst: it is the only one whose tail is not stepped on
 # by the next round.
@@ -103,6 +113,16 @@ cut "$rem" 4.070 4.650 "$out/m24_fire.wav"
 # tail, which is where that belongs.
 cut "$mp5" 0.290 0.620 "$out/ump45_fire.wav"
 cut "$p50" 2.778 3.700 "$out/deagle_fire.wav"
+
+# The shots here stand four seconds apart, so every tail is free and the one
+# picked is only the one furthest from the ends of the take.
+#
+# The De Lisle is spent in a third of a second -- a .45 is subsonic, so there
+# is no crack to be left over once the blast is bottled. The Sako keeps
+# ringing for most of a second, because a .308 goes supersonic whatever is on
+# the muzzle and the crack travels with the bullet, out where no can reaches.
+cut "$delisle" 15.990 16.480 "$out/suppressed_pistol_fire.wav"
+cut "$sako"    12.050 12.980 "$out/suppressed_rifle_fire.wav"
 
 event "$g36"   1.09 1.70 "$work/ak_out.wav"
 event "$g36"   6.33 6.81 "$work/ak_in.wav"

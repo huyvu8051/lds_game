@@ -87,6 +87,7 @@ pub(crate) struct VfxAssets<'w, 's> {
     pub(crate) blood: Res<'w, BloodAssets>,
     pub(crate) sparks: Res<'w, SparkAssets>,
     pub(crate) gunshot: Res<'w, GunshotSound>,
+    pub(crate) suppressed: Res<'w, crate::audio::SuppressedSound>,
     pub(crate) reload_sound: Res<'w, ReloadSound>,
 
     pub(crate) stance: Query<'w, 's, &'static PlayerStance, With<Player>>,

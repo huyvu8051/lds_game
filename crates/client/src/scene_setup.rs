@@ -68,6 +68,10 @@ pub(crate) fn setup_common(
     commands.insert_resource(GunshotSound(
         WeaponId::ALL.iter().map(|w| asset_server.load(w.def().sound.fire)).collect(),
     ));
+    commands.insert_resource(crate::audio::SuppressedSound {
+        pistol: asset_server.load("audio/weapons/suppressed_pistol_fire.wav"),
+        rifle: asset_server.load("audio/weapons/suppressed_rifle_fire.wav"),
+    });
     commands.insert_resource(ReloadSound(
         WeaponId::ALL.iter().map(|w| asset_server.load(w.def().sound.reload)).collect(),
     ));

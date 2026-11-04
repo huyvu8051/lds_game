@@ -25,6 +25,11 @@ pub(crate) struct AttachmentEffects {
     pub(crate) flash: f32,
     /// Scales how loud the shot is.
     pub(crate) report: f32,
+    /// Whether the shot reaches for the suppressed recording instead of the
+    /// weapon.s own. Its own flag rather than a quiet report: what decides
+    /// is a can on the muzzle, and some other part could be quiet without
+    /// changing what the shot is.
+    pub(crate) suppressed: bool,
 }
 
 impl Default for AttachmentEffects {
@@ -38,6 +43,7 @@ impl Default for AttachmentEffects {
             reload: 1.0,
             flash: 1.0,
             report: 1.0,
+            suppressed: false,
         }
     }
 }
@@ -52,6 +58,7 @@ impl AttachmentEffects {
         self.reload *= other.reload;
         self.flash *= other.flash;
         self.report *= other.report;
+        self.suppressed |= other.suppressed;
     }
 }
 
@@ -63,7 +70,7 @@ impl AttachmentEffects {
 /// what the player hears and what the room sees, which on a night map is
 /// most of what a muzzle device is for.
 static SUPPRESSOR: AttachmentEffects =
-    AttachmentEffects { flash: 0.0, report: 0.42, ..CLEAN };
+    AttachmentEffects { flash: 0.0, report: 0.70, suppressed: true, ..CLEAN };
 
 /// A brake does not make the blast go away, it points it sideways: less of
 /// the shot comes back into the shoulder and more of it goes out as noise
@@ -100,6 +107,7 @@ const CLEAN: AttachmentEffects = AttachmentEffects {
     reload: 1.0,
     flash: 1.0,
     report: 1.0,
+    suppressed: false,
 };
 
 /// Rebuilds the multipliers from whatever is actually on the weapon.
@@ -136,8 +144,8 @@ pub(crate) fn gather_attachment_effects(
         });
     }
     debug!(
-        "[attach] recoil {:.2} sway {:.2} spread {:.2} ads {:.2} settle {:.2} reload {:.2} flash {:.2} report {:.2}",
-        out.recoil, out.sway, out.spread, out.ads_speed, out.settle_speed, out.reload, out.flash, out.report,
+        "[attach] recoil {:.2} sway {:.2} spread {:.2} ads {:.2} settle {:.2} reload {:.2} flash {:.2} report {:.2} suppressed {}",
+        out.recoil, out.sway, out.spread, out.ads_speed, out.settle_speed, out.reload, out.flash, out.report, out.suppressed,
     );
     *effects = out;
 }

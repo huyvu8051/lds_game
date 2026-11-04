@@ -20,6 +20,11 @@ weapons/
         m4a1_*   H&K HK416 5.56mm on-gun mic, and AR-15 magazine foley
         m24_*    Remington 700 7.62x51mm -- the rifle the M24 is built on --
                  and SAIGA-12 cocking foley
+        suppressed_*
+                 De Lisle Carbine .45ACP suppressed (pistol) and a Sako TRG 22
+                 with its own silencer (rifle). The shot used whenever a can is
+                 fitted, picked by calibre rather than by weapon.
+
 
     tools/make_weapon_sounds.sh fetches the sources and rebuilds all six.
 
