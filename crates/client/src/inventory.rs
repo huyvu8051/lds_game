@@ -93,6 +93,20 @@ impl Loadout {
         }
     }
 
+    /// Whether this weapon has a home that is standing empty.
+    ///
+    /// What walking over one asks. Taking a weapon in exchange for the one
+    /// in your hands is a decision, and a decision belongs to a button --
+    /// `slot_for` still makes that exchange for the bag screen and for the
+    /// touch control, which are places the player went on purpose.
+    pub(crate) fn has_room_for(&self, weapon: WeaponId) -> bool {
+        if is_sidearm(weapon) {
+            self.sidearm.is_none()
+        } else {
+            self.primary.iter().any(|slot| slot.is_none())
+        }
+    }
+
     /// Where a weapon would go, and what it would displace getting there.
     ///
     /// An empty slot of the right kind first, then the one in hand. That is
@@ -934,16 +948,24 @@ pub(crate) fn collect_pickups(
                 &loadout,
                 kind,
             ),
-            PickupKind::Weapon(weapon) => pick_up_weapon(
-                &mut commands,
-                &mut loadout,
-                &mut request,
-                assets.as_deref(),
-                weapon,
-                // Thrown on past the one being picked up, so the swap does
-                // not leave both of them inside the same radius.
-                Some((transform.translation, transform.translation - player.translation)),
-            ),
+            PickupKind::Weapon(weapon) => {
+                // Walking past a rifle with both slots full used to swap it
+                // for the one in your hands, which is a trade nobody asked
+                // for and a weapon left on the floor behind you.
+                if !loadout.has_room_for(weapon) {
+                    continue;
+                }
+                pick_up_weapon(
+                    &mut commands,
+                    &mut loadout,
+                    &mut request,
+                    assets.as_deref(),
+                    weapon,
+                    // Thrown on past the one being picked up, so the swap does
+                    // not leave both of them inside the same radius.
+                    Some((transform.translation, transform.translation - player.translation)),
+                );
+            }
         }
         commands.entity(entity).try_despawn();
     }
