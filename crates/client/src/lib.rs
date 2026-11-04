@@ -1083,6 +1083,7 @@ app.init_resource::<MagazineInHand>()
         .init_resource::<Boost>()
         .init_resource::<CorpseStages>()
         .init_resource::<WeaponSpawnEnabled>()
+        .init_resource::<graphics_settings::ItemSpawnEnabled>()
         .init_resource::<ZombieWalk>()
         .init_resource::<CrosshairInAds>()
         .init_resource::<InfiniteAmmo>()
@@ -1187,6 +1188,8 @@ app.init_resource::<MagazineInHand>()
                         update_corpse_stage_buttons,
                         weapon_spawn_buttons,
                         update_weapon_spawn_buttons,
+                        item_spawn_buttons,
+                        update_item_spawn_buttons,
                         (crosshair_in_ads_button, infinite_ammo_button),
                         zombie_walk_buttons,
                         update_zombie_walk_buttons,

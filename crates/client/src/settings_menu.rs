@@ -495,9 +495,13 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                 // A row per socket rather than one wrapped heap of twenty-nine
                 // buttons. The labels are the ones the backpack screen puts
                 // over the same sockets.
-                for socket in AttachSlot::ALL {
+                // A row per shelf rather than one wrapped heap of forty-nine
+                // buttons. Grenades, healing, armour and packs are here for
+                // the same reason the attachments were: there was no way to
+                // get one without finding a zombie that felt like dropping it.
+                for group in crate::items::ItemGroup::all() {
                     page.spawn((
-                        Text::new(socket.label()),
+                        Text::new(group.label()),
                         TextFont {
                             font_size: FontSize::Px(12.0),
                             ..default()
@@ -512,12 +516,47 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                         ..default()
                     })
                     .with_children(|row| {
-                        for kind in ALL_ITEMS.into_iter().filter(|k| k.attach_slot() == Some(socket))
-                        {
+                        for kind in ALL_ITEMS.into_iter().filter(|k| k.group() == group) {
                             spawn_cheat_action_button(row, kind.label(), GiveAttachmentButton(kind));
                         }
                     });
                 }
+                // Which of them the drop table may hand out, on the same
+                // shelves as the row above.
+                page.spawn((
+                    Text::new("Item drops"),
+                    TextFont {
+                        font_size: FontSize::Px(16.0),
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+                for group in crate::items::ItemGroup::all() {
+                    page.spawn((
+                        Text::new(group.label()),
+                        TextFont {
+                            font_size: FontSize::Px(12.0),
+                            ..default()
+                        },
+                        TextColor(Color::srgb(0.6, 0.6, 0.6)),
+                    ));
+                    page.spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(6.0),
+                        flex_wrap: FlexWrap::Wrap,
+                        row_gap: Val::Px(4.0),
+                        ..default()
+                    })
+                    .with_children(|row| {
+                        for (i, kind) in ALL_ITEMS.into_iter().enumerate() {
+                            if kind.group() != group {
+                                continue;
+                            }
+                            spawn_cheat_toggle_button(row, kind.label(), ItemSpawnButton(i));
+                        }
+                    });
+                }
+
                 page.spawn((
                     Text::new("Weapon drops"),
                     TextFont {
@@ -945,6 +984,20 @@ pub(crate) fn update_zombie_walk_buttons(
 #[derive(Component)]
 pub(crate) struct WeaponSpawnButton(pub(crate) usize);
 
+#[derive(Component)]
+pub(crate) struct ItemSpawnButton(pub(crate) usize);
+
+pub(crate) fn item_spawn_buttons(
+    mut allowed: ResMut<crate::graphics_settings::ItemSpawnEnabled>,
+    buttons: Query<(&Interaction, &ItemSpawnButton), Changed<Interaction>>,
+) {
+    for (interaction, button) in &buttons {
+        if *interaction == Interaction::Pressed {
+            allowed.0[button.0] = !allowed.0[button.0];
+        }
+    }
+}
+
 pub(crate) fn weapon_spawn_buttons(
     mut allowed: ResMut<WeaponSpawnEnabled>,
     buttons: Query<(&Interaction, &WeaponSpawnButton), Changed<Interaction>>,
@@ -953,6 +1006,22 @@ pub(crate) fn weapon_spawn_buttons(
         if *interaction == Interaction::Pressed {
             allowed.0[button.0] = !allowed.0[button.0];
         }
+    }
+}
+
+pub(crate) fn update_item_spawn_buttons(
+    allowed: Res<crate::graphics_settings::ItemSpawnEnabled>,
+    mut buttons: Query<(&ItemSpawnButton, &mut BackgroundColor)>,
+) {
+    if !allowed.is_changed() {
+        return;
+    }
+    for (button, mut background) in &mut buttons {
+        *background = BackgroundColor(if allowed.0[button.0] {
+            Color::srgba(0.3, 1.0, 0.4, 0.5)
+        } else {
+            Color::srgba(1.0, 1.0, 1.0, 0.2)
+        });
     }
 }
 

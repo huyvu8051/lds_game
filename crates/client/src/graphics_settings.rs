@@ -30,6 +30,18 @@ impl Default for WeaponSpawnEnabled {
     }
 }
 
+/// The same switch for everything that is not a weapon: sights, grenades,
+/// armour, packs, attachments, ammo. An item turned off here still exists
+/// and can still be given from the menu; it just stops falling off zombies.
+#[derive(Resource)]
+pub(crate) struct ItemSpawnEnabled(pub(crate) [bool; crate::items::ALL_ITEMS.len()]);
+
+impl Default for ItemSpawnEnabled {
+    fn default() -> Self {
+        Self([true; crate::items::ALL_ITEMS.len()])
+    }
+}
+
 /// The pack never runs short of ammunition.
 ///
 /// The magazine still empties and still has to be reloaded. That is the

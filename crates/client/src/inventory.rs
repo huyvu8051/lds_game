@@ -808,6 +808,7 @@ pub(crate) fn drop_loot_on_kill(
     assets: Option<Res<PickupAssets>>,
     loadout: Option<Res<Loadout>>,
     allowed: Option<Res<WeaponSpawnEnabled>>,
+    items_allowed: Option<Res<crate::graphics_settings::ItemSpawnEnabled>>,
 ) {
     let ShotConfirmed { point, killed, .. } = *trigger.event();
     if !killed {
@@ -835,7 +836,20 @@ pub(crate) fn drop_loot_on_kill(
         }
     }
     if roll(seed, 3.0) < CONSUMABLE_DROP_CHANCE {
-        let kind = ALL_ITEMS[(roll(seed, 4.0) * ALL_ITEMS.len() as f32) as usize % ALL_ITEMS.len()];
+        // Drawn from what the table is allowed to hand out, the way the
+        // weapon above is. Indexing ALL_ITEMS and rejecting afterwards would
+        // turn a switched-off item into a drop that never happened rather
+        // than into one more chance for the rest.
+        let pool: Vec<ItemKind> = ALL_ITEMS
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| items_allowed.as_ref().is_none_or(|a| a.0[*i]))
+            .map(|(_, kind)| kind)
+            .collect();
+        if pool.is_empty() {
+            return;
+        }
+        let kind = pool[(roll(seed, 4.0) * pool.len() as f32) as usize % pool.len()];
         spawn_pickup(&mut commands, &assets, PickupKind::Item(kind), at, scatter(seed, 6.0));
     }
 }

@@ -181,6 +181,39 @@ pub(crate) enum ItemKind {
     Molotov,
 }
 
+/// Which shelf an item sits on in the menus.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ItemGroup {
+    Ammo,
+    Attachment(AttachSlot),
+    Armour,
+    Backpack,
+    Healing,
+    Throwable,
+}
+
+impl ItemGroup {
+    /// Every shelf, in the order the menu lists them: what a player reaches
+    /// for most, first.
+    pub(crate) fn all() -> Vec<ItemGroup> {
+        let mut groups = vec![ItemGroup::Throwable, ItemGroup::Healing, ItemGroup::Armour, ItemGroup::Backpack];
+        groups.extend(AttachSlot::ALL.into_iter().map(ItemGroup::Attachment));
+        groups.push(ItemGroup::Ammo);
+        groups
+    }
+
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Ammo => "Ammo",
+            Self::Attachment(slot) => slot.label(),
+            Self::Armour => "Armour",
+            Self::Backpack => "Backpack",
+            Self::Healing => "Healing",
+            Self::Throwable => "Throwables",
+        }
+    }
+}
+
 /// Everything, in the order the pack lists it.
 pub(crate) const ALL_ITEMS: [ItemKind; 49] = [
     ItemKind::Ammo556,
@@ -328,6 +361,26 @@ impl ItemKind {
     }
 
     /// Which socket it goes in, for the ones that go in a socket.
+    /// Which shelf of the menu an item belongs on.
+    ///
+    /// Attachments already answer this through `attach_slot`; everything else
+    /// had no grouping at all, because nothing had asked before.
+    pub(crate) fn group(self) -> ItemGroup {
+        use ItemKind::*;
+        if let Some(slot) = self.attach_slot() {
+            return ItemGroup::Attachment(slot);
+        }
+        match self {
+            Helmet1 | Helmet2 | Helmet3 | Vest1 | Vest2 | Vest3 => ItemGroup::Armour,
+            Backpack1 | Backpack2 | Backpack3 => ItemGroup::Backpack,
+            Bandage | FirstAidKit | MedKit | EnergyDrink | Painkiller | AdrenalineSyringe => {
+                ItemGroup::Healing
+            }
+            FragGrenade | SmokeGrenade | StunGrenade | Molotov => ItemGroup::Throwable,
+            _ => ItemGroup::Ammo,
+        }
+    }
+
     pub(crate) fn attach_slot(self) -> Option<AttachSlot> {
         use ItemKind::*;
         Some(match self {
