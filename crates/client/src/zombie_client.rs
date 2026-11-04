@@ -74,13 +74,24 @@ pub(crate) struct Gun {
     /// until the player changes it, and only a reload left half done takes
     /// the magazine away with it.
     pub(crate) magazine_out: bool,
-    /// Set the frame a reload stops before its time.
+    /// Whether the magazine change is being taken back.
     ///
-    /// The clock landing on zero is how every stage of the reload is timed,
-    /// so a reload cut short would cross all the marks it had left in one
-    /// frame -- dropping the magazine, fetching another and seating it, in
-    /// the frame the player asked for none of it.
-    pub(crate) reload_cancelled: bool,
+    /// Not the same as stopping it. A reload called off while the magazine
+    /// is still in the hand runs the move *backwards* -- the hand pushes it
+    /// home and returns to the fore grip -- so the weapon is not ready again
+    /// until it has. Snapping the clock to zero put a magazine back by
+    /// teleporting it.
+    pub(crate) reload_rewinding: bool,
+    /// Set the frame a reload is thrown away rather than taken back.
+    ///
+    /// Only a weapon swap does that. Everything else that stops a reload
+    /// rewinds it, which needs no flag because the marks un-cross on their
+    /// own. A throw-away snaps the clock instead, and the clock landing on
+    /// zero is how every stage is timed -- so without this it would cross
+    /// all the marks it had left in one frame, dropping the magazine,
+    /// fetching another and seating it, in the frame nobody asked for any
+    /// of it.
+    pub(crate) reload_abandoned: bool,
     pub(crate) reload_remaining: f32,
     /// How long this particular reload runs, which is not always the
     /// weapon's own figure: holding the key stretches it. Every animation

@@ -179,8 +179,9 @@ pub(crate) fn begin_weapon_swap(
         if abandoned {
             gun.reload_remaining = 0.0;
             gun.reload_decide = 0.0;
+            gun.reload_rewinding = false;
             gun.magazine_out = true;
-            gun.reload_cancelled = true;
+            gun.reload_abandoned = true;
         }
     }
     swap.phase = Phase::Holster;

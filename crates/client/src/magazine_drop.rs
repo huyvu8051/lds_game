@@ -58,14 +58,24 @@ fn charging_of(weapon: WeaponId) -> Charging {
     }
 }
 
+/// The three parts of a magazine change, by where one ends and the next
+/// begins. Shares of the whole move, not seconds.
+///
+/// Named apart because they are not interchangeable. Reaching can be called
+/// off and nothing has happened. Pulling can be called off and the magazine
+/// goes back where it came from, still half full. Feeding cannot be called
+/// off at all -- the old one is on the floor by then.
+pub(crate) const REACH_ENDS: f32 = RELOAD_HAND_AT_MAG;
+pub(crate) const PULL_ENDS: f32 = 0.33;
+
 /// Fractions of the reload at which the magazine changes hands.
 ///
 /// The old one comes off into the hand, is let go partway to the pouch, and a
 /// fresh one is already in the hand on the way back. It seats well before the
 /// reload timer runs out on purpose: the gun is level again by then, and an
 /// empty well that late reads as a missing part rather than a reload.
-const MAG_TAKEN_AT: f32 = RELOAD_HAND_AT_MAG;
-const MAG_RELEASED_AT: f32 = 0.33;
+const MAG_TAKEN_AT: f32 = REACH_ENDS;
+const MAG_RELEASED_AT: f32 = PULL_ENDS;
 const MAG_FETCHED_AT: f32 = 0.56;
 const MAG_SEATED_AT: f32 = RELOAD_HAND_BACK_AT_MAG;
 
@@ -382,17 +392,46 @@ fn release_carried(
     }
 }
 
-/// Whether the magazine is still in the hand, and so can go back where it
-/// came from.
-///
-/// The two halves of a reload, and the line between them is the moment the
-/// hand opens: before it the old magazine is still held and a player who
-/// changes their mind slaps it back in, after it the thing is falling and
-/// the only way out is a fresh one.
-pub(crate) fn magazine_in_hand(gun: &Gun) -> bool {
-    gun.reload_remaining > 0.0
-        && 1.0 - gun.reload_remaining / gun.reload_total.max(f32::EPSILON) < MAG_RELEASED_AT
+/// Which of the three parts of a magazine change is running.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ReloadPhase {
+    /// The hand is on its way to the magazine and has not reached it.
+    Reach,
+    /// The magazine is in the hand and has not been let go of.
+    Pull,
+    /// A fresh one is being fetched and seated. The old one is on the floor.
+    Feed,
 }
+
+/// Where the reload has got to, or nothing if there is no reload.
+pub(crate) fn reload_phase(gun: &Gun) -> Option<ReloadPhase> {
+    if gun.reload_remaining <= 0.0 {
+        return None;
+    }
+    let done = 1.0 - gun.reload_remaining / gun.reload_total.max(f32::EPSILON);
+    Some(if done < REACH_ENDS {
+        ReloadPhase::Reach
+    } else if done < PULL_ENDS {
+        ReloadPhase::Pull
+    } else {
+        ReloadPhase::Feed
+    })
+}
+
+/// Whether the move can still be called off.
+///
+/// The first two parts can: nothing has happened yet, or the magazine is in
+/// the hand and can go back. The third cannot -- the old one is falling.
+pub(crate) fn magazine_in_hand(gun: &Gun) -> bool {
+    matches!(reload_phase(gun), Some(ReloadPhase::Reach | ReloadPhase::Pull))
+}
+
+/// How much faster the move runs when it is being taken back.
+///
+/// A hand that has changed its mind does not retrace its care: pushing a
+/// magazine back in is one shove, where easing it out was a lift and a turn.
+pub(crate) const REWIND_SPEED: f32 = 1.9;
+
 
 /// Starts a reload at the point the old magazine is already gone, for a
 /// weapon drawn with an empty well: there is nothing to pull out, so the hand
@@ -457,34 +496,30 @@ pub(crate) fn carry_reload_magazine(
     // magazine the weapon has not finished loading its mesh for.
     let was = last.replace(now).unwrap_or(1.0);
     let crossed = |mark: f32| was < mark && now >= mark;
+    // And the same mark from the other side, for a move being taken back.
+    let uncrossed = |mark: f32| was >= mark && now < mark;
 
-    // A reload that stopped before its time does not get to run the marks it
-    // had left. Which way the magazine goes is already decided: out of the
-    // weapon means it was abandoned and falls, in it means the player slapped
-    // it back and it never went anywhere.
-    if std::mem::take(&mut gun.reload_cancelled) {
+    // Either way the clatter of a magazine change stops: nothing is being
+    // changed any more. Cheap to repeat -- after the first frame there is
+    // nothing left to despawn.
+    if gun.reload_abandoned || gun.reload_rewinding {
         for entity in &reload_voices {
             commands.entity(entity).despawn();
         }
+    }
+
+    // A reload thrown away for a weapon swap. The magazine goes with it: it
+    // is out of the well, or on its way there, and the hand lets go of it to
+    // reach for the other weapon.
+    //
+    // Only this one snaps the clock, so only this one has to be told. A
+    // reload taken back runs the move in reverse and every mark un-crosses
+    // itself on the way down.
+    if std::mem::take(&mut gun.reload_abandoned) {
         if magazine_log_enabled() {
-            debug!(
-                "[magazine] reload cut at {:.0}%, magazine {}",
-                was * 100.0,
-                if gun.magazine_out { "left behind" } else { "back in the well" },
-            );
+            debug!("[magazine] reload thrown away at {:.0}%", was * 100.0);
         }
-        if gun.magazine_out {
-            release_carried(&mut commands, &carried, &held, eye, time.elapsed_secs());
-        } else {
-            for (entity, _) in &carried {
-                commands.entity(entity).despawn();
-            }
-            for (.., mut visibility) in &mut magazines {
-                if *visibility == Visibility::Hidden {
-                    *visibility = Visibility::Inherited;
-                }
-            }
-        }
+        release_carried(&mut commands, &carried, &held, eye, time.elapsed_secs());
         return;
     }
 
@@ -545,6 +580,22 @@ pub(crate) fn carry_reload_magazine(
 
     if crossed(MAG_RELEASED_AT) {
         release_carried(&mut commands, &carried, &held, eye, time.elapsed_secs());
+    }
+
+    // Back into the well it came out of, still holding whatever was left in
+    // it. The reverse of the take above, and the only mark a rewind has to
+    // answer: the hand path and the rest of it are functions of the progress
+    // and play backwards on their own.
+    if uncrossed(MAG_TAKEN_AT) {
+        gun.magazine_out = false;
+        for (entity, _) in &carried {
+            commands.entity(entity).despawn();
+        }
+        for (.., mut visibility) in &mut magazines {
+            if *visibility == Visibility::Hidden {
+                *visibility = Visibility::Inherited;
+            }
+        }
     }
 
     if crossed(MAG_FETCHED_AT) {

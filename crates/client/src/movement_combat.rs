@@ -1173,13 +1173,14 @@ pub(crate) fn slap_magazine_back(
         return;
     }
     let Ok(mut gun) = gun.single_mut() else { return };
-    if gun.ammo == 0 || !crate::magazine_drop::magazine_in_hand(&gun) {
+    if gun.reload_rewinding || gun.ammo == 0 || !crate::magazine_drop::magazine_in_hand(&gun) {
         return;
     }
-    gun.reload_remaining = 0.0;
+    // Run the move backwards rather than cutting it off. The weapon is not
+    // ready until the magazine is actually home, which is what asking for it
+    // back should cost -- and it is the hand pushing it in that says so.
+    gun.reload_rewinding = true;
     gun.reload_decide = 0.0;
-    gun.magazine_out = false;
-    gun.reload_cancelled = true;
 }
 
 /// Loads a weapon drawn with nothing in the well, without being asked.

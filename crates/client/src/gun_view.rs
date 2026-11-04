@@ -497,8 +497,22 @@ pub(crate) fn gun_view_animation(
         let strike = 1.0 - ops::exp(-kick.strike_speed * time.delta_secs());
         gun.recoil += (gun.recoil_target - gun.recoil) * strike;
         if gun.reload_remaining > 0.0 {
-            gun.reload_remaining = (gun.reload_remaining - time.delta_secs()).max(0.0);
-            if gun.reload_remaining == 0.0 {
+            if gun.reload_rewinding {
+                // Backwards, faster than it came. The hand path and every
+                // mark the magazine answers to are functions of the progress,
+                // so running it down plays the whole thing in reverse for
+                // free -- the magazine goes home and the hand goes back to
+                // the fore grip, and nothing had to be authored twice.
+                gun.reload_remaining +=
+                    time.delta_secs() * crate::magazine_drop::REWIND_SPEED;
+                if gun.reload_remaining >= gun.reload_total {
+                    gun.reload_remaining = 0.0;
+                    gun.reload_rewinding = false;
+                    gun.magazine_out = false;
+                }
+            } else {
+                gun.reload_remaining = (gun.reload_remaining - time.delta_secs()).max(0.0);
+                if gun.reload_remaining == 0.0 {
                 // The magazine is in long before this -- carry_reload_magazine
                 // seats it two thirds of the way through -- but the clock
                 // running out is the one mark that cannot be missed.
@@ -519,6 +533,7 @@ pub(crate) fn gun_view_animation(
                         inventory.take_one(def.ammo);
                     }
                     gun.ammo += had;
+                    }
                 }
             }
         }
