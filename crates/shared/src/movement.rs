@@ -270,6 +270,15 @@ pub fn simulate_player_step(mover: &MoveAndSlide, transform: &mut Transform, pla
         .flatten();
 
     transform.translation = stepped_up.map_or(output.position, |step| step.position);
+    // The pull that holds the capsule on the ground runs along -normal, which
+    // on a slope is perpendicular to the surface and so carries no intent the
+    // hit callback could cancel -- yet the solver turns part of it into travel
+    // up the slope, at sin(angle) metres a second. Asked for nothing, travel
+    // nothing: the height it settles to is kept, the ground it covers is not.
+    if horizontal.length_squared() < 1e-6 && was_grounded && grounded_this_frame {
+        transform.translation.x = before.x;
+        transform.translation.z = before.z;
+    }
     if let Some(step) = stepped_up.filter(|step| step.ground_normal.y > ground_normal_min_y()) {
         grounded_this_frame = true;
         ground_normal = step.ground_normal;

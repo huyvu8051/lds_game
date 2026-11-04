@@ -7,6 +7,7 @@
 //! a number per frame.
 //!
 //!   SLOPE_DEG=25 cargo run -p client --release --bin slope_probe
+//!   STILL=1 SLOPE_DEG=30 cargo run -p client --release --bin slope_probe
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -52,6 +53,24 @@ fn setup(mut commands: Commands, probe: Res<Probe>) {
     // The ramp, hinged at the far edge of the flat ground and rising away.
     // STAIRS=1 builds a flight instead, because the two have to be checked
     // together: every attempt at the ramp so far has cost the stairs.
+    // Spawned before the branch below returns: without a player the step
+    // system leaves early every frame, the frame counter never advances and
+    // the run never reaches its own exit.
+    let theta = probe.angle_deg.to_radians();
+    let start = if std::env::var("STILL").is_ok() && std::env::var("STAIRS").is_err() {
+        // Straight onto the ramp: whether he stays put is a different
+        // question from how fast he climbs.
+        let along = 5.0_f32;
+        Vec3::new(0.0, along * theta.sin() + 1.2, -along * theta.cos())
+    } else {
+        Vec3::new(0.0, 1.0, 2.0)
+    };
+    commands.spawn((
+        Player { vertical_velocity: 0.0, grounded: false, horizontal_velocity: Vec3::ZERO, ground_normal: Vec3::Y },
+        PlayerStance::Standing,
+        Transform::from_translation(start),
+    ));
+
     if std::env::var("STAIRS").is_ok() {
         for i in 0..20 {
             let rise = 0.18 * (i + 1) as f32;
@@ -68,7 +87,6 @@ fn setup(mut commands: Commands, probe: Res<Probe>) {
     // the flat ground ends, and climbs from there. Worked out rather than
     // nudged: the centre sits half a length along the slope and half a
     // thickness below its own surface.
-    let theta = probe.angle_deg.to_radians();
     let (half_len, half_thick) = (20.0_f32, 0.5_f32);
     commands.spawn((
         RigidBody::Static,
@@ -80,11 +98,7 @@ fn setup(mut commands: Commands, probe: Res<Probe>) {
         )
         .with_rotation(Quat::from_rotation_x(theta)),
     ));
-    commands.spawn((
-        Player { vertical_velocity: 0.0, grounded: false, horizontal_velocity: Vec3::ZERO, ground_normal: Vec3::Y },
-        PlayerStance::Standing,
-        Transform::from_xyz(0.0, 1.0, 2.0),
-    ));
+
 }
 
 fn step(
@@ -97,8 +111,12 @@ fn step(
     // Fixed, so two runs are comparable. The real game's dt wanders and that
     // is one more thing that would make a slope behave differently twice.
     let dt = 1.0 / 120.0;
+    // STILL=1 holds no key at all: the question is then whether the player
+    // stays put on the slope, which is not the same question as how fast he
+    // climbs it.
+    let walking = std::env::var("STILL").is_err();
     let input = ClientInput {
-        move_axis: Vec2::new(0.0, 1.0),
+        move_axis: if walking { Vec2::new(0.0, 1.0) } else { Vec2::ZERO },
         yaw: 0.0,
         ..Default::default()
     };
@@ -112,7 +130,7 @@ fn step(
     // is in how the number behaves, not in six hundred of them.
     if probe.frame % 4 == 0 {
         println!(
-            "f{:>4}  z {:>7.3}  y {:>6.3}  speed {:>6.3}  climb {:>6.3}  grounded {}  normal.y {:.3}",
+            "f{:>4}  z {:>7.3}  y {:>6.3}  speed {:>6.3}  climb {:>6.3}  grounded {}  normal.y {:.3}  stored {:>6.3} {:>6.3}",
             probe.frame,
             transform.translation.z,
             transform.translation.y,
@@ -120,6 +138,8 @@ fn step(
             moved.y / dt,
             u8::from(player.grounded),
             player.ground_normal.y,
+            player.horizontal_velocity.z,
+            player.vertical_velocity,
         );
     }
 
