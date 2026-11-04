@@ -290,6 +290,9 @@ const GUN_STEP_LEAN_SPEED: f32 = 7.0;
 /// the barrel, so in the sights it moves the point of aim rather than just
 /// the picture.
 const AIM_STEP_LEAN_MULTIPLIER: f32 = 0.30;
+/// And what is left of the step pitch, which is less: it is the one that
+/// moves the point of aim rather than only the picture.
+const AIM_STEP_PITCH_MULTIPLIER: f32 = 0.12;
 const GUN_BOB_PITCH_DEG: f32 = 0.55;
 /// Cadence and amplitude together, so a sprint is a different gait rather
 /// than a walk with the volume turned up.
@@ -318,7 +321,14 @@ const AIM_BOB_MULTIPLIER: f32 = 0.35;
 const SIGHT_CONVERGE_NEAR_M: f32 = 10.0;
 const SIGHT_CONVERGE_FAR_M: f32 = 25.0;
 
-const LOOK_SWAY_SENSITIVITY: f32 = 50.0;
+const LOOK_SWAY_SENSITIVITY: f32 = 30.0;
+/// How much of the weapon's sway is taken back off the mark it carries. The
+/// weapon still lags the turn; the dot lags it less.
+const RETICLE_SWAY_CUT: f32 = 0.8;
+/// The magnification that figure was set against -- what a weapon sighting
+/// down irons or a red dot zooms to. A sight that magnifies more than this
+/// gets more taken off, so the mark covers about the same screen either way.
+const RETICLE_SWAY_REFERENCE_FOV: f32 = 0.75;
 const LOOK_SWAY_MAX_DEG: f32 = 3.5;
 
 /// The sway spring. FREQUENCY sets how quickly the weapon answers a turn;

@@ -128,7 +128,11 @@ static HOLO_D: SightDef = SightDef {
     picture_feather: 0.0000,
     picture_radius: 0.0000,
     window_forward: 0.065,
-    window_radius: Some(0.009),
+    // The glass measures 13mm off the axis across and 9mm up, and 9 was the
+    // honest inscribed circle. It read as the dot being taken away early:
+    // a fast swing moves the eye sideways, where there is more glass than
+    // the circle was admitting. 11 splits them.
+    window_radius: Some(0.011),
 };
 
 static SCOPE_2X: SightDef = SightDef {

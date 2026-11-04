@@ -193,12 +193,12 @@ pub(crate) fn place_holo_reticle(
     fitted: Res<crate::sight_mount::FittedSight>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
     aim: Query<&GlobalTransform, With<AimSocket>>,
-    gun: Query<(&Transform, &GlobalTransform), (With<Gun>, Without<Reticle>)>,
+    gun: Query<(&Transform, &GlobalTransform, &Gun), Without<Reticle>>,
     pose: Res<WeaponPose>,
     mut marks: Query<(&Reticle, &mut Transform, &mut Visibility)>,
 ) {
     let def = active.def();
-    let (Ok(eye), Ok((gun_local, gun_global))) = (camera.single(), gun.single()) else {
+    let (Ok(eye), Ok((gun_local, gun_global, gun_state))) = (camera.single(), gun.single()) else {
         for (_, _, mut visibility) in &mut marks {
             *visibility = Visibility::Hidden;
         }
@@ -209,12 +209,31 @@ pub(crate) fn place_holo_reticle(
     // is no window: past four times the glass is not what the player is
     // looking through, the screen is.
     let visible = match (fitted.0, def.holo.as_ref()) {
-        // What the eye is behind is the fitted sight, so the weapon's own
-        // window gets no say: it is the opening of an optic that has been
-        // taken off. Left in, an M24 scope on an AK was tested against the
-        // AK's own 18mm aperture -- the mark was gone until recoil swung the
-        // eye through it, and then it flashed.
-        (Some(_), _) => pose.sighted > SCOPED_RETICLE_SIGHTED,
+        // A tube the eye goes inside answers to the sights being up and
+        // nothing else: its mark is already cut to the picture by the depth
+        // disc, and a second test here would fight that one.
+        //
+        // A pane of glass on a rail is the other case, and it was being
+        // given the tube's answer. When the weapon's own aperture stopped
+        // having a say -- so that an M24 scope on an AK was not tested
+        // against the AK's eighteen millimetres -- the holographic lost its
+        // own along with it, and its dot went on being drawn after it had
+        // slid off the glass. Its window is its own, so it keeps it.
+        (Some(sight), _) => {
+            let fitted = sight.def();
+            match fitted.window_radius.filter(|_| !fitted.masks_weapon) {
+                Some(radius) => aim.single().is_ok_and(|socket| {
+                    // Where the eye sits in the sight's own frame. The sight
+                    // line runs down -Z from there, so it crosses the glass
+                    // at the same offset off the axis whatever the glass is
+                    // -- which is the whole test, and why the distance to it
+                    // does not come into it.
+                    let off_axis = socket.affine().inverse().transform_point3(eye.translation());
+                    off_axis.truncate().length() <= radius
+                }),
+                None => pose.sighted > SCOPED_RETICLE_SIGHTED,
+            }
+        }
         (None, Some(window)) => {
             // Where the eye sits in the weapon's own frame. The bore runs down
             // -Z there, so this is also where the sight line crosses every
@@ -234,6 +253,41 @@ pub(crate) fn place_holo_reticle(
     let down_the_barrel = match aim.single() {
         Ok(aim) => gun_local.rotation * aim.reparented_to(gun_global).rotation * Vec3::NEG_Z,
         Err(_) => gun_local.rotation * Vec3::NEG_Z,
+    };
+    // And then some of the sway is taken back off it, by how much the sight
+    // magnifies.
+    //
+    // The dot sits on the bore, which is true and is also why it runs: the
+    // weapon lags a hard turn by degrees and the dot goes with it. Nothing
+    // multiplies that by the zoom -- but the zoom is a narrower camera, so
+    // the same angle covers more of the screen, and a 2x sight shows twice
+    // the travel for the same wobble. Which is honest, and is also why a
+    // magnified sight read as looser than a red dot when both were cut by
+    // the same share.
+    //
+    // So the share follows the glass: enough taken off that what is left
+    // covers about as much screen whatever is fitted. The red dot's own
+    // figure anchors it.
+    //
+    // Only the sway is taken. Recoil and the zeroing stay whole -- the dot
+    // is still meant to say where the round is going, and one that
+    // under-reported the climb would be a lie about the one thing it is for.
+    //
+    // Not on a tube. The M24's mark is cut to a picture the renderer builds
+    // from the glass, so a mark pulled off the bore would slide about inside
+    // its own circle. A tube's answer is to sway the weapon less, not to
+    // move the mark.
+    let fitted_def = fitted.0.map(|sight| sight.def());
+    let down_the_barrel = if fitted_def.is_some_and(|sight| sight.masks_weapon) {
+        down_the_barrel
+    } else {
+        let fov = fitted_def.map_or(def.aim_fov_multiplier, |sight| sight.aim_fov_multiplier);
+        let cut = (1.0 - (1.0 - RETICLE_SWAY_CUT) * fov / RETICLE_SWAY_REFERENCE_FOV)
+            .clamp(0.0, 0.95);
+        (Quat::from_rotation_y(-gun_state.look_sway.x.to_radians() * cut)
+            * Quat::from_rotation_x(-gun_state.look_sway.y.to_radians() * cut)
+            * down_the_barrel)
+            .normalize_or_zero()
     };
     // The fitted sight's mark wins, the way its magnification and its eye
     // relief already do: the crosshair is a part of the scope, so it goes
@@ -720,14 +774,25 @@ pub(crate) fn gun_view_animation(
         gun.look_sway = (x * f + v * dt + sway_target * hhoo) * det_inv;
         gun.look_sway_velocity = (v + (sway_target - x) * hoo) * det_inv;
 
-        // Cut rather than cancelled in the sights. Most of it has to go --
-        // the pitch is read along the barrel, so sighted it moves the point
-        // of aim and not just the picture -- but a weapon that goes
-        // perfectly rigid the moment it reaches the eye reads as a prop on a
-        // rail. Scaled through ads_blend, so bringing the sights up settles
-        // the weapon on the way instead of snapping it level.
-        let aim_damp = 1.0 - gun.ads_blend * (1.0 - AIM_STEP_LEAN_MULTIPLIER);
-        let lean_target = local.move_axis.0.clamp_length_max(1.0) * aim_damp;
+        // Cut rather than cancelled in the sights: a weapon that goes rigid
+        // the moment it reaches the eye reads as a prop on a rail. Scaled
+        // through ads_blend, so bringing the sights up settles the weapon on
+        // the way instead of snapping it level.
+        //
+        // Two numbers, because the two leans are not worth the same once the
+        // sights are up. The roll a strafe puts on is cosmetic -- it turns
+        // the weapon about its own bore and the sight line does not move.
+        // The pitch a step forward or back puts on is read along the barrel,
+        // so it walks the point of aim up and down the target, and at the
+        // same share as the roll it was the one thing that still felt loose
+        // through the glass.
+        let sighted = gun.ads_blend;
+        let damp = |keep: f32| 1.0 - sighted * (1.0 - keep);
+        let walked = local.move_axis.0.clamp_length_max(1.0);
+        let lean_target = Vec2::new(
+            walked.x * damp(AIM_STEP_LEAN_MULTIPLIER),
+            walked.y * damp(AIM_STEP_PITCH_MULTIPLIER),
+        );
         let lean = gun.step_lean;
         gun.step_lean = lean + (lean_target - lean) * (GUN_STEP_LEAN_SPEED * dt).min(1.0);
 
@@ -735,7 +800,7 @@ pub(crate) fn gun_view_animation(
         let timings = gun_pose_timings(&gun, active.0, &cycle);
         if std::env::var("BOB_LOG").is_ok() {
             info!("[bob] amount={:.3} blend={:.3} gait={:.3} aim_damp={:.3} x={:.5} y={:.5} pitch={:.3} sway={:.3?}",
-                cycle.amount(), cycle.blend, cycle.gait, cycle.aim_damp,
+                cycle.amount(), cycle.blend, cycle.gait, damp(AIM_STEP_LEAN_MULTIPLIER),
                 timings.bob_x, timings.bob_y, timings.bob_pitch, gun.look_sway);
         }
 
