@@ -34,6 +34,12 @@ const SWING_LIMIT_SHOULDER: f32 = 1.6;
 const SWING_LIMIT_ELBOW: f32 = 1.3;
 const SWING_LIMIT_HIP: f32 = 1.2;
 const SWING_LIMIT_KNEE: f32 = 1.3;
+/// How far a knee and an elbow close, from straight. A knee reaches about a
+/// hundred and forty degrees and an elbow a hundred and forty-five; these are
+/// under both, because the last of a joint's range needs tendons to reach and
+/// a corpse has none.
+const FLEX_LIMIT_ELBOW: f32 = 2.2;
+const FLEX_LIMIT_KNEE: f32 = 2.1;
 const TWIST_LIMIT: f32 = 0.4;
 
 /// How long a body keeps the pose it died in before it is only weight.
@@ -57,7 +63,12 @@ const FALL_GIVEN_UP: f32 = 1.1;
 /// What staying on its feet is worth, on the joints that carry the body.
 /// The arms get none of it: they are along for the ride either way, and a
 /// shoulder stiffening to keep a torso up reads as a mannequin.
-const BRACE_GAIN: f32 = 1.6;
+///
+/// Held under what would saturate the muscle. At 1.6 a hip reached 2.6 tone
+/// and asked 42 of a torque capped at 40, so every leg ran flat out at the
+/// limit all the way down -- which is not a body bracing, it is a body with
+/// one setting, and it read as the knees folding up hard.
+const BRACE_GAIN: f32 = 0.8;
 
 /// How far the arms throw out when the balance goes, and what the throw is
 /// worth in tone. Both ways out of a fall come through here: while there is
@@ -169,9 +180,16 @@ pub(crate) struct Muscle {
     fighting: f32,
     /// How much this joint is worth spending on staying up, from its kind.
     carry: f32,
-    /// Whether this is an arm, and so whether the behaviours may take it
-    /// over. Nothing takes over a leg: the legs are the fall.
-    arm: bool,
+    /// Whether a behaviour may turn this joint.
+    ///
+    /// The shoulder only. An arm here is three joints -- shoulder, elbow,
+    /// elbow -- and turning all three by the same angle compounds it down
+    /// the chain: the windmill's fifty degrees became a hundred and fifty,
+    /// which is an arm folded into itself. A shoulder swings the arm; the
+    /// forearm trails it.
+    ///
+    /// Nothing turns a leg. The legs are the fall.
+    steers: bool,
     /// What a behaviour is asking of this joint on top of its own tone.
     /// One when nothing is.
     urgency: f32,
@@ -303,6 +321,11 @@ pub(crate) fn spawn_what_was_armed_last_frame(
 
         let mut bodies: Vec<Option<Entity>> = vec![None; links.len()];
         let mut facings: Vec<Quat> = vec![Quat::IDENTITY; links.len()];
+        // The bone's own turn and the way its limb points, kept so the hinges
+        // below can be built out of the anatomy rather than out of the body
+        // frames, whose roll about the limb is whatever the shortest arc gave.
+        let mut bone_turns: Vec<Quat> = vec![Quat::IDENTITY; links.len()];
+        let mut alongs: Vec<Vec3> = vec![Vec3::Y; links.len()];
         let mut pairs = Vec::with_capacity(links.len());
 
         for (slot, link) in links.iter().enumerate() {
@@ -379,6 +402,8 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                 .id();
             bodies[slot] = Some(body);
             facings[slot] = facing;
+            bone_turns[slot] = rotation;
+            alongs[slot] = along;
             pairs.push((link.bone, body, bone_from_body));
         }
 
@@ -386,7 +411,21 @@ pub(crate) fn spawn_what_was_armed_last_frame(
             let (Some(body), Some(parent_slot)) = (bodies[slot], link.parent_slot) else { continue };
             let Some(parent_body) = bodies[parent_slot] else { continue };
             let Ok(pivot) = globals.get(link.bone).map(|g| g.translation()) else { continue };
-            commands.spawn((joint_for(link.joint, parent_body, body, pivot), JointCollisionDisabled));
+            let hinge = hinge_for(link.joint, alongs[parent_slot], alongs[slot], bone_turns[slot]);
+            match hinge {
+                Some((axis, limit)) => {
+                    commands.spawn((
+                        revolute_for(parent_body, body, pivot, axis, limit),
+                        JointCollisionDisabled,
+                    ));
+                }
+                None => {
+                    commands.spawn((
+                        joint_for(link.joint, parent_body, body, pivot),
+                        JointCollisionDisabled,
+                    ));
+                }
+            }
             // Against the parent, not against the world: a muscle holding a
             // world rotation would hold the whole corpse up off the floor.
             commands.entity(body).insert(Muscle {
@@ -396,7 +435,7 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                 anchor: None,
                 fighting: 0.0,
                 carry: link.joint.carry(),
-                arm: matches!(link.joint, JointKind::Shoulder | JointKind::Elbow),
+                steers: matches!(link.joint, JointKind::Shoulder),
                 urgency: 1.0,
                 tone: link.joint.tone(),
                 age: 0.0,
@@ -472,12 +511,12 @@ pub(crate) fn track_muscle_targets(
             let anchor = *muscle.anchor.get_or_insert(local.rotation);
             let moved = anchor.inverse() * local.rotation;
             let mut ghost = muscle.rest * (bone_from_body * moved * bone_from_body.inverse());
-            if muscle.arm && arm_angle != 0.0 && arm_axis != Vec3::ZERO {
+            if muscle.steers && arm_angle != 0.0 && arm_axis != Vec3::ZERO {
                 ghost = Quat::from_axis_angle(into_parent * arm_axis, arm_angle) * ghost;
             }
             muscle.ghost = ghost;
             muscle.fighting = fighting;
-            muscle.urgency = if muscle.arm && arm_angle != 0.0 { ARM_URGENCY } else { 1.0 };
+            muscle.urgency = if muscle.steers && arm_angle != 0.0 { ARM_URGENCY } else { 1.0 };
         }
     }
 }
@@ -544,6 +583,65 @@ pub(crate) struct RagdollMuscles(pub(crate) bool);
 impl Default for RagdollMuscles {
     fn default() -> Self {
         Self(std::env::var("NO_MUSCLES").is_err())
+    }
+}
+
+/// The hinge a knee or an elbow is, or nothing for the joints that are balls.
+///
+/// A knee and an elbow bend one way. Everything here was a spherical joint
+/// with a swing limit, and a swing limit is a *cone* about the twist axis --
+/// symmetric by construction. So a knee given seventy-four degrees of swing
+/// had seventy-four forwards and seventy-four backwards, and a corpse came to
+/// rest with its shins folded the wrong way.
+///
+/// The axis is the rig's own. Mixamo bends every joint about the bone's local
+/// X, which is the same convention the finger grips in viewmodel_body.rs are
+/// written in -- every one of those is a positive rotation about X, and they
+/// close a hand.
+///
+/// The limit is relative to the pose the body died in, because that is where
+/// the joint frames are pinned and so where the angle reads zero. How far the
+/// limb was already bent is measured and taken off both ends: it may close the
+/// rest of the way, and open back to straight and no further.
+fn hinge_for(
+    kind: JointKind,
+    parent_along: Vec3,
+    child_along: Vec3,
+    child_turn: Quat,
+) -> Option<(Vec3, AngleLimit)> {
+    let flex = match kind {
+        JointKind::Elbow => FLEX_LIMIT_ELBOW,
+        JointKind::Knee => FLEX_LIMIT_KNEE,
+        _ => return None,
+    };
+    let axis = (child_turn * Vec3::X).try_normalize()?;
+    // How far round that axis the limb already is. Signed, so a limb bent the
+    // other way at death is not handed a range it is already outside of.
+    let turned = parent_along.cross(child_along).dot(axis);
+    let bent = parent_along.dot(child_along).clamp(-1.0, 1.0).acos() * turned.signum();
+    let bent = bent.clamp(0.0, flex);
+    Some((axis, AngleLimit { min: -bent, max: flex - bent }))
+}
+
+/// A hinge between two bones, with both frames sharing one world basis so the
+/// axis means the same thing to each of them.
+fn revolute_for(
+    parent: Entity,
+    child: Entity,
+    pivot: Vec3,
+    axis: Vec3,
+    limit: AngleLimit,
+) -> RevoluteJoint {
+    let frame = JointFrame {
+        anchor: JointAnchor::FromGlobal(pivot),
+        basis: JointBasis::FromGlobal(Quat::from_rotation_arc(Vec3::Z, axis)),
+    };
+    RevoluteJoint {
+        frame1: frame,
+        frame2: frame,
+        hinge_axis: Vec3::Z,
+        angle_limit: Some(limit),
+        ..RevoluteJoint::new(parent, child)
     }
 }
 
