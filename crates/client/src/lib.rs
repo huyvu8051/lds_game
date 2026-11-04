@@ -54,6 +54,7 @@ use dismember::*;
 mod auto_lean;
 mod keybinds;
 mod muzzle_mount;
+mod stock_mount;
 mod sight_mount;
 mod sight_swap;
 mod waves;
@@ -957,6 +958,7 @@ impl Plugin for GamePlugin {
     keybinds::report_clashes();
 app.init_resource::<MagazineInHand>()
 .init_resource::<muzzle_mount::FittedMuzzle>()
+.init_resource::<stock_mount::FittedStock>()
             .init_resource::<sight_mount::FittedSight>()
 .init_resource::<sight_swap::ShownSight>()
 .init_resource::<sight_swap::SightSwap>()
@@ -1340,6 +1342,10 @@ app.init_resource::<MagazineInHand>()
                         muzzle_mount::follow_fitted_muzzle,
                         muzzle_mount::fit_muzzle,
                         muzzle_mount::wire_muzzle_tip,
+
+                        stock_mount::follow_fitted_stock,
+
+                        stock_mount::fit_stock,
                     )
                         .chain(),
                 ),

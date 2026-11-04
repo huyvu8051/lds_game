@@ -467,6 +467,7 @@ impl Default for Attachments {
         for (socket, item) in [
             (AttachSlot::Sight, crate::sight_mount::sight_from_env()),
             (AttachSlot::Muzzle, crate::muzzle_mount::muzzle_from_env()),
+            (AttachSlot::Stock, crate::stock_mount::stock_from_env()),
         ] {
             let (Some(item), Some(at)) =
                 (item, AttachSlot::ALL.iter().position(|s| *s == socket))
