@@ -407,11 +407,30 @@ pub(crate) fn spawn_what_was_armed_last_frame(
             pairs.push((link.bone, body, bone_from_body));
         }
 
+        // The body's own left-right and forward, taken while it is still
+        // standing and whole. Every hinge below is pointed by these, which
+        // is the only reading that does not depend on where the clip
+        // happened to be when the round landed.
+        let hip_span = bones
+            .left_leg[0]
+            .zip(bones.right_leg[0])
+            .and_then(|(l, r)| globals.get(l).ok().zip(globals.get(r).ok()))
+            .and_then(|(l, r)| (l.translation() - r.translation()).try_normalize());
+        let spine_up = bones
+            .chest
+            .zip(bones.belly)
+            .and_then(|(c, b)| globals.get(c).ok().zip(globals.get(b).ok()))
+            .and_then(|(c, b)| (c.translation() - b.translation()).try_normalize());
+        let (across, forward) = match (hip_span, spine_up) {
+            (Some(across), Some(up)) => (across, across.cross(up).normalize_or_zero()),
+            _ => (Vec3::X, Vec3::NEG_Z),
+        };
+
         for (slot, link) in links.iter().enumerate() {
             let (Some(body), Some(parent_slot)) = (bodies[slot], link.parent_slot) else { continue };
             let Some(parent_body) = bodies[parent_slot] else { continue };
             let Ok(pivot) = globals.get(link.bone).map(|g| g.translation()) else { continue };
-            let hinge = hinge_for(link.joint, alongs[parent_slot], alongs[slot], bone_turns[slot]);
+            let hinge = hinge_for(link.joint, alongs[parent_slot], alongs[slot], across, forward);
             match hinge {
                 Some((axis, limit)) => {
                     commands.spawn((
@@ -594,45 +613,48 @@ impl Default for RagdollMuscles {
 /// had seventy-four forwards and seventy-four backwards, and a corpse came to
 /// rest with its shins folded the wrong way.
 ///
-/// The axis is the rig's own. Mixamo bends every joint about the bone's local
-/// X, which is the same convention the finger grips in viewmodel_body.rs are
-/// written in -- every one of those is a positive rotation about X, and they
-/// close a hand.
+/// The axis comes off the body, not off the rig and not off the limb.
+///
+/// Off the rig was wrong by a sign on the legs, and a sign is the whole thing
+/// for a hinge: it let a knee flex backwards and only backwards. Off the limb
+/// -- the cross product of the two segments -- is right whenever the limb is
+/// bent, and a running zombie usually has one that is. But only usually: the
+/// trailing leg of a stride is straight, the cross product is noise, and
+/// which way that knee could bend came down to where the clip happened to be
+/// when the round landed. That is why a head shot folded the knees backwards
+/// and a leg shot did not.
+///
+/// So it is read off the torso instead, which is well conditioned whatever
+/// the limbs are doing: take the body's own left-right, drop the part along
+/// the limb, and point it so that bending takes a shin backwards and a
+/// forearm forwards. Those two sentences are the whole of what a knee and an
+/// elbow are.
 ///
 /// The limit is relative to the pose the body died in, because that is where
 /// the joint frames are pinned and so where the angle reads zero. How far the
-/// limb was already bent is measured and taken off both ends: it may close the
-/// rest of the way, and open back to straight and no further.
+/// limb was already bent is measured and taken off both ends: it may close
+/// the rest of the way, and open back to straight and no further.
 fn hinge_for(
     kind: JointKind,
     parent_along: Vec3,
     child_along: Vec3,
-    child_turn: Quat,
+    across: Vec3,
+    forward: Vec3,
 ) -> Option<(Vec3, AngleLimit)> {
     let flex = match kind {
         JointKind::Elbow => FLEX_LIMIT_ELBOW,
         JointKind::Knee => FLEX_LIMIT_KNEE,
         _ => return None,
     };
-    // The way the limb is already bent is the way it bends. Taking the axis
-    // from the two segments makes the measured angle positive by
-    // construction, so the range below can only ever open towards more of
-    // the same -- which is flexion, whatever the rig calls its axes.
-    //
-    // Reading it off the rig instead was wrong by a sign on the legs, and a
-    // sign is the whole thing here: it let a knee flex backwards only. The
-    // bench measured them settling at ninety degrees the wrong way.
-    //
-    // The rig's own axis is still the fallback, for a limb that happens to
-    // be straight when the shot lands and so has no bend to read.
-    let axis = parent_along
-        .cross(child_along)
-        .try_normalize()
-        .unwrap_or((child_turn * Vec3::X).normalize_or_zero());
-    if axis == Vec3::ZERO {
-        return None;
-    }
-    let bent = parent_along.dot(child_along).clamp(-1.0, 1.0).acos().clamp(0.0, flex);
+    let axis = (across - child_along * across.dot(child_along)).try_normalize()?;
+    // Which way round is flexion. Turning about `axis` moves the far end of
+    // the limb along `axis x child_along`; a knee wants that going backwards
+    // and an elbow forwards.
+    let goes_forward = axis.cross(child_along).dot(forward) > 0.0;
+    let axis = if goes_forward == matches!(kind, JointKind::Elbow) { axis } else { -axis };
+    let turned = parent_along.cross(child_along).dot(axis);
+    let bent = parent_along.dot(child_along).clamp(-1.0, 1.0).acos() * turned.signum();
+    let bent = bent.clamp(0.0, flex);
     Some((axis, AngleLimit { min: -bent, max: flex - bent }))
 }
 
