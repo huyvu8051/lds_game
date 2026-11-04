@@ -394,12 +394,17 @@ pub(crate) struct Attachments {
 impl Default for Attachments {
     fn default() -> Self {
         let mut fitted = [[None; 5]; 3];
-        if let Some(sight) = crate::sight_mount::sight_from_env() {
-            let at = AttachSlot::ALL.iter().position(|s| *s == AttachSlot::Sight);
-            if let Some(at) = at {
-                for row in &mut fitted {
-                    row[at] = Some(sight);
-                }
+        for (socket, item) in [
+            (AttachSlot::Sight, crate::sight_mount::sight_from_env()),
+            (AttachSlot::Muzzle, crate::muzzle_mount::muzzle_from_env()),
+        ] {
+            let (Some(item), Some(at)) =
+                (item, AttachSlot::ALL.iter().position(|s| *s == socket))
+            else {
+                continue;
+            };
+            for row in &mut fitted {
+                row[at] = Some(item);
             }
         }
         Self { fitted }

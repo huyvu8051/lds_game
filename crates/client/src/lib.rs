@@ -53,6 +53,7 @@ mod dismember;
 use dismember::*;
 mod auto_lean;
 mod keybinds;
+mod muzzle_mount;
 mod sight_mount;
 mod sight_swap;
 mod waves;
@@ -955,7 +956,8 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
     keybinds::report_clashes();
 app.init_resource::<MagazineInHand>()
-.init_resource::<sight_mount::FittedSight>()
+.init_resource::<muzzle_mount::FittedMuzzle>()
+            .init_resource::<sight_mount::FittedSight>()
 .init_resource::<sight_swap::ShownSight>()
 .init_resource::<sight_swap::SightSwap>()
 .init_resource::<sight_mount::SightDrop>()
@@ -1329,9 +1331,17 @@ app.init_resource::<MagazineInHand>()
                     // After the swap has put the weapon's own rest offset
                     // back, so the drop lands on top of it, not under it.
                     (sight_mount::fit_sight, sight_mount::drop_weapon_for_sight).chain(),
+                    (
+                        muzzle_mount::follow_fitted_muzzle,
+                        muzzle_mount::fit_muzzle,
+                        muzzle_mount::wire_muzzle_tip,
+                    )
+                        .chain(),
                 ),
                 log_frame_pacing,
-                track_muzzle_socket,
+                // Chained: the can moves the end of the bore, and it can only do
+                // that after the barrel has said where its own end is.
+                (track_muzzle_socket, muzzle_mount::track_muzzle_tip).chain(),
                 update_zombie_animation.run_if(resource_exists::<ZombieAnim>).run_if(clip_tick()),
                 freeze_zombie_animations.run_if(clip_tick()),
                 park_distant_animations.run_if(clip_tick()),
