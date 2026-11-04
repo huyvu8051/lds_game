@@ -54,7 +54,13 @@ pub(crate) fn handle_fire_shot(
     damage_multiplier: Res<DamageMultiplierServer>,
     corpse_stages: Res<CorpseStages>,
     mut limb_damage: ResMut<LimbDamage>,
-    dying: Query<(Entity, &Transform, &ZombieHitboxBones), (With<DeathClipPlaying>, Without<Zombie>)>,
+    dying: Query<
+        (Entity, &ZombieHitboxBones),
+        (
+            Or<(With<DeathClipPlaying>, With<crate::ragdoll::Ragdolling>, With<crate::ragdoll::CorpseSettled>)>,
+            Without<Zombie>,
+        ),
+    >,
 ) {
     for mut threat in &mut threats {
         threat.0 += PLAYER_THREAT_PER_SHOT;
@@ -75,19 +81,16 @@ pub(crate) fn handle_fire_shot(
 
     let cylinder = Collider::cylinder(ZOMBIE_OUTER_RADIUS, ZOMBIE_OUTER_HEIGHT);
 
-    // A body still playing its death clip is no longer a Zombie -- begin_death
-    // takes the component off -- so the query above cannot see it and a round
-    // went straight through into the wall behind. It still takes no damage,
-    // and still does not stop the shot: putting a round through a corpse must
-    // not save whatever is standing behind it. Only the limb that was hit has
-    // to move.
-    for (body, transform, bones) in &dying {
-        if cylinder
-            .cast_ray(transform.translation, transform.rotation, shot.origin, *direction, MAX_SHOT_DISTANCE, true)
-            .is_none()
-        {
-            continue;
-        }
+    // A dead body is no longer a Zombie -- begin_death takes the component
+    // off -- so the query above cannot see it and a round went straight
+    // through into the wall behind. All three states of a corpse are taken:
+    // falling, ragdolling and settled. It takes no damage and still does not
+    // stop the shot, because putting a round through a corpse must not save
+    // whatever is standing behind it; only the limb moves, and it bleeds.
+    //
+    // Tested against the bones rather than the body cylinder: a ragdoll's
+    // root transform stops following the limbs the moment physics takes them.
+    for (body, bones) in &dying {
         let resolved = resolve_bone_world_positions(bones, |bone| bone_globals.get(bone).ok().map(|g| g.translation()));
         let Some(hit) = zombie_hit_damage_ray(shot.origin, direction, MAX_SHOT_DISTANCE, &resolved) else {
             continue;
@@ -95,7 +98,13 @@ pub(crate) fn handle_fire_shot(
         if wall_distance.is_some_and(|w| w < shot.origin.distance(hit.point) - 0.1) {
             continue;
         }
-        commands.trigger(CorpseHit { body, point: hit.point, normal: hit.normal, damage: hit.damage });
+        commands.trigger(CorpseHit {
+            body,
+            point: hit.point,
+            normal: hit.normal,
+            damage: hit.damage,
+            direction: *direction,
+        });
     }
 
     let mut candidates: Vec<(f32, Entity, BoneWorldPositions)> = zombies

@@ -14,6 +14,8 @@ pub(crate) struct CorpseHit {
     pub(crate) point: Vec3,
     pub(crate) normal: Vec3,
     pub(crate) damage: f32,
+    /// Which way the round was going, for the spray to follow.
+    pub(crate) direction: Vec3,
 }
 
 /// The same flinch a living zombie gets. It survives the death clip because
@@ -26,15 +28,33 @@ pub(crate) fn on_corpse_hit(
     bodies: Query<&ZombieHitboxBones>,
     globals: Query<&GlobalTransform>,
     child_of: Query<&ChildOf>,
+    blood_assets: Res<crate::blood::BloodAssets>,
+    blood_enabled: Res<BloodEnabled>,
+    spatial_query: SpatialQuery,
+    time: Res<Time>,
 ) {
-    let CorpseHit { body, point, normal, damage } = *trigger.event();
+    let CorpseHit { body, point, normal, damage, direction } = *trigger.event();
     let Ok(bones) = bodies.get(body) else {
         return;
     };
-    let Some((bone, _)) = nearest_zombie_bone(bones, point, &globals) else {
+    let Some((bone, bone_global)) = nearest_zombie_bone(bones, point, &globals) else {
         return;
     };
     spawn_bone_flinch(&mut commands, bones, bone, -normal, damage, &globals, &child_of);
+    // A corpse bleeds. Nothing else about the hit counts -- no damage, no
+    // kill, no chime -- but a round going into a body has to look like one.
+    spawn_blood_effects(
+        &mut commands,
+        &blood_assets,
+        &spatial_query,
+        &time,
+        point,
+        normal,
+        Some((bone, &bone_global)),
+        false,
+        direction,
+        *blood_enabled,
+    );
 }
 
 pub(crate) fn spawn_zombie_hit_feedback(
