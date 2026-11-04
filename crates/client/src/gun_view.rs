@@ -348,7 +348,7 @@ pub(crate) fn gun_view_animation(
     mut query: Query<(&mut Transform, &GlobalTransform, &mut Gun), Without<FpsCamera>>,
     aim: Query<&GlobalTransform, (With<AimSocket>, Without<Gun>, Without<FpsCamera>)>,
     local: LocalPlayerState,
-    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose, swap, infinite_ammo, sight_swap, fitted): (
+    (active, cycle, shock, mut wall_probe, mut inventory, throw_pose, swap, infinite_ammo, sight_swap, fitted, fx): (
         Res<ActiveWeapon>,
         Res<WalkCycle>,
         Res<crate::movement_combat::FireShock>,
@@ -361,6 +361,7 @@ pub(crate) fn gun_view_animation(
         Res<crate::InfiniteAmmo>,
         Res<crate::sight_swap::SightSwap>,
         Res<crate::sight_mount::FittedSight>,
+        Res<crate::attachment_effects::AttachmentEffects>,
     ),
 ) {
     // Taken, not read: the single consumer clearing it is what lets each
@@ -450,7 +451,7 @@ pub(crate) fn gun_view_animation(
         // blow lands fast and the weapon comes back slowly, which is the
         // shape of the thing rather than one curve doing both.
         let kick = &active.def().recoil;
-        gun.recoil_target *= ops::exp(-kick.weapon.settle_speed * time.delta_secs());
+        gun.recoil_target *= ops::exp(-kick.weapon.settle_speed * fx.settle_speed * time.delta_secs());
         let strike = 1.0 - ops::exp(-kick.strike_speed * time.delta_secs());
         gun.recoil += (gun.recoil_target - gun.recoil) * strike;
         if gun.reload_remaining > 0.0 {
@@ -513,7 +514,7 @@ pub(crate) fn gun_view_animation(
             speed.from_rest + (speed.from_ready - speed.from_rest) * gun.ads_from_ready
         } else {
             speed.from_ready
-        };
+        } * fx.ads_speed;
         // A damped spring, not an exponential ease. The ease could only ever
         // arrive from one side: the weapon slid up to the sight line and
         // stopped dead on it, which is the one thing arms carrying three kilos
@@ -703,7 +704,7 @@ pub(crate) fn gun_view_animation(
         // Late to a turn, not rolled by one. Negated because the weapon is
         // still aimed back where the view was, opposite the way it just moved.
         let lag = -look_delta;
-        let sway_target = (lag * LOOK_SWAY_SENSITIVITY)
+        let sway_target = (lag * LOOK_SWAY_SENSITIVITY * fx.sway)
             .clamp(Vec2::splat(-LOOK_SWAY_MAX_DEG), Vec2::splat(LOOK_SWAY_MAX_DEG));
         // The same damped spring the sights ride: an exponential ease can only
         // arrive from one side, so the weapon stopped dead whenever a turn

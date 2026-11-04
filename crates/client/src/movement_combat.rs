@@ -814,7 +814,7 @@ pub(crate) fn shoot(
         ResMut<Assets<MuzzleFlashMaterial>>,
         ResMut<FireShock>,
     ),
-    (driven, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, swap, sight_swap): (
+    (driven, intent, local_moving, local_sprinting, show_hit_markers, show_tracers, active, muzzle_smoke, port_smoke, muzzle_flash, shell_casings, swap, sight_swap, fx): (
         Res<crate::patrol::Driven>,
         Res<AutopilotIntent>,
         Res<LocalPlayerMoving>,
@@ -828,6 +828,7 @@ pub(crate) fn shoot(
         Res<ShellCasingsEnabled>,
         Res<crate::WeaponSwap>,
         Res<crate::sight_swap::SightSwap>,
+        Res<crate::attachment_effects::AttachmentEffects>,
     ),
 ) {
     *cooldown = (*cooldown - time.delta_secs()).max(0.0);
@@ -906,18 +907,19 @@ pub(crate) fn shoot(
             *burst_gap = weapon::BURST_GAP_SECONDS;
         }
     }
-    gun.recoil_target = 1.0;
+    gun.recoil_target = fx.recoil;
 
     gun.recoil_jitter = Vec2::new(shot_jitter(&mut gun.recoil_rng), shot_jitter(&mut gun.recoil_rng));
     commands.spawn((
-        seedling::SamplePlayer::new(vfx_assets.gunshot.of(active.0)),
+        seedling::SamplePlayer::new(vfx_assets.gunshot.of(active.0))
+            .with_volume(seedling::Volume::Linear(fx.report)),
         seedling::PlaybackSettings { on_complete: seedling::OnComplete::Despawn, ..default() },
         GunshotVoice,
     ));
     if gun.ammo == 0 {
         // Never quiet: the quiet reload is something the player asks for by
         // holding the key, and nobody asked for this one.
-        gun.reload_remaining = active.def().reload_duration;
+        gun.reload_remaining = active.def().reload_duration * fx.reload;
         gun.reload_total = gun.reload_remaining;
         commands.spawn((
             seedling::SamplePlayer::new(vfx_assets.reload_sound.of(active.0)),
@@ -931,13 +933,21 @@ pub(crate) fn shoot(
     };
 
     let kick = &active.def().recoil;
-    recoil.climb_target = (recoil.climb_target + kick.view.climb_per_shot).min(kick.view.climb_max);
+    // The cap is the weapon.s own: a muzzle device takes a share off every
+    // shot, it does not raise the ceiling the burst climbs to.
+    recoil.climb_target =
+        (recoil.climb_target + kick.view.climb_per_shot * fx.recoil).min(kick.view.climb_max);
 
-    recoil.wander_target += shot_jitter(&mut gun.recoil_rng) * kick.view.wander_per_shot;
+    recoil.wander_target +=
+        shot_jitter(&mut gun.recoil_rng) * kick.view.wander_per_shot * fx.recoil;
 
     shock.strike(kick.shock, shot_jitter(&mut gun.recoil_rng) * std::f32::consts::PI);
-    recoil.shove_target = (recoil.shove_target + kick.view.shove_per_shot).min(kick.view.shove_max);
+    recoil.shove_target =
+        (recoil.shove_target + kick.view.shove_per_shot * fx.recoil).min(kick.view.shove_max);
 
+    // A suppressor puts the flash out rather than dimming it, so the test is
+    // against zero and not against the setting alone.
+    let flash_on = muzzle_flash.0 && fx.flash > 0.01;
     let stance = vfx_assets.stance.single().copied().unwrap_or_default();
 
     let aiming = is_aiming(cursor, &aim_held, touch_aiming.0);
@@ -950,7 +960,7 @@ pub(crate) fn shoot(
         local_moving.0,
         stance,
         local_sprinting.0,
-    );
+    ) * fx.spread;
     // Out of the barrel, never out of the eye: the flash, the smoke and the
     // tracer all start where the muzzle is.
     let muzzle_in_cam = gun_transform.mul_transform(gun.muzzle_local);
@@ -985,13 +995,15 @@ pub(crate) fn shoot(
     let spread_dir = bore_axis + bore * Vec3::X * spread_x + bore * Vec3::Y * spread_y;
     let direction = Dir3::new(spread_dir).unwrap_or(Dir3::new(bore_axis).unwrap_or(Dir3::NEG_Z));
 
-    if muzzle_flash.0 {
+    if flash_on {
         commands.spawn((
             Mesh3d(vfx_assets.muzzle_fx.flash_mesh.clone()),
             MeshMaterial3d(flash_materials.add(muzzle_flash_material(time.elapsed_secs() * 419.0))),
-            Transform::from_translation(muzzle_world_pos).with_rotation(camera_transform.rotation),
+            Transform::from_translation(muzzle_world_pos)
+                .with_rotation(camera_transform.rotation)
+                .with_scale(Vec3::splat(fx.flash)),
             PointLight {
-                intensity: MUZZLE_LIGHT_INTENSITY,
+                intensity: MUZZLE_LIGHT_INTENSITY * fx.flash,
                 range: MUZZLE_LIGHT_RANGE,
                 color: Color::srgb(1.0, 0.7, 0.3),
                 shadow_maps_enabled: false,
@@ -1027,7 +1039,7 @@ pub(crate) fn shoot(
     let right = *camera_transform.right();
     let up = *camera_transform.up();
 
-    if muzzle_flash.0 {
+    if flash_on {
         for i in 0..MUZZLE_EMBER_COUNT {
             let seed = time.elapsed_secs() * 617.0 + i as f32 * 143.9;
             let spread = (right * ops::sin(seed * 1.7) + up * ops::sin(seed * 2.9)) * MUZZLE_EMBER_CONE;
@@ -1058,7 +1070,7 @@ pub(crate) fn shoot(
     );
 
     let shot_shows_flame_blade =
-        muzzle_flash.0 && ops::sin(time.elapsed_secs() * 733.0).abs() < MUZZLE_BLADE_CHANCE;
+        flash_on && ops::sin(time.elapsed_secs() * 733.0).abs() < MUZZLE_BLADE_CHANCE;
     if shot_shows_flame_blade {
         let half_length = FLASH_QUAD_SIZE * MUZZLE_BLADE_LENGTH * 0.5;
         commands.spawn((
@@ -1171,6 +1183,7 @@ pub(crate) fn slap_magazine_back(
 /// has none.
 pub(crate) fn reload_empty_well(
     mut commands: Commands,
+    fx: Res<crate::attachment_effects::AttachmentEffects>,
     game_over: Res<GameOver>,
     swap: Res<crate::WeaponSwap>,
     active: Res<ActiveWeapon>,
@@ -1184,7 +1197,7 @@ pub(crate) fn reload_empty_well(
     if !gun.magazine_out || gun.reload_remaining > 0.0 {
         return;
     }
-    crate::magazine_drop::reload_into_empty_well(&mut gun, active.def().reload_duration);
+    crate::magazine_drop::reload_into_empty_well(&mut gun, active.def().reload_duration * fx.reload);
     // Loud, like the dry reload: the quiet one is something the player asks
     // for by holding the key, and nobody asked for this one either.
     commands.spawn((
@@ -1196,6 +1209,7 @@ pub(crate) fn reload_empty_well(
 
 pub(crate) fn reload_gun(
     keys: Res<ButtonInput<KeyCode>>,
+    fx: Res<crate::attachment_effects::AttachmentEffects>,
     touch_reload: Res<TouchReload>,
     game_over: Res<GameOver>,
     mut gun: Query<&mut Gun>,
@@ -1213,10 +1227,11 @@ pub(crate) fn reload_gun(
     // Nothing to pull out of a well that has none, so the hand goes straight
     // for a fresh magazine -- the same shortened move the weapon runs on its
     // own, for the player who asks for it before it gets there.
+    let duration = active.def().reload_duration * fx.reload;
     if gun.magazine_out {
-        crate::magazine_drop::reload_into_empty_well(&mut gun, active.def().reload_duration);
+        crate::magazine_drop::reload_into_empty_well(&mut gun, duration);
     } else {
-        gun.reload_remaining = active.def().reload_duration;
+        gun.reload_remaining = duration;
         gun.reload_total = gun.reload_remaining;
     }
     // The sound waits. A tap and a hold are the same thing at the instant of

@@ -673,6 +673,7 @@ pub(crate) fn update_crosshair(
     active: Res<ActiveWeapon>,
     keep_in_ads: Res<CrosshairInAds>,
     aim_distance: Res<crate::movement_combat::AimDistance>,
+    fx: Res<crate::attachment_effects::AttachmentEffects>,
 ) {
     let Ok(recoil) = camera.single() else {
         return;
@@ -695,7 +696,7 @@ pub(crate) fn update_crosshair(
         local_moving.0,
         stance,
         local_sprinting.0,
-    );
+    ) * fx.spread;
     let gap = (CROSSHAIR_BASE_GAP_PX + spread * CROSSHAIR_GAP_SPREAD_SCALE).min(CROSSHAIR_MAX_GAP_PX);
 
     for (line, mut node) in &mut lines {

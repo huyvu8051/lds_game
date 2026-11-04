@@ -108,6 +108,7 @@ mod map;
 mod screen_effects;
 use screen_effects::*;
 
+mod attachment_effects;
 mod grip_ik;
 mod grip_pose;
 mod muzzle_fx;
@@ -960,6 +961,7 @@ impl Plugin for GamePlugin {
 app.init_resource::<MagazineInHand>()
 .init_resource::<muzzle_mount::FittedMuzzle>()
 .init_resource::<stock_mount::FittedStock>()
+.init_resource::<attachment_effects::AttachmentEffects>()
 .init_resource::<grip_pose::GripChoice>()
 .init_resource::<grip_pose::HeldGrip>()
             .init_resource::<sight_mount::FittedSight>()
@@ -1349,6 +1351,9 @@ app.init_resource::<MagazineInHand>()
                         stock_mount::follow_fitted_stock,
 
                         stock_mount::fit_stock,
+
+
+                        attachment_effects::gather_attachment_effects,
                     )
                         .chain(),
                 ),
