@@ -17,11 +17,16 @@ const SETTLE_SPEED: f32 = 0.35;
 /// is the solver's share of the frame, not the body count.
 const MAX_ACTIVE_RAGDOLLS: usize = 4;
 
+/// What the bone that was hit takes, against the torso's share of 1.
+const HIT_BONE_SHARE: f32 = 2.5;
+
 /// A blast has no clip behind it, so its bodies get a flat run.
 const BLAST_RAGDOLL_SECONDS: f32 = 6.0;
 
 const BONE_DENSITY: f32 = 900.0;
 const MIN_BONE_LENGTH: f32 = 0.06;
+/// Both coefficients: a corpse should stop where it lands.
+const CORPSE_FRICTION: f32 = 0.9;
 const LEAF_BONE_LENGTH: f32 = 0.12;
 
 const SWING_LIMIT_SPINE: f32 = 0.5;
@@ -221,6 +226,19 @@ pub(crate) fn spawn_what_was_armed_last_frame(
             continue;
         };
 
+        // Which bone the round went into, by distance. Done once here rather
+        // than per bone, and only when there is a point to measure against.
+        let hit_slot = impulse.filter(|i| i.at != Vec3::ZERO).and_then(|i| {
+            links
+                .iter()
+                .enumerate()
+                .filter_map(|(slot, link)| {
+                    globals.get(link.bone).ok().map(|g| (slot, g.translation().distance_squared(i.at)))
+                })
+                .min_by(|(_, a), (_, b)| a.total_cmp(b))
+                .map(|(slot, _)| slot)
+        });
+
         let mut bodies: Vec<Option<Entity>> = vec![None; links.len()];
         let mut facings: Vec<Quat> = vec![Quat::IDENTITY; links.len()];
         let mut pairs = Vec::with_capacity(links.len());
@@ -260,9 +278,18 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                 .unwrap_or((Vec3::ZERO, Vec3::ZERO));
 
             // Avian 0.7 has no impulse component, so the shot rides in as extra
-            // starting velocity on the torso.
+            // starting velocity: on the torso, to carry the whole body, and
+            // again on the bone it actually struck.
             let shove = impulse.map(|i| i.push).unwrap_or(Vec3::ZERO);
-            let velocity = if slot == 0 { velocity + shove } else { velocity };
+            let struck = impulse.is_some_and(|i| {
+                hit_slot.is_some_and(|hit| hit == slot) && i.at != Vec3::ZERO
+            });
+            let velocity = match (slot == 0, struck) {
+                (true, true) => velocity + shove * (1.0 + HIT_BONE_SHARE),
+                (true, false) => velocity + shove,
+                (false, true) => velocity + shove * HIT_BONE_SHARE,
+                (false, false) => velocity,
+            };
 
             let body = commands
                 .spawn((
@@ -270,6 +297,10 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                     RigidBody::Dynamic,
                     Collider::capsule(link.radius, length),
                     ColliderDensity(BONE_DENSITY),
+                    // Flesh on stone, not ice on glass. The default 0.5 let a
+                    // body keep sliding after it had stopped falling, which
+                    // reads as the corpse being shoved by nothing.
+                    Friction::new(CORPSE_FRICTION),
                     // Off the layer the player's capsule cast reads, so a body
                     // settling underfoot stops shoving whoever dropped it.
                     // Still filtered against Corpse, because JointCollisionDisabled
@@ -478,5 +509,9 @@ pub(crate) struct CorpseSettled;
 #[derive(Component)]
 pub(crate) struct DeathImpulse {
     pub(crate) push: Vec3,
+    /// Where the round went in. The bone nearest it takes the harder share,
+    /// which is what turns a shoulder hit into a spin and a leg hit into a
+    /// buckle instead of the same shove every time.
+    pub(crate) at: Vec3,
 }
 

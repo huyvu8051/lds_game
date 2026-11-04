@@ -177,8 +177,14 @@ pub(crate) fn handle_fire_shot(
                     anim.as_deref(),
                     link,
                     &mut anim_players,
+                    // Flat, so a body is pushed over rather than into the
+                    // floor, and scaled by what hit it -- clamped because a
+                    // headshot's damage is infinity and would come out as a
+                    // NaN the solver cannot do anything with.
                     Vec3::new(shot.direction.x, 0.0, shot.direction.z).normalize_or_zero()
-                        * DEATH_PUSH_SPEED,
+                        * DEATH_PUSH_SPEED
+                        * (damage / shared::HEAD_DAMAGE).clamp(0.6, 2.0),
+                    hit_point,
                     &corpse_stages,
                 );
                 respawns.0.push(PendingRespawn { timer: ZOMBIE_RESPAWN_DELAY });

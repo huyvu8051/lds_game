@@ -5,10 +5,17 @@ use shared::{Chase, ZOMBIE_LIE_STILL_SECONDS};
 
 const DISSOLVE_DURATION: f32 = 1.1;
 
-/// Share of the death clip that plays before physics takes the body. The last
-/// stretch is ragdoll, so the fall lands on what is actually there and the
-/// handoff is hidden inside a movement the clip had already started.
-const CLIP_SHARE_BEFORE_RAGDOLL: f32 = 0.7;
+/// Share of the death clip that plays before physics takes the body.
+///
+/// Zero: there is no canned death any more. The clip existed because a
+/// ragdoll handed nothing but gravity folds in a frame, and muscle tone
+/// does that job now -- the body holds the pose it was shot in and lets go
+/// of it over half a second, so what falls is the walk or the run it was
+/// doing rather than a performance that starts the same way every time.
+///
+/// Above zero it still works: the clip plays that share and physics takes
+/// the rest.
+const CLIP_SHARE_BEFORE_RAGDOLL: f32 = 0.0;
 
 /// How long physics keeps the body after the clip would have ended.
 const RAGDOLL_AFTER_CLIP_SECONDS: f32 = 5.0;
@@ -37,11 +44,12 @@ pub(crate) fn begin_death(
     link: Option<&ZombieAnimationPlayer>,
     players: &mut Query<&mut AnimationPlayer>,
     push: Vec3,
+    hit_at: Vec3,
     stages: &CorpseStages,
 ) {
     // Without the graphs the body still has to die, or a kill that lands
     // before they are built leaves a corpse walking and shootable.
-    let clip_seconds = match anim.filter(|_| stages.clip) {
+    let clip_seconds = match anim.filter(|_| stages.clip && CLIP_SHARE_BEFORE_RAGDOLL > 0.0) {
         Some(anim) => {
             let (clip, seconds) = anim.slot(kind).death(entity.to_bits() as usize);
             if let Some(link) = link {
@@ -64,7 +72,7 @@ pub(crate) fn begin_death(
                 total: clip_seconds * CLIP_SHARE_BEFORE_RAGDOLL,
             },
             DeathClipPlaying,
-            DeathImpulse { push },
+            DeathImpulse { push, at: hit_at },
         ));
 }
 
@@ -108,9 +116,13 @@ pub(crate) fn update_death(
             continue;
         }
         // total is the share of the clip that played, so the rest of it is what
-        // physics owes before the extra run starts.
-        let rest_of_clip =
-            death.total * (1.0 - CLIP_SHARE_BEFORE_RAGDOLL) / CLIP_SHARE_BEFORE_RAGDOLL;
+        // physics owes before the extra run starts. Nothing played when the
+        // share is zero, and the division would be one too.
+        let rest_of_clip = if CLIP_SHARE_BEFORE_RAGDOLL > 0.0 {
+            death.total * (1.0 - CLIP_SHARE_BEFORE_RAGDOLL) / CLIP_SHARE_BEFORE_RAGDOLL
+        } else {
+            0.0
+        };
         let mut body = commands.entity(entity);
         body.remove::<PlayingDeath>();
         if stages.ragdoll {
