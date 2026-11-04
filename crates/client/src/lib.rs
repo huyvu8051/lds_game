@@ -1495,7 +1495,9 @@ app.init_resource::<MagazineInHand>()
         (
             pose_viewmodel_arms,
             shape_viewmodel_skeleton,
-            drive_skeleton_from_ragdoll,
+            // Chained: the ghost has to be read off the clip before the
+            // simulated pose is written over the top of it.
+            (ragdoll::track_muscle_targets, drive_skeleton_from_ragdoll).chain(),
             aim_zombie_heads,
             apply_bone_flinch,
             lean_zombie_into_turn,

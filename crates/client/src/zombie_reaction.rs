@@ -83,16 +83,38 @@ pub(crate) fn spawn_zombie_hit_feedback(
     }
 }
 
-const FLINCH_DURATION: f32 = 0.32;
+/// How hard the spring pulls a knocked bone home, and how much of the swing
+/// it eats on the way. Tuned together: stiffness alone sets how long the
+/// whole thing takes, damping sets how much of it is overshoot.
+const FLINCH_STIFFNESS: f32 = 190.0;
+const FLINCH_DAMPING: f32 = 15.0;
+/// Below both of these the bone is home and the spring is thrown away.
+const FLINCH_AT_REST: f32 = 0.004;
+/// Turns the throw a hit used to be set to into the speed it is lent. The
+/// spring turns speed back into roughly that throw, so the old angles mean
+/// what they always did.
+const FLINCH_KICK: f32 = 11.0;
 const FLINCH_MAX_ANGLE_DEG: f32 = 78.0;
 const FLINCH_CHAIN_FALLOFF: [f32; 3] = [1.0, 0.68, 0.38];
 const FLINCH_HEAD_TO_CHEST: f32 = 0.3;
 
+/// A bone knocked off the pose the clip put it in, on its way back.
+///
+/// A spring with momentum rather than a deflection that decays: a shot
+/// lends the bone speed and the spring carries it out, back through where
+/// it started and a little past, then home. The decay it replaces began at
+/// full throw on the frame of the hit, which is a bone that was already
+/// bent when the round arrived.
+///
+/// And speed adds where a deflection only overwrote, so a burst builds on
+/// itself instead of every round restarting the same twitch.
 #[derive(Component)]
 pub(crate) struct BoneFlinch {
     world_axis: Vec3,
+    /// Where the bone is now, in radians about that axis.
     angle: f32,
-    remaining: f32,
+    /// How fast it is going, in radians a second.
+    speed: f32,
 }
 
 fn flinch_chain(bones: &ZombieHitboxBones, hit: Entity) -> Vec<Entity> {
@@ -143,10 +165,21 @@ pub(crate) fn spawn_bone_flinch(
         } else {
             FLINCH_CHAIN_FALLOFF[index.min(FLINCH_CHAIN_FALLOFF.len() - 1)]
         };
-        commands.entity(bone).insert(BoneFlinch {
-            world_axis: axis,
-            angle: base * falloff,
-            remaining: FLINCH_DURATION,
+        // Lent as speed, not set as a bend, and added to whatever the last
+        // round left so a burst builds.
+        commands.entity(bone).queue(move |mut bone: EntityWorldMut| {
+            match bone.get_mut::<BoneFlinch>() {
+                Some(mut flinch) if flinch.world_axis.dot(axis) > 0.0 => {
+                    flinch.speed += base * falloff * FLINCH_KICK;
+                }
+                _ => {
+                    bone.insert(BoneFlinch {
+                        world_axis: axis,
+                        angle: 0.0,
+                        speed: base * falloff * FLINCH_KICK,
+                    });
+                }
+            }
         });
     }
 }
@@ -159,21 +192,26 @@ pub(crate) fn apply_bone_flinch(
     mut flinches: Query<(Entity, &mut BoneFlinch)>,
     mut transforms: Query<&mut Transform>,
 ) {
+    let dt = time.delta_secs().min(1.0 / 30.0);
     for (entity, mut flinch) in &mut flinches {
-        flinch.remaining -= time.delta_secs();
-        if flinch.remaining <= 0.0 {
+        // Implicit, so a frame spike cannot pump the spring: the same form
+        // the sights and the look sway already ride.
+        let f = 1.0 + dt * FLINCH_DAMPING;
+        let speed = (flinch.speed - dt * FLINCH_STIFFNESS * flinch.angle)
+            / (f + dt * dt * FLINCH_STIFFNESS);
+        flinch.speed = speed;
+        flinch.angle += speed * dt;
+        if flinch.angle.abs() < FLINCH_AT_REST && speed.abs() < FLINCH_AT_REST * 8.0 {
             commands.entity(entity).remove::<BoneFlinch>();
             continue;
         }
-        let decay = (flinch.remaining / FLINCH_DURATION).clamp(0.0, 1.0);
-        let angle = flinch.angle * decay * decay;
         let parent_rotation = child_of
             .get(entity)
             .ok()
             .and_then(|parent| globals.get(parent.0).ok())
             .map(|global| global.rotation())
             .unwrap_or(Quat::IDENTITY);
-        let world_rotation = Quat::from_axis_angle(flinch.world_axis, angle);
+        let world_rotation = Quat::from_axis_angle(flinch.world_axis, flinch.angle);
         let local_rotation = parent_rotation.inverse() * world_rotation * parent_rotation;
         let Ok(mut transform) = transforms.get_mut(entity) else { continue };
         transform.rotation = local_rotation * transform.rotation;

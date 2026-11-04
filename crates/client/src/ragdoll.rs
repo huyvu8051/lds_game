@@ -49,6 +49,32 @@ const MUSCLE_STIFFNESS: f32 = 18.0;
 const MUSCLE_DAMPING: f32 = 2.2;
 /// A body thrown by a blast is already past arguing with.
 const MUSCLE_MAX_TORQUE: f32 = 40.0;
+
+/// How far the torso has to tip before the body stops trying to save itself.
+/// Past this it is committed and the legs may as well let go.
+const FALL_GIVEN_UP: f32 = 1.1;
+
+/// What staying on its feet is worth, on the joints that carry the body.
+/// The arms get none of it: they are along for the ride either way, and a
+/// shoulder stiffening to keep a torso up reads as a mannequin.
+const BRACE_GAIN: f32 = 1.6;
+
+/// How far the arms throw out when the balance goes, and what the throw is
+/// worth in tone. Both ways out of a fall come through here: while there is
+/// any balance left the arms windmill against the tip, and once there is
+/// none they reach for the ground instead.
+const WINDMILL_RADIANS: f32 = 0.9;
+const BRACE_RADIANS: f32 = 1.25;
+const ARM_URGENCY: f32 = 2.6;
+/// Below this there is nothing left to save and the arms stop fighting the
+/// fall and start expecting the floor.
+const BALANCE_LOST: f32 = 0.18;
+/// How fast the body has to be coming down before the arms go out to meet
+/// the floor. A body sliding off a step is not falling.
+const BRACING_FALL_SPEED: f32 = 1.4;
+/// What a joint keeps while a behaviour is asking for it, whatever is left
+/// of the body otherwise.
+const REFLEX_FLOOR: f32 = 0.5;
 const TWIST_LIMIT_HINGE: f32 = 0.08;
 
 #[derive(Component)]
@@ -95,6 +121,18 @@ impl JointKind {
     /// What holds a body up is not evenly spread: the spine and hips carry
     /// it, the knees lock, and the arms are along for the ride. Flat tone
     /// everywhere is the other way to read as a sack -- an evenly stiff one.
+    /// What a joint is worth spending on not falling over. The arms get
+    /// nothing: they are along for the ride either way, and a shoulder
+    /// stiffening to hold a torso up reads as a mannequin.
+    fn carry(self) -> f32 {
+        match self {
+            Self::Spine => 1.0,
+            Self::Hip => 1.0,
+            Self::Knee => 0.8,
+            Self::Shoulder | Self::Elbow => 0.0,
+        }
+    }
+
     fn tone(self) -> f32 {
         match self {
             Self::Spine => 1.0,
@@ -106,13 +144,37 @@ impl JointKind {
     }
 }
 
-/// What a bone is still trying to hold, and for how much longer.
+/// What a bone is still trying to hold.
+///
+/// Not a pose but a chase: `ghost` is where the clip still running on the
+/// skeleton says this bone ought to be, rewritten every frame. A body shot
+/// mid-stride goes on trying to take the step while gravity takes it, which
+/// is the whole difference between a corpse and a sack.
 #[derive(Component)]
 pub(crate) struct Muscle {
     parent: Entity,
     /// The child's rotation in the parent's frame at the moment physics took
-    /// over -- the pose the animation left it in.
+    /// over -- the pose the animation left it in, and what the chase starts
+    /// from.
     rest: Quat,
+    /// Where the clip wants it now. Starts at `rest` and walks away from it
+    /// by however far the animation has moved since.
+    ghost: Quat,
+    /// The bone's own local rotation the first frame the ghost was read,
+    /// which is what the walk away from `rest` is measured against.
+    anchor: Option<Quat>,
+    /// How much of the body is still trying to stay up: one while it is on
+    /// its feet, nothing once the fall is past saving. Written beside the
+    /// ghost because the same pass over the corpse knows both.
+    fighting: f32,
+    /// How much this joint is worth spending on staying up, from its kind.
+    carry: f32,
+    /// Whether this is an arm, and so whether the behaviours may take it
+    /// over. Nothing takes over a leg: the legs are the fall.
+    arm: bool,
+    /// What a behaviour is asking of this joint on top of its own tone.
+    /// One when nothing is.
+    urgency: f32,
     tone: f32,
     age: f32,
 }
@@ -330,6 +392,12 @@ pub(crate) fn spawn_what_was_armed_last_frame(
             commands.entity(body).insert(Muscle {
                 parent: parent_body,
                 rest: facings[parent_slot].inverse() * facings[slot],
+                ghost: facings[parent_slot].inverse() * facings[slot],
+                anchor: None,
+                fighting: 0.0,
+                carry: link.joint.carry(),
+                arm: matches!(link.joint, JointKind::Shoulder | JointKind::Elbow),
+                urgency: 1.0,
                 tone: link.joint.tone(),
                 age: 0.0,
             });
@@ -344,6 +412,75 @@ pub(crate) fn spawn_what_was_armed_last_frame(
     }
 }
 
+
+/// Reads the clip that is still running and tells each muscle where it wants
+/// its bone, and how much of the body is still trying to stay upright.
+///
+/// Both in one pass because one pass over the corpse knows both, and because
+/// each needs the skeleton as the animation left it -- before
+/// `drive_skeleton_from_ragdoll` writes the simulated pose over the top.
+///
+/// The target is carried as a delta rather than rebuilt from the hierarchy:
+/// a bone's parent in the skeleton is not always the bone the next joint
+/// hangs off, so anything derived from the chain would be right on the spine
+/// and wrong on a shoulder. How far the clip has turned this bone in its own
+/// frame is true whatever sits between them.
+pub(crate) fn track_muscle_targets(
+    corpses: Query<&Ragdolling>,
+    globals: Query<&GlobalTransform>,
+    speeds: Query<&LinearVelocity, With<RagdollBody>>,
+    locals: Query<&Transform, Without<RagdollBody>>,
+    mut muscles: Query<&mut Muscle>,
+) {
+    for ragdoll in &corpses {
+        let Some(&(_, root, _)) = ragdoll.bodies.first() else { continue };
+        let Ok(root_global) = globals.get(root) else { continue };
+        let up = root_global.rotation() * Vec3::Y;
+        // How far past saving the fall is: one on its feet, nothing on its
+        // side. And which way it is going over, which is what the arms
+        // answer -- the horizontal part of where the torso is pointing.
+        let tilt = up.angle_between(Vec3::Y);
+        let fighting = 1.0 - (tilt / FALL_GIVEN_UP).clamp(0.0, 1.0);
+        let toppling = Vec3::new(up.x, 0.0, up.z).normalize_or_zero();
+        let dropping = speeds.get(root).map(|v| -v.0.y).unwrap_or(0.0);
+
+        // One mechanism, two ways out of a fall. While there is balance left
+        // the arms throw out against the tip, which is what a body does
+        // before it believes it is going down. Once there is none they turn
+        // over and reach for the floor instead.
+        let saving = fighting > BALANCE_LOST;
+        // The same axis both ways -- across the way it is going over. Only
+        // the sign differs, which is the difference between throwing the
+        // arms back against the tip and putting them out in front of it.
+        let arm_axis = toppling.cross(Vec3::Y).normalize_or_zero();
+        let arm_angle = if saving {
+            WINDMILL_RADIANS * fighting
+        } else if dropping > BRACING_FALL_SPEED {
+            -BRACE_RADIANS
+        } else {
+            0.0
+        };
+
+        for &(bone, body, bone_from_body) in &ragdoll.bodies {
+            let Ok(local) = locals.get(bone) else { continue };
+            let parent = muscles.get(body).map(|m| m.parent).ok();
+            let into_parent = parent
+                .and_then(|p| globals.get(p).ok())
+                .map(|g| g.rotation().inverse())
+                .unwrap_or(Quat::IDENTITY);
+            let Ok(mut muscle) = muscles.get_mut(body) else { continue };
+            let anchor = *muscle.anchor.get_or_insert(local.rotation);
+            let moved = anchor.inverse() * local.rotation;
+            let mut ghost = muscle.rest * (bone_from_body * moved * bone_from_body.inverse());
+            if muscle.arm && arm_angle != 0.0 && arm_axis != Vec3::ZERO {
+                ghost = Quat::from_axis_angle(into_parent * arm_axis, arm_angle) * ghost;
+            }
+            muscle.ghost = ghost;
+            muscle.fighting = fighting;
+            muscle.urgency = if muscle.arm && arm_angle != 0.0 { ARM_URGENCY } else { 1.0 };
+        }
+    }
+}
 /// Holds each bone at the pose it died in, with the grip fading to nothing.
 ///
 /// A spring and damper in joint space, written as torque rather than as a
@@ -365,7 +502,22 @@ pub(crate) fn drive_muscles(
         let left = 1.0 - (muscle.age / MUSCLE_SECONDS).clamp(0.0, 1.0);
         // Squared, so the grip goes soft early and the last of it drains
         // slowly -- a linear fade reads as a switch being turned down.
-        let tone = muscle.tone * left * left * f32::from(enabled.0);
+        // Two terms, not one. The fade is what is left of the body; the brace
+        // is what it is spending on not falling, and it drains with the
+        // first. A body shot on its feet stiffens before it lets go; one
+        // already on its side never does.
+        let brace = 1.0 + BRACE_GAIN * muscle.fighting * muscle.carry;
+        let holding = muscle.tone * left * left * brace;
+        // A reflex outlives the grip. An arm put out to meet the floor has to
+        // still be out when the floor arrives, and the floor arrives after
+        // the body has finished going limp. It ends on its own: the brace is
+        // only asked for while the body is still coming down.
+        let reflex = if muscle.urgency > 1.0 {
+            muscle.tone * muscle.urgency * REFLEX_FLOOR
+        } else {
+            0.0
+        };
+        let tone = holding.max(reflex) * f32::from(enabled.0);
         if tone <= 0.0 {
             torque.0 = Vec3::ZERO;
             continue;
@@ -374,7 +526,7 @@ pub(crate) fn drive_muscles(
             torque.0 = Vec3::ZERO;
             continue;
         };
-        let wanted = parent_rotation.0 * muscle.rest;
+        let wanted = parent_rotation.0 * muscle.ghost;
         let error = wanted * rotation.0.inverse();
         // The short way round: a quaternion and its negative are the same
         // rotation, and taking the long one would wrench the limb.
