@@ -79,6 +79,25 @@ scenarios! {
         zombies: 10,
     }
 
+
+    /// A grey slab and nothing else, for watching one body fall.
+    ///
+    /// Desert City has steps, crates and a shopfront, and a corpse that
+    /// lands against any of them tells you about the crate. Here the only
+    /// thing the fall can be blamed on is the fall.
+    ///
+    /// It borrows Desert City's navmesh, which does not describe this map at
+    /// all. Nothing walks here on purpose: the bench holds its subject and
+    /// everything else is parked, so there is nothing for a navmesh to be
+    /// right about.
+    Flat {
+        id: 4,
+        title: "FLAT",
+        subtitle: "A SLAB, FOR WATCHING ONE BODY FALL",
+        navmesh: "maps/desert_city/navmesh.nav",
+        scene: Some("maps/flat/scene.glb"),
+        zombies: 1,
+    }
     Garage {
         id: 3,
         title: "PARKING GARAGE",

@@ -153,7 +153,20 @@ pub(crate) fn fire_on_cue(
 ///
 /// Not squeamishness: a chest emptied at three metres paints the whole body
 /// red, and what is being looked at is where the limbs ended up.
-pub(crate) fn quiet_the_gore(mut blood: ResMut<crate::blood::BloodEnabled>) {
+pub(crate) fn quiet_the_gore(
+    mut blood: ResMut<crate::blood::BloodEnabled>,
+    mut gun: Query<&mut Visibility, With<crate::Gun>>,
+    mut body: Query<&mut Visibility, (With<crate::ViewmodelBody>, Without<crate::Gun>)>,
+) {
+    // And the weapon with it. The viewmodel owns the bottom right of the
+    // screen and a body that falls behind a receiver is a body nobody can
+    // judge.
+    for mut visibility in &mut gun {
+        *visibility = Visibility::Hidden;
+    }
+    for mut visibility in &mut body {
+        *visibility = Visibility::Hidden;
+    }
     if blood.spray || blood.stains {
         blood.spray = false;
         blood.stains = false;

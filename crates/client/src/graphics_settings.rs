@@ -343,8 +343,10 @@ const GARAGE_VISIBILITY: f32 = 38.0;
 /// you see here".
 pub(crate) fn distance_fog_for(scenario: Scenario) -> DistanceFog {
     match scenario {
-        // The siege is the same town under the same sky.
-        Scenario::Desert | Scenario::DesertSiege => DistanceFog {
+        // The siege is the same town under the same sky, and the test slab
+        // takes it too -- it is lit by the same sun and nothing about the
+        // haze matters at three metres.
+        Scenario::Desert | Scenario::DesertSiege | Scenario::Flat => DistanceFog {
             color: Color::srgb(0.74, 0.66, 0.54),
             directional_light_color: Color::srgb(1.0, 0.92, 0.76),
             directional_light_exponent: 24.0,
