@@ -1393,6 +1393,7 @@ app.init_resource::<MagazineInHand>()
                     apply_pending_blast,
                     arm_ragdoll,
                     drive_muscles,
+                    cap_active_ragdolls,
                     settle_corpse,
                 )
                     .chain(),

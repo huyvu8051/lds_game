@@ -6,6 +6,17 @@ use shared::GameLayer;
 
 pub(crate) const DEATH_PUSH_SPEED: f32 = 2.2;
 const SETTLE_SPEED: f32 = 0.35;
+/// How many bodies may be live physics at once.
+///
+/// Each one is fifteen rigid bodies, fourteen joints and, since muscles, a
+/// torque written per bone per frame. A wave pushes zombies out in bursts,
+/// so corpses piling up is a matter of when rather than whether, and the
+/// phone has no room for the pile.
+///
+/// Four is a guess until it is measured on the device; the figure to watch
+/// is the solver's share of the frame, not the body count.
+const MAX_ACTIVE_RAGDOLLS: usize = 4;
+
 /// A blast has no clip behind it, so its bodies get a flat run.
 const BLAST_RAGDOLL_SECONDS: f32 = 6.0;
 
@@ -430,6 +441,33 @@ pub(crate) fn drive_skeleton_from_ragdoll(
                 commands.entity(body).despawn();
             }
             commands.entity(entity).remove::<Ragdolling>().insert(CorpseSettled);
+        }
+    }
+}
+
+/// Retires the oldest ragdolls once there are too many of them.
+///
+/// By cutting their term short rather than tearing them down here: the
+/// handover to a settled corpse already exists at the end of
+/// `drive_skeleton_from_ragdoll`, and two places that despawn bodies is one
+/// too many.
+///
+/// Oldest rather than furthest away, which would look better and needs the
+/// camera. The oldest is also the one that has stopped moving, so the freeze
+/// is hardest to notice there.
+pub(crate) fn cap_active_ragdolls(mut ragdolls: Query<(Entity, &mut Ragdolling)>) {
+    let over = ragdolls.iter().count().saturating_sub(MAX_ACTIVE_RAGDOLLS);
+    if over == 0 {
+        return;
+    }
+    let mut by_age: Vec<(Entity, f32)> = ragdolls.iter().map(|(e, r)| (e, r.elapsed)).collect();
+    by_age.sort_by(|a, b| b.1.total_cmp(&a.1));
+    for (entity, age) in by_age.into_iter().take(over) {
+        if let Ok((_, mut ragdoll)) = ragdolls.get_mut(entity) {
+            ragdoll.lifetime = ragdoll.elapsed;
+            if death_logging() {
+                info!("[corpse] id={entity:?} frozen early at {age:.2}s, {over} over the cap");
+            }
         }
     }
 }
