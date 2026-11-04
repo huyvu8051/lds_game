@@ -159,3 +159,81 @@ pub(crate) fn quiet_the_gore(mut blood: ResMut<crate::blood::BloodEnabled>) {
         blood.stains = false;
     }
 }
+
+/// Prints the angle at every joint of the subject while it falls.
+///
+/// A picture of a corpse says it looks wrong; it does not say which joint
+/// went the wrong way, and on a body that has landed in a heap the hip and
+/// the knee are hard to tell apart by eye. These are signed, and the sign is
+/// the whole point:
+///
+/// * `hip` positive is the thigh swinging forward, which is flexion. Negative
+///   is the leg going out behind, which a hip does by about twenty degrees
+///   and no more.
+/// * `knee` positive is the heel coming up behind, which is flexion. Negative
+///   is a knee bending backwards, which a knee does not do at all.
+///
+/// Same for the arms, where negative at the elbow is the forearm bending the
+/// wrong way out of the joint.
+#[derive(Resource, Default)]
+pub(crate) struct BoneLog(f32);
+
+pub(crate) fn log_joint_angles(
+    mut next: ResMut<BoneLog>,
+    bench: Res<RagdollBench>,
+    bones: Query<&ZombieHitboxBones>,
+    globals: Query<&GlobalTransform>,
+) {
+    if bench.shots == 0 || bench.elapsed < next.0 {
+        return;
+    }
+    next.0 = bench.elapsed + 0.2;
+    let Some(subject) = bench.subject else { return };
+    let Ok(hitboxes) = bones.get(subject) else { return };
+    let at = |bone: Option<Entity>| bone.and_then(|b| globals.get(b).ok()).map(|g| g.translation());
+    let (Some(chest), Some(belly)) = (at(hitboxes.chest), at(hitboxes.belly)) else { return };
+    // The body's own up and its left, so the signs mean the same thing
+    // however the corpse is lying.
+    let up = (chest - belly).try_normalize().unwrap_or(Vec3::Y);
+    // Off the pelvis's own frame, not off where the hips have ended up. A
+    // corpse tangles its legs, hip-to-hip reverses when they cross, and
+    // every sign below flipped with it -- a knee read +79 and then -80 two
+    // tenths later, which no hinge allows and no hinge did.
+    let across = hitboxes
+        .belly
+        .and_then(|b| globals.get(b).ok())
+        .map(|g| g.rotation() * Vec3::X)
+        .unwrap_or(Vec3::X);
+
+    // Signed by the way the joint turns, not by the way the limb ends up
+    // pointing. The first version read the latter, and a running stride --
+    // one leg forward, one back, both knees flexed the same way -- came out
+    // with opposite signs on the two knees.
+    let bend = |from: Vec3, to: Vec3| -> f32 {
+        let turn = from.cross(to).dot(across);
+        from.angle_between(to).to_degrees() * if turn < 0.0 { -1.0 } else { 1.0 }
+    };
+    let mut parts = Vec::new();
+    for (tag, limb) in [("L", &hitboxes.left_leg), ("R", &hitboxes.right_leg)] {
+        let (Some(hip), Some(knee), Some(foot)) = (at(limb[0]), at(limb[1]), at(limb[2])) else {
+            continue;
+        };
+        let thigh = (knee - hip).normalize_or_zero();
+        let shin = (foot - knee).normalize_or_zero();
+        parts.push(format!(
+            "hip{tag}={:+4.0} knee{tag}={:+4.0}",
+            bend(-up, thigh),
+            bend(thigh, shin),
+        ));
+    }
+    for (tag, limb) in [("L", &hitboxes.left_arm), ("R", &hitboxes.right_arm)] {
+        let (Some(shoulder), Some(elbow), Some(hand)) = (at(limb[0]), at(limb[1]), at(limb[2]))
+        else {
+            continue;
+        };
+        let upper = (elbow - shoulder).normalize_or_zero();
+        let fore = (hand - elbow).normalize_or_zero();
+        parts.push(format!("elb{tag}={:+4.0}", bend(upper, fore)));
+    }
+    info!("[bones] t={:.2} {}", bench.elapsed - shot_at(), parts.join(" "));
+}

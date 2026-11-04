@@ -975,6 +975,7 @@ app.init_resource::<MagazineInHand>()
 .init_resource::<stock_mount::FittedStock>()
 .init_resource::<attachment_effects::AttachmentEffects>()
 .init_resource::<ragdoll_range::RagdollBench>()
+            .init_resource::<ragdoll_range::BoneLog>()
 .init_resource::<grip_pose::GripChoice>()
 .init_resource::<grip_pose::HeldGrip>()
             .init_resource::<sight_mount::FittedSight>()
@@ -1449,6 +1450,7 @@ app.init_resource::<MagazineInHand>()
                             ragdoll_range::quiet_the_gore,
                             ragdoll_range::hold_subject,
                             ragdoll_range::fire_on_cue,
+                            ragdoll_range::log_joint_angles,
                         )
 
                             .chain()

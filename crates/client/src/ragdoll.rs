@@ -421,7 +421,7 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                 }
                 None => {
                     commands.spawn((
-                        joint_for(link.joint, parent_body, body, pivot),
+                        joint_for(link.joint, parent_body, body, pivot, alongs[slot]),
                         JointCollisionDisabled,
                     ));
                 }
@@ -614,12 +614,25 @@ fn hinge_for(
         JointKind::Knee => FLEX_LIMIT_KNEE,
         _ => return None,
     };
-    let axis = (child_turn * Vec3::X).try_normalize()?;
-    // How far round that axis the limb already is. Signed, so a limb bent the
-    // other way at death is not handed a range it is already outside of.
-    let turned = parent_along.cross(child_along).dot(axis);
-    let bent = parent_along.dot(child_along).clamp(-1.0, 1.0).acos() * turned.signum();
-    let bent = bent.clamp(0.0, flex);
+    // The way the limb is already bent is the way it bends. Taking the axis
+    // from the two segments makes the measured angle positive by
+    // construction, so the range below can only ever open towards more of
+    // the same -- which is flexion, whatever the rig calls its axes.
+    //
+    // Reading it off the rig instead was wrong by a sign on the legs, and a
+    // sign is the whole thing here: it let a knee flex backwards only. The
+    // bench measured them settling at ninety degrees the wrong way.
+    //
+    // The rig's own axis is still the fallback, for a limb that happens to
+    // be straight when the shot lands and so has no bend to read.
+    let axis = parent_along
+        .cross(child_along)
+        .try_normalize()
+        .unwrap_or((child_turn * Vec3::X).normalize_or_zero());
+    if axis == Vec3::ZERO {
+        return None;
+    }
+    let bent = parent_along.dot(child_along).clamp(-1.0, 1.0).acos().clamp(0.0, flex);
     Some((axis, AngleLimit { min: -bent, max: flex - bent }))
 }
 
@@ -645,7 +658,13 @@ fn revolute_for(
     }
 }
 
-fn joint_for(kind: JointKind, parent: Entity, child: Entity, pivot: Vec3) -> SphericalJoint {
+fn joint_for(
+    kind: JointKind,
+    parent: Entity,
+    child: Entity,
+    pivot: Vec3,
+    along: Vec3,
+) -> SphericalJoint {
     let (swing, twist) = match kind {
         JointKind::Spine => (SWING_LIMIT_SPINE, TWIST_LIMIT),
         JointKind::Shoulder => (SWING_LIMIT_SHOULDER, TWIST_LIMIT),
@@ -656,7 +675,19 @@ fn joint_for(kind: JointKind, parent: Entity, child: Entity, pivot: Vec3) -> Sph
     // Both bodies anchor on the joint they share. Left at the default both
     // anchors sit at their own origin, so the solver drags the two bone
     // centres onto one point and the skeleton tears itself apart.
-    let shared = JointFrame { anchor: JointAnchor::FromGlobal(pivot), basis: JointBasis::IDENTITY };
+    //
+    // And both take the same basis, in world, laid along the limb. Left at
+    // the identity each frame inherits its own body's turn -- and the two
+    // bodies are turned differently, so the cone was centred on the
+    // difference between them rather than on the pose. A hip given
+    // sixty-nine degrees of cone was measured reaching a hundred and fifty
+    // off the torso, which is a thigh folded past the chest. Pinned here,
+    // the limit means what it says: this far from where the body died, about
+    // the limb's own axis.
+    let shared = JointFrame {
+        anchor: JointAnchor::FromGlobal(pivot),
+        basis: JointBasis::FromGlobal(Quat::from_rotation_arc(Vec3::Y, along)),
+    };
     SphericalJoint {
         frame1: shared,
         frame2: shared,
