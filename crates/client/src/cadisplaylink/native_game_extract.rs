@@ -51,8 +51,9 @@ pub struct ExtractQueries {
     /// skips it, and the skinned path only ever collected zombies and remote
     /// players -- which is why nobody drew it.
     scope_window: SystemState<(
-        Q<'static, 'static, &'static GlobalTransform, With<crate::Gun>>,
+        Q<'static, 'static, (&'static GlobalTransform, &'static crate::Gun), With<crate::Gun>>,
         Q<'static, 'static, &'static GlobalTransform, (With<crate::AimSocket>, Without<crate::Gun>)>,
+        Q<'static, 'static, &'static GlobalTransform, (With<crate::FpsCamera>, Without<crate::Gun>)>,
     )>,
     viewmodel_body: SystemState<(
         Q<'static, 'static, (bevy::ecs::entity::Entity, &'static GlobalTransform), With<crate::ViewmodelBody>>,
@@ -275,17 +276,41 @@ pub fn extract_render_snapshot(
             .as_ref()
             .map(|c| bevy::math::Vec3::from_array(c.eye));
         let radius = sight.and_then(|s| s.def().window_radius);
-        let (gun, aim) =
+        let (gun, aim, eye_look) =
             queries.scope_window.get(world).expect("system param validation failed");
         match (radius, gun.single(), aim.single()) {
-            (Some(radius), Ok(gun), Ok(glass)) => {
-                let forward = gun.rotation() * bevy::math::Vec3::NEG_Z;
+            (Some(radius), Ok((gun, gun_state)), Ok(glass)) => {
+                // Some of the sway comes off both circles, in the camera's
+                // frame where it was put on.
+                //
+                // Not all of it. The crescent is the two circles sliding
+                // across each other, and sway is most of what slides them --
+                // take it all and a hard swing stops going dark at all. What
+                // is left is the trade: the shadow keeps that share of its
+                // travel, and the mark, which is pinned, drifts that much
+                // further off the picture it is cut to.
+                let undo = eye_look
+                    .single()
+                    .map(|look| {
+                        let camera = look.rotation();
+                        let sway = gun_state.look_sway * crate::SCOPE_SHADOW_SWAY_CUT;
+                        camera
+                            * bevy::math::Quat::from_rotation_y(-sway.x.to_radians())
+                            * bevy::math::Quat::from_rotation_x(-sway.y.to_radians())
+                            * camera.inverse()
+                    })
+                    .unwrap_or(bevy::math::Quat::IDENTITY);
+                let forward = undo * (gun.rotation() * bevy::math::Vec3::NEG_Z);
                 let ahead = sight.map_or(0.0, |s| s.def().window_forward);
-                let centre = glass.translation() + forward * ahead;
+                // The glass swung back about the eye by the same share. Taking
+                // it out of the direction alone would leave the opening
+                // pointing straight and still travelling.
+                let eye = camera_eye.unwrap_or_else(|| glass.translation());
+                let glass_at = eye + undo * (glass.translation() - eye);
+                let centre = glass_at + forward * ahead;
                 // Straight ahead of the eye at the same depth. The opening
-                // rides the weapon and this does not, so sway slides one
-                // across the other, which is the crescent.
-                let eye = camera_eye.unwrap_or(centre);
+                // rides the weapon and this does not, so what sway is left
+                // slides one across the other, which is the crescent.
                 let picture = eye + forward * (centre - eye).dot(forward);
                 Some(metal_renderer::snapshot::ScopeWindow {
                     centre: centre.to_array(),

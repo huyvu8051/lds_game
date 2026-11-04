@@ -322,14 +322,15 @@ const SIGHT_CONVERGE_NEAR_M: f32 = 10.0;
 const SIGHT_CONVERGE_FAR_M: f32 = 25.0;
 
 const LOOK_SWAY_SENSITIVITY: f32 = 30.0;
-/// How much of the weapon's sway is taken back off the mark it carries. The
-/// weapon still lags the turn; the dot lags it less.
-const RETICLE_SWAY_CUT: f32 = 0.8;
-/// The magnification that figure was set against -- what a weapon sighting
-/// down irons or a red dot zooms to. A sight that magnifies more than this
-/// gets more taken off, so the mark covers about the same screen either way.
-const RETICLE_SWAY_REFERENCE_FOV: f32 = 0.75;
 const LOOK_SWAY_MAX_DEG: f32 = 3.5;
+/// How much of the sway comes off the scope's two circles, so a smaller
+/// figure leaves a livelier shadow. Never all of it: the crescent is the
+/// circles sliding across each other, and sway is most of what slides them.
+///
+/// What it costs is the other way round. The mark is pinned, so whatever
+/// travel is left here is travel the mark drifts off the picture it is cut
+/// to, and far enough out the rim clips it.
+const SCOPE_SHADOW_SWAY_CUT: f32 = 0.3;
 
 /// The sway spring. FREQUENCY sets how quickly the weapon answers a turn;
 /// DAMPING how much of the answer is overshoot, and lower means more of it:

@@ -254,50 +254,29 @@ pub(crate) fn place_holo_reticle(
         Ok(aim) => gun_local.rotation * aim.reparented_to(gun_global).rotation * Vec3::NEG_Z,
         Err(_) => gun_local.rotation * Vec3::NEG_Z,
     };
-    // And then the sway is taken back off it: all of it once the sights are
-    // up, and a share of it on the way.
+    // And then the sway comes back off it, all of it by the time the sights
+    // are up.
     //
-    // The dot sits on the bore, which is true and is also why it ran: the
-    // weapon lags a hard turn by degrees and the dot went with it. Nothing
-    // multiplies that by the zoom -- but the zoom is a narrower camera, so
-    // the same angle covers more of the screen, which is why a magnified
-    // sight read as looser than a red dot when both were cut by the same
-    // share. That share still follows the glass, anchored on the red dot's,
-    // and it is what the mark gets while the sights are coming up, so the
-    // dot settles as they arrive instead of locking the moment they move.
+    // The mark sits on the bore, which is true and is also why it ran: the
+    // weapon lags a hard turn by degrees and the mark went with it. Behind
+    // the glass that buys nothing -- the player is reading the mark, not
+    // watching the weapon -- so it is taken in step with the raise, and the
+    // mark settles as the sights arrive rather than locking the moment they
+    // begin to move.
     //
-    // Behind the glass it gets all of it. A mark the eye is actually lined
-    // up on has nothing to gain from running: the player is reading it, not
-    // watching the weapon.
-    //
-    // Only the sway is taken. Recoil and the zeroing stay whole -- the dot
-    // is still meant to say where the round is going, and one that
+    // Only the sway. Recoil and the zeroing stay whole, since a mark that
     // under-reported the climb would be a lie about the one thing it is for.
     //
-    // The tube gets it too.
-    //
-    // It was held back because its mark is cut to a picture the renderer
-    // builds from the glass and the eye, and that picture is centred on
-    // where the bore points -- so a mark taken off the bore slides about
-    // inside its own circle, and far enough out it is clipped away at the
-    // rim. That is still true. What changed is the answer to whether it
-    // matters more than a crosshair that runs: at four times, it does not,
-    // because four times is also what the running is multiplied by.
-    //
-    // If the crosshair is seen to drift off the middle of the scope picture
-    // on a hard swing, or to be cut at the edge of it, this is the line to
-    // take back out.
-    let fitted_def = fitted.0.map(|sight| sight.def());
-    let down_the_barrel = {
-        let fov = fitted_def.map_or(def.aim_fov_multiplier, |sight| sight.aim_fov_multiplier);
-        let raised = (1.0 - (1.0 - RETICLE_SWAY_CUT) * fov / RETICLE_SWAY_REFERENCE_FOV)
-            .clamp(0.0, 1.0);
-        let cut = raised + (1.0 - raised) * pose.sighted.clamp(0.0, 1.0);
-        (Quat::from_rotation_y(-gun_state.look_sway.x.to_radians() * cut)
-            * Quat::from_rotation_x(-gun_state.look_sway.y.to_radians() * cut)
-            * down_the_barrel)
-            .normalize_or_zero()
-    };
+    // The tube is not excepted, although its mark is cut to a picture the
+    // renderer centres on where the bore points, so a mark taken off the
+    // bore drifts inside its own circle and far enough out is clipped at the
+    // rim. At four times a mark that runs is worse than one that drifts,
+    // because four times is what the running is multiplied by as well.
+    let cut = pose.sighted.clamp(0.0, 1.0);
+    let down_the_barrel = (Quat::from_rotation_y(-gun_state.look_sway.x.to_radians() * cut)
+        * Quat::from_rotation_x(-gun_state.look_sway.y.to_radians() * cut)
+        * down_the_barrel)
+        .normalize_or_zero();
     // The fitted sight's mark wins, the way its magnification and its eye
     // relief already do: the crosshair is a part of the scope, so it goes
     // wherever the scope goes. Whether it shows at all was settled above.
