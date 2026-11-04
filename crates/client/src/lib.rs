@@ -959,6 +959,7 @@ app.init_resource::<MagazineInHand>()
 .init_resource::<sight_swap::ShownSight>()
 .init_resource::<sight_swap::SightSwap>()
 .init_resource::<sight_mount::SightDrop>()
+.init_resource::<ragdoll::RagdollMuscles>()
 .init_resource::<PlayerModelPoseOverride>()
         .register_type::<PlayerModelPose>()
         .register_type::<ZombiePose>()
@@ -1391,6 +1392,7 @@ app.init_resource::<MagazineInHand>()
                     spawn_what_was_armed_last_frame,
                     apply_pending_blast,
                     arm_ragdoll,
+                    drive_muscles,
                     settle_corpse,
                 )
                     .chain(),

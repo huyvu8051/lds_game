@@ -19,6 +19,20 @@ const SWING_LIMIT_ELBOW: f32 = 1.3;
 const SWING_LIMIT_HIP: f32 = 1.2;
 const SWING_LIMIT_KNEE: f32 = 1.3;
 const TWIST_LIMIT: f32 = 0.4;
+
+/// How long a body keeps the pose it died in before it is only weight.
+///
+/// A ragdoll handed nothing but gravity folds in one frame and reads as a
+/// sack. A real body stops holding itself over about half a second, and that
+/// slide from held to limp is most of what makes a death look like one.
+const MUSCLE_SECONDS: f32 = 0.55;
+/// Spring and damper on each joint, as torque per radian and per rad/s.
+/// Tuned together: too little damping and the limb rings, too much and it is
+/// stiff all the way down rather than fading.
+const MUSCLE_STIFFNESS: f32 = 18.0;
+const MUSCLE_DAMPING: f32 = 2.2;
+/// A body thrown by a blast is already past arguing with.
+const MUSCLE_MAX_TORQUE: f32 = 40.0;
 const TWIST_LIMIT_HINGE: f32 = 0.08;
 
 #[derive(Component)]
@@ -59,6 +73,32 @@ enum JointKind {
     Elbow,
     Hip,
     Knee,
+}
+
+impl JointKind {
+    /// What holds a body up is not evenly spread: the spine and hips carry
+    /// it, the knees lock, and the arms are along for the ride. Flat tone
+    /// everywhere is the other way to read as a sack -- an evenly stiff one.
+    fn tone(self) -> f32 {
+        match self {
+            Self::Spine => 1.0,
+            Self::Hip => 0.9,
+            Self::Knee => 0.7,
+            Self::Shoulder => 0.35,
+            Self::Elbow => 0.25,
+        }
+    }
+}
+
+/// What a bone is still trying to hold, and for how much longer.
+#[derive(Component)]
+pub(crate) struct Muscle {
+    parent: Entity,
+    /// The child's rotation in the parent's frame at the moment physics took
+    /// over -- the pose the animation left it in.
+    rest: Quat,
+    tone: f32,
+    age: f32,
 }
 
 struct BoneLink {
@@ -171,6 +211,7 @@ pub(crate) fn spawn_what_was_armed_last_frame(
         };
 
         let mut bodies: Vec<Option<Entity>> = vec![None; links.len()];
+        let mut facings: Vec<Quat> = vec![Quat::IDENTITY; links.len()];
         let mut pairs = Vec::with_capacity(links.len());
 
         for (slot, link) in links.iter().enumerate() {
@@ -228,10 +269,12 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                     Transform::from_translation(centre).with_rotation(facing),
                     LinearVelocity(velocity),
                     AngularVelocity(spin),
+                    ConstantTorque::default(),
                     RagdollBody,
                 ))
                 .id();
             bodies[slot] = Some(body);
+            facings[slot] = facing;
             pairs.push((link.bone, body, bone_from_body));
         }
 
@@ -240,6 +283,14 @@ pub(crate) fn spawn_what_was_armed_last_frame(
             let Some(parent_body) = bodies[parent_slot] else { continue };
             let Ok(pivot) = globals.get(link.bone).map(|g| g.translation()) else { continue };
             commands.spawn((joint_for(link.joint, parent_body, body, pivot), JointCollisionDisabled));
+            // Against the parent, not against the world: a muscle holding a
+            // world rotation would hold the whole corpse up off the floor.
+            commands.entity(body).insert(Muscle {
+                parent: parent_body,
+                rest: facings[parent_slot].inverse() * facings[slot],
+                tone: link.joint.tone(),
+                age: 0.0,
+            });
         }
 
 
@@ -248,6 +299,57 @@ pub(crate) fn spawn_what_was_armed_last_frame(
             .remove::<RagdollArming>()
             .remove::<DeathClipPlaying>()
             .insert(Ragdolling { bodies: pairs, settled_for: 0.0, elapsed: 0.0, lifetime: armed.lifetime });
+    }
+}
+
+/// Holds each bone at the pose it died in, with the grip fading to nothing.
+///
+/// A spring and damper in joint space, written as torque rather than as a
+/// joint motor: Avian's `AngularMotor` only fits a revolute joint, and every
+/// joint in a body but the knees and elbows is a ball.
+///
+/// The damper reads the child's spin relative to its parent, not its spin in
+/// the world. A corpse tumbling down a slope is turning as one piece, and a
+/// world-space damper would fight the tumble instead of the limb.
+pub(crate) fn drive_muscles(
+    time: Res<Time>,
+    enabled: Res<RagdollMuscles>,
+    mut bodies: Query<(&mut Muscle, &Rotation, &AngularVelocity, &mut ConstantTorque)>,
+    parents: Query<(&Rotation, &AngularVelocity), With<RagdollBody>>,
+) {
+    let dt = time.delta_secs();
+    for (mut muscle, rotation, spin, mut torque) in &mut bodies {
+        muscle.age += dt;
+        let left = 1.0 - (muscle.age / MUSCLE_SECONDS).clamp(0.0, 1.0);
+        // Squared, so the grip goes soft early and the last of it drains
+        // slowly -- a linear fade reads as a switch being turned down.
+        let tone = muscle.tone * left * left * f32::from(enabled.0);
+        if tone <= 0.0 {
+            torque.0 = Vec3::ZERO;
+            continue;
+        }
+        let Ok((parent_rotation, parent_spin)) = parents.get(muscle.parent) else {
+            torque.0 = Vec3::ZERO;
+            continue;
+        };
+        let wanted = parent_rotation.0 * muscle.rest;
+        let error = wanted * rotation.0.inverse();
+        // The short way round: a quaternion and its negative are the same
+        // rotation, and taking the long one would wrench the limb.
+        let error = if error.w < 0.0 { -error } else { error };
+        let (axis, angle) = error.to_axis_angle();
+        let push = axis * angle * MUSCLE_STIFFNESS - (spin.0 - parent_spin.0) * MUSCLE_DAMPING;
+        torque.0 = (push * tone).clamp_length_max(MUSCLE_MAX_TORQUE);
+    }
+}
+
+/// Off with `NO_MUSCLES=1`, so the two can be watched side by side.
+#[derive(Resource)]
+pub(crate) struct RagdollMuscles(pub(crate) bool);
+
+impl Default for RagdollMuscles {
+    fn default() -> Self {
+        Self(std::env::var("NO_MUSCLES").is_err())
     }
 }
 
