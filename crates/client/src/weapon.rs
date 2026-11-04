@@ -267,11 +267,26 @@ impl WeaponClass {
     /// already tuned.
     pub(crate) fn accuracy(self) -> RangeAccuracy {
         let (accuracy, name) = match self {
+            // Exact through the sights, like the rifle: an SMG is shouldered
+            // and short, and nothing about it is less accurate than a carbine
+            // at the ranges it is used at. From the hip it keeps its own
+            // figures, which are the tightest here -- that is what it is for
+            // -- and so is the heat, which opens it several times over where
+            // the rifle's merely doubles.
+            Self::Smg => (
+                RangeAccuracy {
+                    ads: [0.0, 0.0, 0.05],
+                    hip: [0.14, 0.70, 2.20],
+                    moving: 1.2,
+                    heat: HEAT_SPREAD_GAIN,
+                },
+                "smg",
+            ),
             // Tight up close, sights up or down, and barely troubled by
             // running, which is the whole of what they are for. The cone then
             // opens faster than anything else here: a pistol at 150m should
             // not be a weapon.
-            Self::Pistol | Self::Smg | Self::Shotgun => (
+            Self::Pistol | Self::Shotgun => (
                 RangeAccuracy {
                     ads: [0.10, 0.45, 1.50],
                     hip: [0.14, 0.70, 2.20],
