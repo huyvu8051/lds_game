@@ -49,6 +49,7 @@ pub(crate) enum Bind {
     AimBlur,
     FocalAlternate,
     CycleSight,
+    CycleGrip,
     TuningBack,
     TuningForward,
     TuningDown,
@@ -118,6 +119,8 @@ impl Bind {
             AimBlur => (KeyCode::KeyK, Playing, "aim blur"),
             FocalAlternate => (KeyCode::KeyV, Playing, "alternate focal plane"),
             CycleSight => (KeyCode::KeyU, Playing, "cycle the fitted sight"),
+
+            CycleGrip => (KeyCode::KeyL, Playing, "cycle the weak hand's grip"),
             TuningBack => (KeyCode::Comma, Playing, "tuning: back"),
             TuningForward => (KeyCode::Period, Playing, "tuning: forward"),
             TuningDown => (KeyCode::Minus, Playing, "tuning: down"),
@@ -143,7 +146,7 @@ impl Bind {
         keys.just_released(self.key())
     }
 
-    pub(crate) const ALL: [Bind; 38] = [
+    pub(crate) const ALL: [Bind; 39] = [
         Bind::Forward,
         Bind::Back,
         Bind::StrafeLeft,
@@ -177,6 +180,7 @@ impl Bind {
         Bind::AimBlur,
         Bind::FocalAlternate,
         Bind::CycleSight,
+        Bind::CycleGrip,
         Bind::TuningBack,
         Bind::TuningForward,
         Bind::TuningDown,

@@ -645,8 +645,14 @@ pub(crate) fn wire_player_model_scene_nodes(
         let Ok(name) = names.get(entity) else { continue };
         // Zombies share these bone names, so the grip is only pinned on a
         // skeleton that hangs under the player model.
-        if let Some(rotation) = finger_grip_rotation(bare_bone_name(name.as_str())) {
-            if find_animation_root(entity, &child_of, |e| roots.contains(e)).is_some() {
+        // The left hand holds the handguard several ways and is blended
+        // between them, so it carries which slot it is rather than a fixed
+        // rotation. The right holds one thing one way.
+        let bare = bare_bone_name(name.as_str());
+        if find_animation_root(entity, &child_of, |e| roots.contains(e)).is_some() {
+            if let Some(slot) = crate::grip_pose::left_finger_slot(bare) {
+                commands.entity(entity).try_insert(crate::grip_pose::LeftFingerSlot(slot));
+            } else if let Some(rotation) = finger_grip_rotation(bare) {
                 commands.entity(entity).try_insert(GripFingerPose(rotation));
             }
         }

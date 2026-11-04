@@ -109,6 +109,7 @@ mod screen_effects;
 use screen_effects::*;
 
 mod grip_ik;
+mod grip_pose;
 mod muzzle_fx;
 mod explosion;
 mod ragdoll;
@@ -959,6 +960,8 @@ impl Plugin for GamePlugin {
 app.init_resource::<MagazineInHand>()
 .init_resource::<muzzle_mount::FittedMuzzle>()
 .init_resource::<stock_mount::FittedStock>()
+.init_resource::<grip_pose::GripChoice>()
+.init_resource::<grip_pose::HeldGrip>()
             .init_resource::<sight_mount::FittedSight>()
 .init_resource::<sight_swap::ShownSight>()
 .init_resource::<sight_swap::SightSwap>()
@@ -1493,6 +1496,22 @@ app.init_resource::<MagazineInHand>()
             lean_zombie_into_turn,
             attach_foot_pins,
             pin_zombie_feet,
+            // Chained: the blend decides what the left fingers hold, and both
+
+            // have to land after the clip and before transforms propagate.
+
+            (
+
+                grip_pose::choose_grip,
+
+                grip_pose::blend_held_grip,
+
+                grip_pose::hold_left_finger_grip,
+
+            )
+
+                .chain(),
+
             hold_finger_grip,
         )
             .after(AnimationSystems)

@@ -162,6 +162,10 @@ pub(crate) fn pose_viewmodel_arms(
     }
 }
 
+/// The right hand, which holds one thing one way: the firing grip.
+/// The left is in grip_pose.rs, because it holds the handguard several ways
+/// and has to be blended between them.
+///
 /// Solved in Blender against a 22mm bar laid across each palm, every joint
 /// curled until it just touched. Thumbs are still the rig's own rifle idle;
 /// its fingers closed around something far larger than a handguard, which is
@@ -177,21 +181,6 @@ pub(crate) fn pose_viewmodel_arms(
 ///
 /// The ten fingertip bones are not here: their rotations are identity.
 const FINGER_GRIP_POSE: &[(&str, Quat)] = &[
-    ("LeftHandIndex1", Quat::from_xyzw(0.43597, 0.02352, 0.04846, 0.89835)),
-    ("LeftHandIndex2", Quat::from_xyzw(0.38315, 0.00000, 0.00000, 0.92369)),
-    ("LeftHandIndex3", Quat::from_xyzw(0.27647, 0.00000, 0.00000, 0.96102)),
-    ("LeftHandMiddle1", Quat::from_xyzw(0.42245, -0.00591, -0.01269, 0.90628)),
-    ("LeftHandMiddle2", Quat::from_xyzw(0.46652, 0.00000, 0.00000, 0.88451)),
-    ("LeftHandMiddle3", Quat::from_xyzw(0.30535, 0.00000, 0.00000, 0.95224)),
-    ("LeftHandPinky1", Quat::from_xyzw(0.56899, -0.00243, -0.00351, 0.82234)),
-    ("LeftHandPinky2", Quat::from_xyzw(0.56859, 0.00000, 0.00000, 0.82262)),
-    ("LeftHandPinky3", Quat::from_xyzw(0.22812, 0.00000, 0.00000, 0.97363)),
-    ("LeftHandRing1", Quat::from_xyzw(0.47205, -0.00991, -0.01850, 0.88132)),
-    ("LeftHandRing2", Quat::from_xyzw(0.46805, 0.00000, 0.00000, 0.88370)),
-    ("LeftHandRing3", Quat::from_xyzw(0.22178, 0.00000, 0.00000, 0.97510)),
-    ("LeftHandThumb1", Quat::from_xyzw(0.13362, 0.06153, 0.16997, 0.97441)),
-    ("LeftHandThumb2", Quat::from_xyzw(0.10248, 0.17281, -0.04630, 0.97852)),
-    ("LeftHandThumb3", Quat::from_xyzw(-0.12531, 0.02766, 0.08647, 0.98796)),
     ("RightHandIndex1", Quat::from_xyzw(0.45814, -0.02501, -0.04844, 0.88721)),
     ("RightHandIndex2", Quat::from_xyzw(0.39491, 0.00000, 0.00000, 0.91872)),
     ("RightHandIndex3", Quat::from_xyzw(0.26307, 0.00000, 0.00000, 0.96478)),

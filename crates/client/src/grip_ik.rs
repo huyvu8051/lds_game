@@ -16,13 +16,12 @@ const AXIS_BAR_THICKNESS_METRES: f32 = 0.008;
 /// Where the grip socket sits inside the hand, in the hand bone's own frame:
 /// +Y wrist to knuckles, +X across the palm, +Z out through the palm. Measured
 /// against the same 22mm bar as FINGER_GRIP_POSE and only valid paired with it.
-const LEFT_GRIP_IN_HAND: Vec3 = Vec3::new(0.0, 0.075, 0.0485);
 const RIGHT_GRIP_IN_HAND: Vec3 = Vec3::new(0.0, 0.075, 0.0485);
 
-/// Turn that lands the weapon in the hand. Mirrored, so the 20 degrees of bar
-/// tilt they carry has opposite signs.
+/// Turn that lands the weapon in the firing hand. The weak hand has no
+/// constant of its own any more: it holds the handguard three ways at three
+/// angles, and grip_pose.rs blends between them.
 const RIGHT_HAND_ON_GUN: Quat = Quat::from_xyzw(-0.354492, -0.699015, 0.283518, 0.552567);
-const LEFT_HAND_ON_GUN: Quat = Quat::from_xyzw(-0.579770, -0.302469, -0.275973, 0.704427);
 
 const TEST_TARGET_RIGHT_FROM_EYE: Vec3 = Vec3::new(0.16, -0.10, -0.32);
 const TEST_TARGET_LEFT_FROM_EYE: Vec3 = Vec3::new(-0.16, -0.10, -0.32);
@@ -336,6 +335,7 @@ pub(crate) fn solve_grip_ik(
     gun: Query<&Gun>,
     active: Res<ActiveWeapon>,
     weak_hand: Res<crate::weak_hand::WeakHand>,
+    held: Res<crate::grip_pose::HeldGrip>,
     right_pole: Query<Entity, With<RightPoleTarget>>,
     left_pole: Query<Entity, With<LeftPoleTarget>>,
     child_of: Query<&ChildOf>,
@@ -374,7 +374,7 @@ pub(crate) fn solve_grip_ik(
     let left_target = reload_target.single().ok().filter(|_| off_the_weapon).unwrap_or(fore);
     let _unreached = bones.left_arm.zip(bones.left_fore_arm).zip(bones.left_hand).and_then(
         |((arm, fore_arm), hand)| {
-            solve_arm(arm, fore_arm, hand, left_target, left_pole, LEFT_HAND_ON_GUN, LEFT_GRIP_IN_HAND, &child_of, &children, &mut transforms)
+            solve_arm(arm, fore_arm, hand, left_target, left_pole, held.0.hand_on_gun, held.0.grip_in_hand, &child_of, &children, &mut transforms)
         },
     );
 
