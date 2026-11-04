@@ -114,10 +114,24 @@ fn eased(from: Vec3, to: Vec3, t: f32) -> Vec3 {
 /// do and what makes the rail readable in between.
 pub(crate) fn begin_sight_swap(
     fitted: Res<crate::sight_mount::FittedSight>,
-    shown: Res<ShownSight>,
+    loadout: Res<crate::inventory::Loadout>,
+    mut shown: ResMut<ShownSight>,
+    mut held: Local<Option<crate::inventory::Slot>>,
     rail: Query<(), With<RailRearSocket>>,
     mut swap: ResMut<SightSwap>,
 ) {
+    // A weapon change is not a sight change. Both guns kept the sight they
+    // were carrying; the hands went from one to the other. Without this the
+    // bag reported a different sight the instant the slot changed and the
+    // gesture played -- taking off a sight that was never on this rifle and
+    // fitting one it already had.
+    if *held != Some(loadout.active) {
+        *held = Some(loadout.active);
+        shown.0 = fitted.0;
+        swap.running = None;
+        swap.elapsed = 0.0;
+        return;
+    }
     if swap.running.is_some() || fitted.0 == shown.0 {
         return;
     }
