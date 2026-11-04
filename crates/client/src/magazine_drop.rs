@@ -2,6 +2,7 @@ use avian3d::prelude::*;
 use bevy::camera::primitives::Aabb;
 use bevy::math::ops;
 use bevy::prelude::*;
+use shared::GameLayer;
 
 use crate::*;
 
@@ -382,6 +383,12 @@ fn release_carried(
             RigidBody::Dynamic,
             Collider::cuboid(held.half.x * 2.0, held.half.y * 2.0, held.half.z * 2.0),
             ColliderDensity(MAG_DENSITY),
+            // Debris, so the player capsule cast never sees it. A magazine is
+            // let go of at the chest and lands at the player's feet, well
+            // inside the capsule, where the character controller reads it as
+            // a wall and slides the player off it -- the same shove a spent
+            // shell used to give, once a reload instead of once a shot.
+            CollisionLayers::new(GameLayer::Debris, [GameLayer::Default]),
             // Map geometry is a trimesh with no thickness, and a magazine
             // crosses its own depth in one step once gravity has it.
             SweptCcd::default(),
