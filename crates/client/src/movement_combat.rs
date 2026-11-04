@@ -621,7 +621,15 @@ pub(crate) fn send_player_input(
     let (move_axis, sprinting) = if driven.0 {
         (intent.move_axis, intent.sprint)
     } else {
-        let sprinting = (Bind::Sprint.pressed(&keys) || touch.sprint.0) && stance == PlayerStance::Standing;
+        // Not while the sights are up. The speed was already capped -- aiming
+        // takes its own branch and never reaches the sprint one -- but the
+        // state carried on being true, and everything downstream believed it:
+        // the shot opened by the sprint multiplier, the footsteps ran, the
+        // weapon forgot it had been aimed. A held key is not a sprint if the
+        // player is walking a sight line.
+        let sprinting = (Bind::Sprint.pressed(&keys) || touch.sprint.0)
+            && stance == PlayerStance::Standing
+            && !aiming;
         let mut move_axis = Vec2::ZERO;
         if Bind::Forward.pressed(&keys) {
             move_axis.y += 1.0;
