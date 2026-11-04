@@ -114,6 +114,7 @@ mod grip_pose;
 mod muzzle_fx;
 mod explosion;
 mod ragdoll;
+mod ragdoll_range;
 mod viewmodel_body;
 use grip_ik::*;
 use muzzle_fx::*;
@@ -973,6 +974,7 @@ app.init_resource::<MagazineInHand>()
 .init_resource::<muzzle_mount::FittedMuzzle>()
 .init_resource::<stock_mount::FittedStock>()
 .init_resource::<attachment_effects::AttachmentEffects>()
+.init_resource::<ragdoll_range::RagdollBench>()
 .init_resource::<grip_pose::GripChoice>()
 .init_resource::<grip_pose::HeldGrip>()
             .init_resource::<sight_mount::FittedSight>()
@@ -1435,7 +1437,29 @@ app.init_resource::<MagazineInHand>()
                     spawn_what_was_armed_last_frame,
                     apply_pending_blast,
                     arm_ragdoll,
-                    drive_muscles,
+                    // Nested rather than added: this tuple is at the twenty Bevy takes.
+
+                    // Chained because the subject is put where it can be seen before
+
+                    // the shot aimed at it goes looking for its bones.
+
+                    (
+
+                        (
+                            ragdoll_range::quiet_the_gore,
+                            ragdoll_range::hold_subject,
+                            ragdoll_range::fire_on_cue,
+                        )
+
+                            .chain()
+
+                            .run_if(ragdoll_range::enabled),
+
+                        drive_muscles,
+
+                    )
+
+                        .chain(),
                     cap_active_ragdolls,
                     settle_corpse,
                 )

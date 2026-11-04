@@ -11,6 +11,12 @@ impl Plugin for F9DebugPlugin {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(8.0);
+            // One frame a run. A burst was tried and does not survive the
+            // readback: a window this size is megabytes a frame, several
+            // asked for at once arrive as one, and the rest are lost without
+            // a word. A filmstrip comes from running the bench again at a
+            // later mark instead, which the bench is deterministic enough
+            // to make honest.
             app.insert_resource(PendingCapture { countdown: after, path })
                 .add_systems(Update, capture_screenshot_when_due);
         }
