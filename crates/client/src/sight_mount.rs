@@ -63,6 +63,12 @@ pub(crate) struct SightDef {
     /// The depth test that cuts it is all or nothing, so without this the
     /// picture ends on a hard line. Zero keeps that line.
     pub(crate) picture_feather: f32,
+    /// Whether the weapon hides behind this sight's opening.
+    ///
+    /// True for a tube the eye goes inside. False for a holographic, which
+    /// is a pane of glass on a rail -- its opening is only there to cut the
+    /// mark when sway carries it off the glass.
+    pub(crate) masks_weapon: bool,
     /// The radius of the opening the eye looks through, if this sight has a
     /// tube at all. What the depth disc is cut to.
     pub(crate) window_radius: Option<f32>,
@@ -84,6 +90,7 @@ static RED_DOT_A: SightDef = SightDef {
     eye_rise: 0.047,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    masks_weapon: false,
     reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
@@ -98,6 +105,7 @@ static RED_DOT_B: SightDef = SightDef {
     eye_rise: 0.045,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    masks_weapon: false,
     reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
@@ -115,11 +123,12 @@ static HOLO_D: SightDef = SightDef {
     eye_rise: 0.037,
     aim_fov_multiplier: 0.75,
     ads_eye_relief: 0.11,
+    masks_weapon: false,
     reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
+    window_forward: 0.065,
+    window_radius: Some(0.009),
 };
 
 static SCOPE_2X: SightDef = SightDef {
@@ -129,6 +138,7 @@ static SCOPE_2X: SightDef = SightDef {
     eye_rise: 0.044,
     aim_fov_multiplier: 0.620,
     ads_eye_relief: 0.12,
+    masks_weapon: false,
     reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
@@ -153,6 +163,7 @@ static SCOPE_AK: SightDef = SightDef {
     eye_rise: 0.045,
     aim_fov_multiplier: 0.62,
     ads_eye_relief: 0.12,
+    masks_weapon: false,
     reticle: None,
     picture_feather: 0.0000,
     picture_radius: 0.0000,
@@ -178,6 +189,7 @@ static SCOPE_M24: SightDef = SightDef {
     eye_rise: 0.030,
     aim_fov_multiplier: 0.280,
     ads_eye_relief: 0.12,
+    masks_weapon: true,
     reticle: Some(crate::weapon::ReticleKind::Duplex),
     picture_feather: 0.0036,
     picture_radius: 0.0155,

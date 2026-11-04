@@ -292,6 +292,7 @@ pub fn extract_render_snapshot(
                     forward: forward.to_array(),
                     radius,
                     picture_centre: picture.to_array(),
+                    masks_weapon: sight.is_some_and(|s| s.def().masks_weapon),
                     picture_radius: sight.map_or(0.0, |s| s.def().picture_radius),
                     picture_feather: sight.map_or(0.0, |s| s.def().picture_feather),
                 })
