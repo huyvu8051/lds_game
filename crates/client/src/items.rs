@@ -61,16 +61,14 @@ pub(crate) enum AttachSlot {
     Muzzle,
     Grip,
     Magazine,
-    Stock,
     Sight,
 }
 
 impl AttachSlot {
-    pub(crate) const ALL: [AttachSlot; 5] = [
+    pub(crate) const ALL: [AttachSlot; 4] = [
         AttachSlot::Muzzle,
         AttachSlot::Grip,
         AttachSlot::Magazine,
-        AttachSlot::Stock,
         AttachSlot::Sight,
     ];
 
@@ -79,7 +77,6 @@ impl AttachSlot {
             AttachSlot::Muzzle => "MUZZLE",
             AttachSlot::Grip => "GRIP",
             AttachSlot::Magazine => "MAG",
-            AttachSlot::Stock => "STOCK",
             AttachSlot::Sight => "SIGHT",
         }
     }
@@ -110,38 +107,21 @@ pub(crate) enum ItemKind {
     // Ammunition, one per calibre the game's weapons take.
     Ammo556,
     Ammo762,
-    Ammo9mm,
     Ammo45,
-    Ammo12g,
-    /// The P90's. Nothing else in the game takes it, which is the point of
-    /// carrying one.
-    Ammo57mm,
 
-    // Muzzle.
+    // Muzzle: quieter, flatter, darker.
     Suppressor,
     FlashHider,
     Compensator,
-    BarrelExtender,
-    Choke,
-    Duckbill,
 
     // Grip.
     VerticalForegrip,
     AngledForegrip,
-    HalfGrip,
-    LightGrip,
-    ThumbGrip,
-    LaserSight,
 
     // Magazine.
     QuickdrawMag,
     ExtendedMag,
     ExtendedQuickdrawMag,
-
-    // Stock.
-    TacticalStock,
-    CheekPad,
-    BulletLoops,
 
     // Sights. One per mesh we own, and one per step of reach: a holographic
     // for no magnification, a three-power, and the M24's glass above it.
@@ -209,31 +189,18 @@ impl ItemGroup {
 }
 
 /// Everything, in the order the pack lists it.
-pub(crate) const ALL_ITEMS: [ItemKind; 46] = [
+pub(crate) const ALL_ITEMS: [ItemKind; 33] = [
     ItemKind::Ammo556,
     ItemKind::Ammo762,
-    ItemKind::Ammo9mm,
     ItemKind::Ammo45,
-    ItemKind::Ammo12g,
-    ItemKind::Ammo57mm,
     ItemKind::Suppressor,
     ItemKind::FlashHider,
     ItemKind::Compensator,
-    ItemKind::BarrelExtender,
-    ItemKind::Choke,
-    ItemKind::Duckbill,
     ItemKind::VerticalForegrip,
     ItemKind::AngledForegrip,
-    ItemKind::HalfGrip,
-    ItemKind::LightGrip,
-    ItemKind::ThumbGrip,
-    ItemKind::LaserSight,
     ItemKind::QuickdrawMag,
     ItemKind::ExtendedMag,
     ItemKind::ExtendedQuickdrawMag,
-    ItemKind::TacticalStock,
-    ItemKind::CheekPad,
-    ItemKind::BulletLoops,
     ItemKind::HoloWide,
     ItemKind::Scope3x,
     ItemKind::ScopeM24,
@@ -268,28 +235,15 @@ impl ItemKind {
         match self {
             Ammo556 => "5.56mm",
             Ammo762 => "7.62mm",
-            Ammo9mm => "9mm",
             Ammo45 => ".45 ACP",
-            Ammo12g => "12 Gauge",
-            Ammo57mm => "5.7mm",
             Suppressor => "Suppressor",
             FlashHider => "Flash Hider",
             Compensator => "Compensator",
-            BarrelExtender => "Barrel Extender",
-            Choke => "Choke",
-            Duckbill => "Duckbill",
             VerticalForegrip => "Vertical Foregrip",
             AngledForegrip => "Angled Foregrip",
-            HalfGrip => "Half Grip",
-            LightGrip => "Light Grip",
-            ThumbGrip => "Thumb Grip",
-            LaserSight => "Laser Sight",
             QuickdrawMag => "Quickdraw Mag",
             ExtendedMag => "Extended Mag",
             ExtendedQuickdrawMag => "Ext. Quickdraw Mag",
-            TacticalStock => "Tactical Stock",
-            CheekPad => "Cheek Pad",
-            BulletLoops => "Bullet Loops",
             HoloWide => "Wide Holographic",
             Scope3x => "3x Scope",
             ScopeM24 => "M24 Scope",
@@ -318,7 +272,7 @@ impl ItemKind {
     pub(crate) fn category(self) -> Category {
         use ItemKind::*;
         match self {
-            Ammo556 | Ammo762 | Ammo9mm | Ammo45 | Ammo12g | Ammo57mm => Category::Ammo,
+            Ammo556 | Ammo762 | Ammo45 => Category::Ammo,
             Helmet1 | Helmet2 | Helmet3 | Vest1 | Vest2 | Vest3 | Backpack1 | Backpack2
             | Backpack3 => Category::Armour,
             Bandage | FirstAidKit | MedKit => Category::Healing,
@@ -342,8 +296,7 @@ impl ItemKind {
         use ItemKind::*;
         Some(match self {
             Ammo556 | Ammo762 => 30,
-            Ammo9mm | Ammo45 | Ammo57mm => 24,
-            Ammo12g => 8,
+            Ammo45 => 24,
             _ => return None,
         })
     }
@@ -372,14 +325,9 @@ impl ItemKind {
     pub(crate) fn attach_slot(self) -> Option<AttachSlot> {
         use ItemKind::*;
         Some(match self {
-            Suppressor | FlashHider | Compensator | BarrelExtender | Choke | Duckbill => {
-                AttachSlot::Muzzle
-            }
-            VerticalForegrip | AngledForegrip | HalfGrip | LightGrip | ThumbGrip | LaserSight => {
-                AttachSlot::Grip
-            }
+            Suppressor | FlashHider | Compensator => AttachSlot::Muzzle,
+            VerticalForegrip | AngledForegrip => AttachSlot::Grip,
             QuickdrawMag | ExtendedMag | ExtendedQuickdrawMag => AttachSlot::Magazine,
-            TacticalStock | CheekPad | BulletLoops => AttachSlot::Stock,
             HoloWide | Scope3x | ScopeM24 => AttachSlot::Sight,
             _ => return None,
         })
@@ -416,10 +364,7 @@ impl ItemKind {
         match self {
             Ammo556 => 0.5,
             Ammo762 => 0.7,
-            Ammo9mm => 0.375,
             Ammo45 => 0.4,
-            Ammo12g => 1.25,
-            Ammo57mm => 0.3,
             Bandage => 3.0,
             FirstAidKit => 8.0,
             MedKit => 20.0,

@@ -7,6 +7,11 @@ use bevy::prelude::*;
 /// parts were modelled from and a player who knows the game should find them
 /// where they expect. What they multiply is this game's own numbers, which
 /// are not PUBG's, so the percentages carry over and the absolutes do not.
+///
+/// Three of them sit at one and nothing moves them: `ads_speed`,
+/// `settle_speed` and `reload` were the stock's, and stocks are gone. They
+/// stay because the magazines are the obvious next slot and a quickdraw
+/// magazine is a `reload` multiplier and nothing else.
 #[derive(Resource)]
 pub(crate) struct AttachmentEffects {
     /// Scales the climb, the shove and the weapon's own kick, per shot.
@@ -83,19 +88,6 @@ static COMPENSATOR: AttachmentEffects =
 static FLASH_HIDER: AttachmentEffects =
     AttachmentEffects { flash: 0.22, spread: 0.90, recoil: 0.95, ..CLEAN };
 
-/// Faster onto the sights, steadier on them, quicker back down after a shot.
-static TACTICAL_STOCK: AttachmentEffects =
-    AttachmentEffects { ads_speed: 1.15, sway: 0.88, settle_speed: 1.20, ..CLEAN };
-
-/// PUBG's own twenty and fifteen per cent, on a pad whose whole job is to
-/// give the cheek something to brace against.
-static CHEEK_PAD: AttachmentEffects =
-    AttachmentEffects { recoil: 0.80, sway: 0.85, ..CLEAN };
-
-/// Thirty per cent faster, which is a divisor rather than a subtraction:
-/// the number that moves is the time.
-static BULLET_LOOPS: AttachmentEffects = AttachmentEffects { reload: 1.0 / 1.30, ..CLEAN };
-
 /// Nothing fitted. Spelled out because a struct update needs a base and
 /// `Default::default()` is not a const.
 const CLEAN: AttachmentEffects = AttachmentEffects {
@@ -112,20 +104,17 @@ const CLEAN: AttachmentEffects = AttachmentEffects {
 
 /// Rebuilds the multipliers from whatever is actually on the weapon.
 ///
-/// Off the fitted parts rather than off the bag: a suppressor in a pocket
-/// quiets nothing, and a stock that does not fit the weapon in hand is not
-/// on it. Both of those are already decided by `FittedMuzzle` and
-/// `FittedStock`, and reading them is how this cannot disagree.
+/// Off the fitted part rather than off the bag: a suppressor in a pocket
+/// quiets nothing. `FittedMuzzle` has already decided that, and reading it
+/// is how this cannot disagree.
 pub(crate) fn gather_attachment_effects(
     muzzle: Res<crate::muzzle_mount::FittedMuzzle>,
-    stock: Res<crate::stock_mount::FittedStock>,
     mut effects: ResMut<AttachmentEffects>,
 ) {
-    if !muzzle.is_changed() && !stock.is_changed() {
+    if !muzzle.is_changed() {
         return;
     }
     use crate::muzzle_mount::MuzzleId;
-    use crate::stock_mount::StockId;
     let mut out = AttachmentEffects::default();
     if let Some(muzzle) = muzzle.0 {
         out.apply(match muzzle {
@@ -134,13 +123,6 @@ pub(crate) fn gather_attachment_effects(
             }
             MuzzleId::Compensator => &COMPENSATOR,
             MuzzleId::FlashHider => &FLASH_HIDER,
-        });
-    }
-    if let Some(stock) = stock.0 {
-        out.apply(match stock {
-            StockId::Tactical => &TACTICAL_STOCK,
-            StockId::CheekPad => &CHEEK_PAD,
-            StockId::BulletLoops => &BULLET_LOOPS,
         });
     }
     debug!(

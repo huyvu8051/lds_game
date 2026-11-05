@@ -458,16 +458,15 @@ fn slot_index(slot: Slot) -> usize {
 /// What is bolted to each weapon, one set of five sockets per slot.
 #[derive(Resource)]
 pub(crate) struct Attachments {
-    pub(crate) fitted: [[Option<ItemKind>; 5]; 3],
+    pub(crate) fitted: [[Option<ItemKind>; 4]; 3],
 }
 
 impl Default for Attachments {
     fn default() -> Self {
-        let mut fitted = [[None; 5]; 3];
+        let mut fitted = [[None; 4]; 3];
         for (socket, item) in [
             (AttachSlot::Sight, crate::sight_mount::sight_from_env()),
             (AttachSlot::Muzzle, crate::muzzle_mount::muzzle_from_env()),
-            (AttachSlot::Stock, crate::stock_mount::stock_from_env()),
         ] {
             let (Some(item), Some(at)) =
                 (item, AttachSlot::ALL.iter().position(|s| *s == socket))

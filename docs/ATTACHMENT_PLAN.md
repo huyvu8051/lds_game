@@ -1,7 +1,7 @@
 # Attachments
 
-A plan for mounting sights, muzzles, grips, magazines and stocks,
-PUBG-style. Nothing below is built yet.
+A plan for mounting sights, muzzles, grips and magazines, PUBG-style.
+Nothing below is built yet.
 
 It was written against a library of thirty-five weapons. The game now
 ships five -- the AK, the M4A1, the M24, the UMP45 and the Deagle -- and
@@ -12,9 +12,14 @@ harvesting parts still holds: the source meshes it reads from live in
 ## What already exists
 
 - **`ItemKind` carries the whole attachment set** and no logic at all:
-  six muzzles, six grips, three magazines, three stocks, and three
+  three muzzles -- `Suppressor`, `FlashHider`, `Compensator` -- two grips
+  -- `VerticalForegrip`, `AngledForegrip` -- three magazines, and three
   sights -- `HoloWide`, `Scope3x`, `ScopeM24`. They drop, they are
   carried, they do nothing.
+
+  Stocks were a fourth slot and are gone: three items, seventeen measured
+  anchors and a mount module, for a part that sits behind the shoulder
+  where the first-person camera never looks.
 - **Every weapon mesh carries six named sockets**: `Socket_Muzzle`,
   `Socket_Aim`, `Socket_SightFront`, `Socket_Eject`, `Socket_RearGrip`,
   `Socket_FrontGrip`. Of these the game reads only `Socket_Aim`,
@@ -67,7 +72,7 @@ of.
 ## We own no attachment meshes
 
 `zombie_assets` holds weapons, characters, maps and gore. There is no
-scope, no muzzle device, no foregrip, no stock. **Every optic we have is
+scope, no muzzle device, no foregrip. **Every optic we have is
 bolted to a gun**, which is why decision 2 is the whole supply.
 
 ### What is bolted to what
@@ -164,12 +169,12 @@ judgement per gun, not a rule.
 
 Stats change, so the table is gameplay as much as geometry.
 
-| class | muzzle | grip | magazine | stock | sight |
-|---|---|---|---|---|---|
-| assault rifle | yes | yes | yes | yes | yes |
-| SMG | yes | yes | yes | yes | yes |
-| marksman rifle | yes | yes | yes | yes | yes |
-| bolt-action | yes | no | yes | yes | yes |
+| class | muzzle | grip | magazine | sight |
+|---|---|---|---|---|
+| assault rifle | yes | yes | yes | yes |
+| SMG | yes | yes | yes | yes |
+| marksman rifle | yes | yes | yes | yes |
+| bolt-action | yes | no | yes | yes |
 | machine gun | yes | yes | no | no | yes |
 | shotgun | choke, duckbill | no | bullet loops | yes | yes |
 | pistol | yes | no | yes | no | yes |
@@ -188,7 +193,6 @@ that is never hidden.
 | muzzle | `part_muzzle` | flash hider, brake, the bare thread | a muzzle attachment replaces it |
 | magazine | `magazine` | already split, already used | during a reload; swapped for an extended one |
 | foregrip | `part_foregrip` | only where the gun ships one | a different grip is mounted |
-| stock | `part_stock` | fixed, folding or none | a stock attachment replaces it |
 | everything else | `body` | receiver, barrel, handguard | never |
 
 `magazine` keeps its name: `wire_gun_mesh` already matches it by
@@ -219,7 +223,6 @@ groups as separate objects rather than welding everything back.
 |---|---|---|
 | `Socket_RailBase` | rear end of the top rail, **on the rail's top plane**, x = 0 | every sight |
 | `Socket_RailUnder` | front of the under-rail, on its bottom plane | foregrips |
-| `Socket_Stock` | where a stock bolts on | stocks |
 
 `Socket_Muzzle` already sits at the bore at the muzzle face, which is
 where a suppressor screws on, so muzzles need nothing new.
