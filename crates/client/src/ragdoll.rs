@@ -201,6 +201,8 @@ pub(crate) struct Muscle {
     ///
     /// Nothing turns a leg. The legs are the fall.
     steers: bool,
+    /// Only so a log can say which joint moved.
+    joint: JointKind,
     /// What a behaviour is asking of this joint on top of its own tone.
     /// One when nothing is.
     urgency: f32,
@@ -290,6 +292,7 @@ pub(crate) struct DeathClipPlaying;
 /// and the corpse stops dead before it falls.
 pub(crate) fn spawn_what_was_armed_last_frame(
     time: Res<Time>,
+    probes: Res<crate::graphics_settings::RagdollProbes>,
     mut commands: Commands,
     globals: Query<&GlobalTransform>,
     arming: Query<(
@@ -369,14 +372,16 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                 .map(|&(_, was_at, was_facing)| {
                     let turn = rotation * was_facing.inverse();
                     let (axis, angle) = turn.to_axis_angle();
-                    ((position - was_at) / dt, axis * (angle / dt))
+                    let spin = if probes.carried_spin { axis * (angle / dt) } else { Vec3::ZERO };
+                    ((position - was_at) / dt, spin)
                 })
                 .unwrap_or((Vec3::ZERO, Vec3::ZERO));
 
             // Avian 0.7 has no impulse component, so the shot rides in as extra
             // starting velocity: on the torso, to carry the whole body, and
             // again on the bone it actually struck.
-            let shove = impulse.map(|i| i.push).unwrap_or(Vec3::ZERO);
+            let shove =
+                impulse.map(|i| i.push).filter(|_| probes.shot_push).unwrap_or(Vec3::ZERO);
             let struck = impulse.is_some_and(|i| {
                 hit_slot.is_some_and(|hit| hit == slot) && i.at != Vec3::ZERO
             });
@@ -433,9 +438,8 @@ pub(crate) fn spawn_what_was_armed_last_frame(
             let (Some(body), Some(parent_slot)) = (bodies[slot], link.parent_slot) else { continue };
             let Some(parent_body) = bodies[parent_slot] else { continue };
             let Ok(pivot) = globals.get(link.bone).map(|g| g.translation()) else { continue };
-            let hinge = hinge_for(link.joint, alongs[parent_slot], alongs[slot], across);
-            if crate::ragdoll_range::enabled() && matches!(link.joint, JointKind::Elbow | JointKind::Knee)
-            {
+            let hinge = hinge_for(link.joint, alongs[parent_slot], alongs[slot], across, probes.weld);
+            if logging_joints() && matches!(link.joint, JointKind::Elbow | JointKind::Knee) {
                 match &hinge {
                     Some((_, limit)) => info!(
                         "[arm] {:?} hinge bent={:+.0} range={:+.0}..{:+.0}",
@@ -459,7 +463,7 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                 }
                 None => {
                     commands.spawn((
-                        joint_for(link.joint, parent_body, body, pivot, alongs[slot]),
+                        joint_for(link.joint, parent_body, body, pivot, alongs[slot], probes.weld),
                         JointCollisionDisabled,
                     ));
                 }
@@ -474,6 +478,7 @@ pub(crate) fn spawn_what_was_armed_last_frame(
                 fighting: 0.0,
                 carry: link.joint.carry(),
                 steers: matches!(link.joint, JointKind::Shoulder),
+                joint: link.joint,
                 urgency: 1.0,
                 tone: link.joint.tone(),
                 age: 0.0,
@@ -570,11 +575,14 @@ pub(crate) fn track_muscle_targets(
 pub(crate) fn drive_muscles(
     time: Res<Time>,
     enabled: Res<RagdollMuscles>,
-    mut bodies: Query<(&mut Muscle, &Rotation, &AngularVelocity, &mut ConstantTorque)>,
+    mut muscles: Query<(Entity, &mut Muscle, &Rotation, &AngularVelocity)>,
     parents: Query<(&Rotation, &AngularVelocity), With<RagdollBody>>,
+    mut torques: Query<&mut ConstantTorque, With<RagdollBody>>,
+    mut pulls: Local<Vec<(Entity, Entity, Vec3)>>,
 ) {
     let dt = time.delta_secs();
-    for (mut muscle, rotation, spin, mut torque) in &mut bodies {
+    pulls.clear();
+    for (body, mut muscle, rotation, spin) in &mut muscles {
         muscle.age += dt;
         let left = 1.0 - (muscle.age / MUSCLE_SECONDS).clamp(0.0, 1.0);
         // Squared, so the grip goes soft early and the last of it drains
@@ -595,22 +603,42 @@ pub(crate) fn drive_muscles(
             0.0
         };
         let tone = holding.max(reflex) * f32::from(enabled.0);
-        if tone <= 0.0 {
-            torque.0 = Vec3::ZERO;
-            continue;
-        }
-        let Ok((parent_rotation, parent_spin)) = parents.get(muscle.parent) else {
-            torque.0 = Vec3::ZERO;
-            continue;
+        let pull = match parents.get(muscle.parent) {
+            Ok((parent_rotation, parent_spin)) if tone > 0.0 => {
+                let wanted = parent_rotation.0 * muscle.ghost;
+                let error = wanted * rotation.0.inverse();
+                // The short way round: a quaternion and its negative are the
+                // same rotation, and taking the long one would wrench the limb.
+                let error = if error.w < 0.0 { -error } else { error };
+                let (axis, angle) = error.to_axis_angle();
+                let push =
+                    axis * angle * MUSCLE_STIFFNESS - (spin.0 - parent_spin.0) * MUSCLE_DAMPING;
+                (push * tone).clamp_length_max(MUSCLE_MAX_TORQUE)
+            }
+            _ => Vec3::ZERO,
         };
-        let wanted = parent_rotation.0 * muscle.ghost;
-        let error = wanted * rotation.0.inverse();
-        // The short way round: a quaternion and its negative are the same
-        // rotation, and taking the long one would wrench the limb.
-        let error = if error.w < 0.0 { -error } else { error };
-        let (axis, angle) = error.to_axis_angle();
-        let push = axis * angle * MUSCLE_STIFFNESS - (spin.0 - parent_spin.0) * MUSCLE_DAMPING;
-        torque.0 = (push * tone).clamp_length_max(MUSCLE_MAX_TORQUE);
+        pulls.push((body, muscle.parent, pull));
+    }
+
+    // A muscle pulls on two bones, and the second half used to be missing.
+    // Writing only the child's half leaves every pull as a torque on the
+    // whole corpse with nothing opposing it, so fourteen of them sum into
+    // spin out of nothing.
+    //
+    // Free joints hid it: a body already tumbling absorbs the difference.
+    // Pin every joint and the corpse is one rigid piece, the fourteen land
+    // on it together, and it spins like a top. That is what the pinning
+    // probe was for.
+    for mut torque in &mut torques {
+        torque.0 = Vec3::ZERO;
+    }
+    for &(body, parent, pull) in pulls.iter() {
+        if let Ok(mut torque) = torques.get_mut(body) {
+            torque.0 += pull;
+        }
+        if let Ok(mut torque) = torques.get_mut(parent) {
+            torque.0 -= pull;
+        }
     }
 }
 
@@ -658,6 +686,7 @@ fn hinge_for(
     parent_along: Vec3,
     child_along: Vec3,
     across: Vec3,
+    weld: bool,
 ) -> Option<(Vec3, AngleLimit)> {
     let flex = match kind {
         JointKind::Elbow => FLEX_LIMIT_ELBOW,
@@ -676,13 +705,52 @@ fn hinge_for(
     let turned = parent_along.cross(child_along).dot(axis);
     let bent = parent_along.dot(child_along).clamp(-1.0, 1.0).acos() * turned.signum();
     let bent = bent.clamp(0.0, flex);
-    // A probe, not a feature: pinning a hinge shut says which readings of it
-    // are honest, because a pinned joint must read the angle it armed with
-    // and nothing else.
-    if std::env::var("RAGDOLL_PIN_HINGES").is_ok() {
-        return Some((axis, AngleLimit { min: -0.05, max: 0.05 }));
+    if pinned(kind, weld) {
+        return Some((axis, AngleLimit { min: -PINNED, max: PINNED }));
     }
     Some((axis, AngleLimit { min: -bent, max: flex - bent }))
+}
+
+/// Whether to print what limit each joint was given as the body arms.
+///
+/// Its own switch rather than the bench's, because the bench does a great
+/// deal more than log -- it parks every zombie, stands one on a mark and
+/// shoots it -- and none of that is wanted on a map someone is playing.
+fn logging_joints() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| {
+        std::env::var("RAGDOLL_LOG_JOINTS").is_ok() || crate::ragdoll_range::enabled()
+    })
+}
+
+/// How much a pinned joint is still allowed, in radians. Not zero: a solver
+/// given no room at all has nothing to push against and jitters.
+const PINNED: f32 = 0.05;
+
+/// Whether `RAGDOLL_PIN` names this kind of joint.
+///
+/// A probe, not a feature. Pinning a joint shut says which readings of it
+/// are honest, because a pinned joint must hold the angle it armed with and
+/// nothing else -- so anything the log says it did instead is the log. That
+/// is how a knee accused of eighty degrees of hyperextension turned out to
+/// be the thermometer.
+///
+/// Takes a comma-separated list of `spine`, `shoulder`, `elbow`, `hip`,
+/// `knee`, or `all`. Note what the names cover: `elbow` is the wrist too
+/// and `knee` is the ankle, because the chain types them that way.
+fn pinned(kind: JointKind, weld: bool) -> bool {
+    if weld {
+        return true;
+    }
+    let Ok(list) = std::env::var("RAGDOLL_PIN") else { return false };
+    let wanted = match kind {
+        JointKind::Spine => "spine",
+        JointKind::Shoulder => "shoulder",
+        JointKind::Elbow => "elbow",
+        JointKind::Hip => "hip",
+        JointKind::Knee => "knee",
+    };
+    list.split(',').map(str::trim).any(|name| name == wanted || name == "all")
 }
 
 /// Which way a joint of this kind turns when it flexes, about the body's
@@ -730,14 +798,24 @@ fn joint_for(
     child: Entity,
     pivot: Vec3,
     along: Vec3,
+    weld: bool,
 ) -> SphericalJoint {
     let (swing, twist) = match kind {
+        _ if pinned(kind, weld) => (PINNED, PINNED),
         JointKind::Spine => (SWING_LIMIT_SPINE, TWIST_LIMIT),
         JointKind::Shoulder => (SWING_LIMIT_SHOULDER, TWIST_LIMIT),
         JointKind::Elbow => (SWING_LIMIT_ELBOW, TWIST_LIMIT_HINGE),
         JointKind::Hip => (SWING_LIMIT_HIP, TWIST_LIMIT),
         JointKind::Knee => (SWING_LIMIT_KNEE, TWIST_LIMIT_HINGE),
     };
+    if logging_joints() {
+        info!(
+            "[arm] {:?} ball swing={:.0} twist={:.0}",
+            kind,
+            swing.to_degrees(),
+            twist.to_degrees()
+        );
+    }
     // Both bodies anchor on the joint they share. Left at the default both
     // anchors sit at their own origin, so the solver drags the two bone
     // centres onto one point and the skeleton tears itself apart.
@@ -768,6 +846,7 @@ fn joint_for(
 /// and let the body stretch.
 pub(crate) fn drive_skeleton_from_ragdoll(
     time: Res<Time>,
+    probes: Res<crate::graphics_settings::RagdollProbes>,
     mut commands: Commands,
     mut corpses: Query<(Entity, &mut Ragdolling, &mut Transform), Without<RagdollBody>>,
     child_of: Query<&ChildOf>,
@@ -814,7 +893,7 @@ pub(crate) fn drive_skeleton_from_ragdoll(
         // the body is meant to be watched, and a late blast should still be
         // able to move it. Avian sleeps bodies that stop, so the cost of
         // leaving them up is small.
-        if ragdoll.elapsed >= ragdoll.lifetime {
+        if ragdoll.elapsed >= ragdoll.lifetime && probes.expire {
             for &(_, body, _) in &ragdoll.bodies {
                 commands.entity(body).despawn();
             }
@@ -862,3 +941,44 @@ pub(crate) struct DeathImpulse {
     pub(crate) at: Vec3,
 }
 
+
+
+/// How far each joint has turned from the pose it armed in, in degrees.
+///
+/// The one reading of a joint that cannot be argued with. Every other
+/// measure in this file projects onto an axis and so depends on picking the
+/// right one, which has gone wrong three times; this takes the whole
+/// relative rotation and asks only how big it is. A pinned joint must stay
+/// within a few degrees of nothing, whatever the body is doing in the world.
+///
+/// It is the difference between the two that matters: a corpse spinning as
+/// one rigid piece reads zero at every joint, which is how you tell a body
+/// that is coming apart from one that is merely turning.
+pub(crate) fn log_joint_drift(
+    time: Res<Time>,
+    corpses: Query<&Ragdolling>,
+    muscles: Query<(&Muscle, &Rotation)>,
+    rotations: Query<&Rotation>,
+    mut next: Local<f32>,
+) {
+    if !logging_joints() {
+        return;
+    }
+    *next -= time.delta_secs();
+    if *next > 0.0 {
+        return;
+    }
+    *next = 0.25;
+    for ragdoll in &corpses {
+        let mut parts = Vec::new();
+        for &(_, body, _) in ragdoll.bodies() {
+            let Ok((muscle, rotation)) = muscles.get(body) else { continue };
+            let Ok(parent) = rotations.get(muscle.parent) else { continue };
+            let now = parent.0.inverse() * rotation.0;
+            parts.push(format!("{:?}={:.0}", muscle.joint, now.angle_between(muscle.rest).to_degrees()));
+        }
+        if !parts.is_empty() {
+            info!("[joint] {}", parts.join(" "));
+        }
+    }
+}

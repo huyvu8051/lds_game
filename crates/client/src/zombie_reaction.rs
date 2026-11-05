@@ -40,9 +40,10 @@ pub(crate) fn on_corpse_hit(
     let Some((bone, bone_global)) = nearest_zombie_bone(bones, point, &globals) else {
         return;
     };
+    // A corpse takes the hit too: it bleeds, and it moves. Nothing else
+    // about the round counts -- no damage, no kill, no chime -- but one
+    // going into a body has to look like one.
     spawn_bone_flinch(&mut commands, bones, bone, -normal, damage, &globals, &child_of);
-    // A corpse bleeds. Nothing else about the hit counts -- no damage, no
-    // kill, no chime -- but a round going into a body has to look like one.
     spawn_blood_effects(
         &mut commands,
         &blood_assets,
@@ -115,6 +116,18 @@ pub(crate) struct BoneFlinch {
     angle: f32,
     /// How fast it is going, in radians a second.
     speed: f32,
+    /// What this put on the bone last frame, and the rotation it left
+    /// behind.
+    ///
+    /// The flinch is a turn laid over whatever pose the bone already has,
+    /// which is right while something else writes that pose outright every
+    /// frame -- the clip does while the body walks, the ragdoll does while
+    /// it falls. Past both there is nobody, and a turn laid over its own
+    /// output sixty times a second stops being a flinch and becomes a
+    /// motor. So it checks: if the bone is exactly where this left it, no
+    /// one else has written it, and its own last turn comes off first.
+    added: Quat,
+    left_at: Quat,
 }
 
 fn flinch_chain(bones: &ZombieHitboxBones, hit: Entity) -> Vec<Entity> {
@@ -177,6 +190,8 @@ pub(crate) fn spawn_bone_flinch(
                         world_axis: axis,
                         angle: 0.0,
                         speed: base * falloff * FLINCH_KICK,
+                        added: Quat::IDENTITY,
+                        left_at: Quat::IDENTITY,
                     });
                 }
             }
@@ -201,7 +216,23 @@ pub(crate) fn apply_bone_flinch(
             / (f + dt * dt * FLINCH_STIFFNESS);
         flinch.speed = speed;
         flinch.angle += speed * dt;
-        if flinch.angle.abs() < FLINCH_AT_REST && speed.abs() < FLINCH_AT_REST * 8.0 {
+        let at_rest = flinch.angle.abs() < FLINCH_AT_REST && speed.abs() < FLINCH_AT_REST * 8.0;
+        let Ok(mut transform) = transforms.get_mut(entity) else {
+            if at_rest {
+                commands.entity(entity).remove::<BoneFlinch>();
+            }
+            continue;
+        };
+        // The pose to lay the turn over. Exactly where this left the bone
+        // means nothing else has written it since, so its own last turn is
+        // still in there and comes off first.
+        let base = if transform.rotation == flinch.left_at {
+            flinch.added.inverse() * transform.rotation
+        } else {
+            transform.rotation
+        };
+        if at_rest {
+            transform.rotation = base;
             commands.entity(entity).remove::<BoneFlinch>();
             continue;
         }
@@ -213,12 +244,13 @@ pub(crate) fn apply_bone_flinch(
             .unwrap_or(Quat::IDENTITY);
         let world_rotation = Quat::from_axis_angle(flinch.world_axis, flinch.angle);
         let local_rotation = parent_rotation.inverse() * world_rotation * parent_rotation;
-        let Ok(mut transform) = transforms.get_mut(entity) else { continue };
-        transform.rotation = local_rotation * transform.rotation;
+        transform.rotation = local_rotation * base;
+        flinch.added = local_rotation;
+        flinch.left_at = transform.rotation;
     }
 }
 
-pub(crate) fn nearest_zombie_bone(bones: &ZombieHitboxBones, point: Vec3, globals: &Query<&GlobalTransform>) -> Option<(Entity, GlobalTransform)> {
+fn every_bone(bones: &ZombieHitboxBones) -> impl Iterator<Item = Entity> + use<> {
     bones
         .head
         .into_iter()
@@ -228,6 +260,10 @@ pub(crate) fn nearest_zombie_bone(bones: &ZombieHitboxBones, point: Vec3, global
         .chain(bones.right_arm.into_iter().flatten())
         .chain(bones.left_leg.into_iter().flatten())
         .chain(bones.right_leg.into_iter().flatten())
+}
+
+pub(crate) fn nearest_zombie_bone(bones: &ZombieHitboxBones, point: Vec3, globals: &Query<&GlobalTransform>) -> Option<(Entity, GlobalTransform)> {
+    every_bone(bones)
         .filter_map(|entity| globals.get(entity).ok().map(|g| (entity, *g)))
         .min_by(|(_, a), (_, b)| a.translation().distance_squared(point).total_cmp(&b.translation().distance_squared(point)))
 }
