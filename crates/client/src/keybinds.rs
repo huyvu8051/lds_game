@@ -44,6 +44,7 @@ pub(crate) enum Bind {
     Autopilot,
     FreezeZombies,
     ShowHitboxes,
+    ShowSkeleton,
     HideHealthBars,
     StopZombieAnimation,
     AimBlur,
@@ -114,6 +115,7 @@ impl Bind {
             Autopilot => (KeyCode::KeyI, Playing, "autopilot"),
             FreezeZombies => (KeyCode::KeyF, Playing, "freeze the zombies"),
             ShowHitboxes => (KeyCode::KeyY, Playing, "show hitboxes"),
+            ShowSkeleton => (KeyCode::KeyP, Playing, "show skeleton"),
             HideHealthBars => (KeyCode::KeyJ, Playing, "hide health bars"),
             StopZombieAnimation => (KeyCode::KeyM, Playing, "stop zombie animation"),
             AimBlur => (KeyCode::KeyK, Playing, "aim blur"),
@@ -146,7 +148,7 @@ impl Bind {
         keys.just_released(self.key())
     }
 
-    pub(crate) const ALL: [Bind; 39] = [
+    pub(crate) const ALL: [Bind; 40] = [
         Bind::Forward,
         Bind::Back,
         Bind::StrafeLeft,
@@ -175,6 +177,7 @@ impl Bind {
         Bind::Autopilot,
         Bind::FreezeZombies,
         Bind::ShowHitboxes,
+        Bind::ShowSkeleton,
         Bind::HideHealthBars,
         Bind::StopZombieAnimation,
         Bind::AimBlur,

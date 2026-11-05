@@ -725,6 +725,7 @@ pub(crate) fn toggle_debug_flags(
     keys: Res<ButtonInput<KeyCode>>,
     mut freeze: ResMut<FreezeZombies>,
     mut show_hitboxes: ResMut<ShowHitboxes>,
+    mut show_skeleton: ResMut<crate::graphics_settings::ShowSkeleton>,
     mut god_mode: ResMut<GodMode>,
     mut aim_blur: ResMut<AimBlurEnabled>,
     mut dof_focal_alt: ResMut<AimDofFocalDistanceAlt>,
@@ -741,6 +742,9 @@ pub(crate) fn toggle_debug_flags(
     // should not get a wireframe.
     if Bind::ShowHitboxes.just_pressed(&keys) {
         show_hitboxes.0 = !show_hitboxes.0;
+    }
+    if Bind::ShowSkeleton.just_pressed(&keys) {
+        show_skeleton.0 = !show_skeleton.0;
     }
     // O and K, not G and B. Those two became gameplay keys -- G throws a
     // grenade and B opens the backpack -- and a debug toggle sharing a key

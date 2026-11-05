@@ -216,6 +216,7 @@ pub(crate) fn log_joint_angles(
     bench: Res<RagdollBench>,
     bones: Query<&ZombieHitboxBones>,
     globals: Query<&GlobalTransform>,
+    mut settled: Local<Option<Quat>>,
 ) {
     if bench.shots == 0 || bench.elapsed < next.0 {
         return;
@@ -236,11 +237,15 @@ pub(crate) fn log_joint_angles(
     // ragdoll means it. Read off the bone rather than off the hips: a corpse
     // tangles its legs, hip-to-hip reverses when they cross, and every sign
     // below went with it.
-    let across = hitboxes
-        .belly
-        .and_then(|b| globals.get(b).ok())
-        .map(|g| g.rotation() * Vec3::X)
-        .unwrap_or(Vec3::X);
+    let pelvis = hitboxes.belly.and_then(|b| globals.get(b).ok()).map(|g| g.rotation());
+    let across = pelvis.map(|r| r * Vec3::X).unwrap_or(Vec3::X);
+    // How far the whole body has turned since the round landed, which no
+    // joint angle shows: a corpse spinning as one rigid piece reads as
+    // perfectly still at every joint it has.
+    let spun = pelvis.map_or(0.0, |now| {
+        let first = *settled.get_or_insert(now);
+        (first.inverse() * now).to_axis_angle().1.to_degrees()
+    });
 
     // Signed by the way the joint turns, not by the way the limb ends up
     // pointing. The first version read the latter, and a running stride --
@@ -278,7 +283,7 @@ pub(crate) fn log_joint_angles(
             bend(flex_axis(JointKind::Elbow, across), upper, fore)
         ));
     }
-    info!("[bones] t={:.2} {}", bench.elapsed - shot_at(), parts.join(" "));
+    info!("[bones] t={:.2} spin={:3.0} {}", bench.elapsed - shot_at(), spun, parts.join(" "));
 }
 
 /// Which joints to bend, and how far, for a still of the limit rather than a

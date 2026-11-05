@@ -324,14 +324,19 @@ const SIGHT_CONVERGE_FAR_M: f32 = 25.0;
 
 const LOOK_SWAY_SENSITIVITY: f32 = 30.0;
 const LOOK_SWAY_MAX_DEG: f32 = 3.5;
-/// How much of the sway comes off the scope's two circles, so a smaller
-/// figure leaves a livelier shadow. Never all of it: the crescent is the
-/// circles sliding across each other, and sway is most of what slides them.
+/// How much of the sway comes off the scope's two circles. At nothing they
+/// carry the whole of it, at one they are pinned and the shadow stops
+/// moving, and past one they travel back the other way.
 ///
-/// What it costs is the other way round. The mark is pinned, so whatever
-/// travel is left here is travel the mark drifts off the picture it is cut
-/// to, and far enough out the rim clips it.
-const SCOPE_SHADOW_SWAY_CUT: f32 = 0.3;
+/// Past one is where this sits, because that is what an eye behind a scope
+/// actually sees: shift off the axis and the dark rim slides opposite to
+/// the mark, which is what puts the mark in front of the shadow rather than
+/// painted on it.
+///
+/// What is left over is what the mark drifts off the picture it is cut to,
+/// and far enough out the rim clips it -- so the figure to watch is the
+/// distance from one, not the figure itself.
+const SCOPE_SHADOW_SWAY_CUT: f32 = 1.5;
 
 /// The sway spring. FREQUENCY sets how quickly the weapon answers a turn;
 /// DAMPING how much of the answer is overshoot, and lower means more of it:
@@ -1025,6 +1030,7 @@ app.init_resource::<MagazineInHand>()
         .init_resource::<AutopilotIntent>()
         .init_resource::<FreezeZombies>()
         .init_resource::<ShowHitboxes>()
+        .init_resource::<graphics_settings::ShowSkeleton>()
         .init_resource::<RenderResolutionScale>()
         .init_resource::<FpsCap>()
         .init_resource::<GodMode>()
@@ -1105,6 +1111,7 @@ app.init_resource::<MagazineInHand>()
         .init_resource::<Inventory>()
         .init_resource::<Boost>()
         .init_resource::<CorpseStages>()
+        .init_resource::<graphics_settings::RagdollProbes>()
         .init_resource::<WeaponSpawnEnabled>()
         .init_resource::<graphics_settings::ItemSpawnEnabled>()
         .init_resource::<ZombieWalk>()
@@ -1210,6 +1217,7 @@ app.init_resource::<MagazineInHand>()
                     settings_menu::give_attachment_buttons,
                         corpse_stage_buttons,
                         update_corpse_stage_buttons,
+                        (settings_menu::ragdoll_probe_buttons, settings_menu::update_ragdoll_probe_buttons),
                         weapon_spawn_buttons,
                         update_weapon_spawn_buttons,
                         item_spawn_buttons,
@@ -1538,6 +1546,7 @@ app.init_resource::<MagazineInHand>()
                 ragdoll::track_muscle_targets,
                 drive_skeleton_from_ragdoll,
                 ragdoll_range::hold_the_pose.run_if(ragdoll_range::posing),
+                ragdoll::log_joint_drift,
             )
                 .chain(),
             aim_zombie_heads,

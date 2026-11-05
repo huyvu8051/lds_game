@@ -110,6 +110,43 @@ impl Default for CorpseStages {
     }
 }
 
+/// Switches for taking a fall apart while watching it.
+///
+/// A corpse that turns when it should not is hard to argue about, because
+/// every part of a ragdoll has a reason to move. These take the reasons away
+/// one at a time: whatever is still turning once a switch is off was not
+/// that.
+///
+/// Read when a body arms, so a change shows on the next one killed rather
+/// than on the ones already down.
+#[derive(Resource)]
+pub(crate) struct RagdollProbes {
+    /// Every joint pinned shut, so the body falls as one rigid piece.
+    pub(crate) weld: bool,
+    /// Each bone starts with the spin its limb had in the clip. Off, the
+    /// body arrives still -- which is what separates the shot's turn from
+    /// the stride's.
+    pub(crate) carried_spin: bool,
+    /// The round's shove, weighted onto the bone it struck.
+    pub(crate) shot_push: bool,
+    /// The ragdoll's term. Physics runs for a fixed few seconds and then the
+    /// bodies are deleted outright, so a corpse that stops moving at that
+    /// moment has not come to rest -- it has been switched off. Turn this
+    /// off to watch a fall all the way to wherever it was really going.
+    pub(crate) expire: bool,
+}
+
+impl Default for RagdollProbes {
+    fn default() -> Self {
+        Self {
+            weld: std::env::var("RAGDOLL_PIN").is_ok_and(|v| v.split(',').any(|n| n.trim() == "all")),
+            carried_spin: std::env::var("RAGDOLL_NO_SPIN").is_err(),
+            shot_push: std::env::var("RAGDOLL_NO_PUSH").is_err(),
+            expire: std::env::var("RAGDOLL_NO_EXPIRE").is_err(),
+        }
+    }
+}
+
 /// Whether the phone's own rotation turns the view.
 ///
 /// Off by default: a player who has not asked for it would find the view
@@ -170,6 +207,16 @@ pub(crate) struct FreezeZombies(pub(crate) bool);
 
 #[derive(Resource, Default)]
 pub(crate) struct ShowHitboxes(pub(crate) bool);
+
+/// The bones alone -- a stick figure and each bone's own three axes, with
+/// none of the capsules a shot is tested against.
+///
+/// Separate from the hitboxes because they answer separate questions. A
+/// capsule says where a round would land; it is the same shape all the way
+/// round, so it cannot say which way a limb is facing. Drawn together the
+/// capsules simply cover the axes up.
+#[derive(Resource, Default)]
+pub(crate) struct ShowSkeleton(pub(crate) bool);
 
 #[derive(Resource)]
 pub(crate) struct ShowAutopilotTarget(pub(crate) bool);

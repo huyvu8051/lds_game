@@ -70,7 +70,21 @@ pub struct ExtractQueries {
     ui_roots: SystemState<Q<'static, 'static, bevy::ecs::entity::Entity, With<crate::NativeUiRoot>>>,
     hitboxes: SystemState<(
         Res<'static, crate::ShowHitboxes>,
-        Q<'static, 'static, (&'static Transform, &'static shared::ZombieHitboxBones), With<Zombie>>,
+        Res<'static, crate::graphics_settings::ShowSkeleton>,
+        // Corpses too. `Zombie` comes off the moment one dies, so the one
+        // body anybody wants to look at -- the one falling -- was the one
+        // this never drew.
+        Q<
+            'static,
+            'static,
+            (&'static Transform, &'static shared::ZombieHitboxBones),
+            bevy::ecs::query::Or<(
+                With<Zombie>,
+                With<crate::ragdoll::DeathClipPlaying>,
+                With<crate::ragdoll::Ragdolling>,
+                With<crate::ragdoll::CorpseSettled>,
+            )>,
+        >,
         Q<'static, 'static, &'static GlobalTransform>,
     )>,
     ui_nodes: SystemState<(
@@ -280,15 +294,15 @@ pub fn extract_render_snapshot(
             queries.scope_window.get(world).expect("system param validation failed");
         match (radius, gun.single(), aim.single()) {
             (Some(radius), Ok((gun, gun_state)), Ok(glass)) => {
-                // Some of the sway comes off both circles, in the camera's
-                // frame where it was put on.
+                // The sway comes off both circles, in the camera's frame
+                // where it was put on -- and more of it than there is, so
+                // what is left runs the other way.
                 //
-                // Not all of it. The crescent is the two circles sliding
-                // across each other, and sway is most of what slides them --
-                // take it all and a hard swing stops going dark at all. What
-                // is left is the trade: the shadow keeps that share of its
-                // travel, and the mark, which is pinned, drifts that much
-                // further off the picture it is cut to.
+                // The crescent is the two circles sliding across each other,
+                // so the sign of what slides them is the sign of which way
+                // the shadow swims. Against the mark it reads as depth: the
+                // mark sits in the glass and the rim behind it. With the
+                // mark it reads as paint.
                 let undo = eye_look
                     .single()
                     .map(|look| {
@@ -574,19 +588,33 @@ fn push_cylinder(out: &mut Vec<DebugLine>, centre: Vec3, radius: f32, half_heigh
 }
 
 fn extract_hitbox_lines(world: &mut bevy::ecs::world::World, queries: &mut ExtractQueries) -> Vec<DebugLine> {
-    let (show, zombies, globals) = queries.hitboxes.get(world).expect("system param validation failed");
-    if !show.0 {
+    let (show, bones_only, zombies, globals) =
+        queries.hitboxes.get(world).expect("system param validation failed");
+    if !show.0 && !bones_only.0 {
         return Vec::new();
     }
+    let (show, bones_only) = (show.0, bones_only.0);
 
     const OUTER: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
     const HEAD: [f32; 4] = [1.0, 0.2, 0.2, 1.0];
     const TORSO: [f32; 4] = [1.0, 0.8, 0.0, 1.0];
     const LIMB: [f32; 4] = [0.2, 0.6, 1.0, 1.0];
     const JOINT: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
+    /// Each bone's own three axes, so an orientation can be read rather
+    /// than guessed. Y runs down the limb and is drawn longest; X and Z
+    /// cross it, and they are the only thing in the picture that moves when
+    /// a limb twists without bending.
+    const AXIS_X: [f32; 4] = [1.0, 0.1, 0.8, 1.0];
+    const AXIS_Y: [f32; 4] = [1.0, 0.55, 0.0, 1.0];
+    const AXIS_Z: [f32; 4] = [0.0, 0.9, 1.0, 1.0];
+    const ALONG: f32 = 0.30;
+    const ACROSS: f32 = 0.20;
+    const STICK: [f32; 4] = [0.55, 0.95, 0.15, 1.0];
 
     let mut out = Vec::new();
     for (transform, bones) in zombies.iter() {
+        let bone_pos = |e: bevy::ecs::entity::Entity| globals.get(e).ok().map(GlobalTransform::translation);
+        if show {
         push_cylinder(
             &mut out,
             transform.translation,
@@ -595,7 +623,6 @@ fn extract_hitbox_lines(world: &mut bevy::ecs::world::World, queries: &mut Extra
             OUTER,
         );
 
-        let bone_pos = |e: bevy::ecs::entity::Entity| globals.get(e).ok().map(GlobalTransform::translation);
         let mut joints = Vec::new();
 
         if let Some(head) = bones.head.and_then(bone_pos) {
@@ -619,6 +646,54 @@ fn extract_hitbox_lines(world: &mut bevy::ecs::world::World, queries: &mut Extra
         }
         for joint in joints {
             push_sphere(&mut out, joint, 0.04, JOINT);
+        }
+        }
+
+        if !bones_only {
+            continue;
+        }
+        // The stick figure the axes hang off. Without the capsules there is
+        // nothing else joining one bone to the next.
+        for chain in [&bones.left_arm, &bones.right_arm, &bones.left_leg, &bones.right_leg] {
+            for pair in chain.windows(2) {
+                if let (Some(a), Some(b)) = (pair[0].and_then(bone_pos), pair[1].and_then(bone_pos)) {
+                    out.push(DebugLine { a: a.to_array(), b: b.to_array(), color: STICK });
+                }
+            }
+        }
+        for pair in [(bones.belly, bones.chest), (bones.chest, bones.head)] {
+            if let (Some(a), Some(b)) = (pair.0.and_then(bone_pos), pair.1.and_then(bone_pos)) {
+                out.push(DebugLine { a: a.to_array(), b: b.to_array(), color: STICK });
+            }
+        }
+
+        // A set of axes out of each bone. A capsule is the same shape all
+        // the way round, so a limb that has twisted draws exactly like one
+        // that has not; these are the only part of the picture that tells a
+        // leg turning from a leg bending.
+        let every_bone = bones
+            .head
+            .into_iter()
+            .chain(bones.belly)
+            .chain(bones.chest)
+            .chain(bones.left_arm.into_iter().flatten())
+            .chain(bones.right_arm.into_iter().flatten())
+            .chain(bones.left_leg.into_iter().flatten())
+            .chain(bones.right_leg.into_iter().flatten());
+        for bone in every_bone {
+            let Ok(global) = globals.get(bone) else { continue };
+            let (at, facing) = (global.translation(), global.rotation());
+            for (axis, reach, color) in [
+                (Vec3::X, ACROSS, AXIS_X),
+                (Vec3::Y, ALONG, AXIS_Y),
+                (Vec3::Z, ACROSS, AXIS_Z),
+            ] {
+                out.push(DebugLine {
+                    a: at.to_array(),
+                    b: (at + facing * axis * reach).to_array(),
+                    color,
+                });
+            }
         }
     }
     out

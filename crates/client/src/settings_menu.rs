@@ -422,6 +422,30 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     spawn_cheat_toggle_button(row, "Dissolve", CorpseStageButton(CorpseStage::Dissolve));
                     spawn_cheat_toggle_button(row, "Remove", CorpseStageButton(CorpseStage::Remove));
                 });
+                // Taking a fall apart. Each one removes a reason the body
+                // has to turn, so whatever still turns was not that.
+                page.spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(6.0),
+                    flex_wrap: FlexWrap::Wrap,
+                    row_gap: Val::Px(4.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    spawn_cheat_toggle_button(row, "Weld", RagdollProbeButton(RagdollProbe::Weld));
+                    spawn_cheat_toggle_button(row, "Spin", RagdollProbeButton(RagdollProbe::Spin));
+                    spawn_cheat_toggle_button(row, "Push", RagdollProbeButton(RagdollProbe::Push));
+                    spawn_cheat_toggle_button(
+                        row,
+                        "Muscles",
+                        RagdollProbeButton(RagdollProbe::Muscles),
+                    );
+                    spawn_cheat_toggle_button(
+                        row,
+                        "Expire",
+                        RagdollProbeButton(RagdollProbe::Expire),
+                    );
+                });
                 page.spawn(Node {
                     flex_direction: FlexDirection::Row,
                     column_gap: Val::Px(6.0),
@@ -1072,6 +1096,65 @@ pub(crate) fn corpse_stage_buttons(
             let flag = stage_of(&mut stages, button.0);
             *flag = !*flag;
         }
+    }
+}
+
+/// The switches that take a fall apart. `Weld` pins every joint, the rest
+/// each remove one thing that can turn a body.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RagdollProbe {
+    Weld,
+    Spin,
+    Push,
+    Muscles,
+    Expire,
+}
+
+#[derive(Component)]
+pub(crate) struct RagdollProbeButton(pub(crate) RagdollProbe);
+
+fn probe_of<'a>(
+    probes: &'a mut crate::graphics_settings::RagdollProbes,
+    muscles: &'a mut crate::ragdoll::RagdollMuscles,
+    which: RagdollProbe,
+) -> &'a mut bool {
+    match which {
+        RagdollProbe::Weld => &mut probes.weld,
+        RagdollProbe::Spin => &mut probes.carried_spin,
+        RagdollProbe::Push => &mut probes.shot_push,
+        RagdollProbe::Muscles => &mut muscles.0,
+        RagdollProbe::Expire => &mut probes.expire,
+    }
+}
+
+pub(crate) fn ragdoll_probe_buttons(
+    mut probes: ResMut<crate::graphics_settings::RagdollProbes>,
+    mut muscles: ResMut<crate::ragdoll::RagdollMuscles>,
+    buttons: Query<(&Interaction, &RagdollProbeButton), Changed<Interaction>>,
+) {
+    for (interaction, button) in &buttons {
+        if *interaction == Interaction::Pressed {
+            let flag = probe_of(&mut probes, &mut muscles, button.0);
+            *flag = !*flag;
+        }
+    }
+}
+
+pub(crate) fn update_ragdoll_probe_buttons(
+    mut probes: ResMut<crate::graphics_settings::RagdollProbes>,
+    mut muscles: ResMut<crate::ragdoll::RagdollMuscles>,
+    mut buttons: Query<(&RagdollProbeButton, &mut BackgroundColor)>,
+) {
+    if !probes.is_changed() && !muscles.is_changed() {
+        return;
+    }
+    for (button, mut background) in &mut buttons {
+        let on = *probe_of(&mut probes, &mut muscles, button.0);
+        *background = BackgroundColor(if on {
+            Color::srgba(0.3, 1.0, 0.4, 0.5)
+        } else {
+            Color::srgba(1.0, 1.0, 1.0, 0.2)
+        });
     }
 }
 

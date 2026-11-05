@@ -224,6 +224,29 @@ pub(crate) fn set_hitbox_gizmo_depth_bias(mut config_store: ResMut<GizmoConfigSt
     config.depth_bias = -1.0;
 }
 
+/// Each bone's own three axes, so an orientation can be read rather than
+/// guessed. Y runs down the limb and is drawn longest; X and Z cross it,
+/// and they are the only thing in the picture that moves when a limb twists
+/// without bending.
+const STICK_COLOUR: Color = Color::srgb(0.55, 0.95, 0.15);
+const BONE_AXES: [(Vec3, f32, Color); 3] = [
+    (Vec3::X, 0.20, Color::srgb(1.0, 0.1, 0.8)),
+    (Vec3::Y, 0.30, Color::srgb(1.0, 0.55, 0.0)),
+    (Vec3::Z, 0.20, Color::srgb(0.0, 0.9, 1.0)),
+];
+
+fn every_drawn_bone(bones: &ZombieHitboxBones) -> impl Iterator<Item = Entity> + use<> {
+    bones
+        .head
+        .into_iter()
+        .chain(bones.belly)
+        .chain(bones.chest)
+        .chain(bones.left_arm.into_iter().flatten())
+        .chain(bones.right_arm.into_iter().flatten())
+        .chain(bones.left_leg.into_iter().flatten())
+        .chain(bones.right_leg.into_iter().flatten())
+}
+
 fn draw_bone_capsule(gizmos: &mut Gizmos, a: Vec3, b: Vec3, radius: f32, color: Color) {
     let segment = b - a;
     let Ok(direction) = Dir3::new(segment) else {
@@ -238,17 +261,57 @@ fn draw_bone_capsule(gizmos: &mut Gizmos, a: Vec3, b: Vec3, radius: f32, color: 
 
 pub(crate) fn draw_zombie_hitboxes(
     show: Res<ShowHitboxes>,
-    zombies: Query<(Entity, &Transform, &ZombieHitboxBones, Option<&crate::dismember::SeveredParts>), With<Zombie>>,
+    bones_only: Res<crate::graphics_settings::ShowSkeleton>,
+    // Corpses too. `Zombie` comes off the moment one dies, so the one body
+    // anybody actually wants to look at -- the one falling -- was the one
+    // this never drew.
+    zombies: Query<
+        (Entity, &Transform, &ZombieHitboxBones, Option<&crate::dismember::SeveredParts>),
+        Or<(
+            With<Zombie>,
+            With<crate::ragdoll::DeathClipPlaying>,
+            With<crate::ragdoll::Ragdolling>,
+            With<crate::ragdoll::CorpseSettled>,
+        )>,
+    >,
     globals: Query<&GlobalTransform>,
     mut gizmos: Gizmos,
     autopilot_state: Res<AutopilotState>,
     show_aim: Res<ShowAutopilotTarget>,
 ) {
-    if !show.0 {
+    if !show.0 && !bones_only.0 {
         return;
     }
 
     for (zombie_entity, transform, bones, cuts) in &zombies {
+        let bone_pos = |e: Entity| globals.get(e).ok().map(GlobalTransform::translation);
+        if bones_only.0 {
+            // The stick figure the axes hang off. Without the capsules
+            // there is nothing else joining one bone to the next.
+            let links = [&bones.left_arm, &bones.right_arm, &bones.left_leg, &bones.right_leg];
+            for chain in links {
+                for pair in chain.windows(2) {
+                    if let (Some(a), Some(b)) = (pair[0].and_then(bone_pos), pair[1].and_then(bone_pos)) {
+                        gizmos.line(a, b, STICK_COLOUR);
+                    }
+                }
+            }
+            for pair in [(bones.belly, bones.chest), (bones.chest, bones.head)] {
+                if let (Some(a), Some(b)) = (pair.0.and_then(bone_pos), pair.1.and_then(bone_pos)) {
+                    gizmos.line(a, b, STICK_COLOUR);
+                }
+            }
+            for bone in every_drawn_bone(bones) {
+                let Ok(global) = globals.get(bone) else { continue };
+                let (at, facing) = (global.translation(), global.rotation());
+                for (axis, reach, colour) in BONE_AXES {
+                    gizmos.line(at, at + facing * axis * reach, colour);
+                }
+            }
+        }
+        if !show.0 {
+            continue;
+        }
         let is_autopilot_target = autopilot_state.target == Some(zombie_entity);
 
         gizmos.primitive_3d(
@@ -258,7 +321,6 @@ pub(crate) fn draw_zombie_hitboxes(
         );
 
         let mut any_bone = false;
-        let bone_pos = |e: Entity| globals.get(e).ok().map(GlobalTransform::translation);
         let mut joints_to_draw = Vec::new();
 
         if let Some(pos) = bones.head.and_then(bone_pos) {
@@ -294,6 +356,7 @@ pub(crate) fn draw_zombie_hitboxes(
         for joint_pos in &joints_to_draw {
             gizmos.sphere(Isometry3d::from_translation(*joint_pos), 0.04, joint_color);
         }
+
 
         if is_autopilot_target && show_aim.0 {
             // The same bones the autopilot will consider, severed ones left
