@@ -249,8 +249,8 @@ pub(crate) fn log_joint_angles(
     //
     // The axis comes from the ragdoll so that flexion is positive for every
     // joint here and a negative reading means what it says.
-    let bend = |kind: JointKind, from: Vec3, to: Vec3| -> f32 {
-        let turn = from.cross(to).dot(flex_axis(kind, across));
+    let bend = |axis: Vec3, from: Vec3, to: Vec3| -> f32 {
+        let turn = from.cross(to).dot(axis);
         from.angle_between(to).to_degrees() * if turn < 0.0 { -1.0 } else { 1.0 }
     };
     let mut parts = Vec::new();
@@ -262,8 +262,8 @@ pub(crate) fn log_joint_angles(
         let shin = (foot - knee).normalize_or_zero();
         parts.push(format!(
             "hip{tag}={:+4.0} knee{tag}={:+4.0}",
-            bend(JointKind::Hip, -up, thigh),
-            bend(JointKind::Knee, thigh, shin),
+            bend(flex_axis(JointKind::Hip, across), -up, thigh),
+            bend(flex_axis(JointKind::Knee, across), thigh, shin),
         ));
     }
     for (tag, limb) in [("L", &hitboxes.left_arm), ("R", &hitboxes.right_arm)] {
@@ -273,7 +273,10 @@ pub(crate) fn log_joint_angles(
         };
         let upper = (elbow - shoulder).normalize_or_zero();
         let fore = (hand - elbow).normalize_or_zero();
-        parts.push(format!("elb{tag}={:+4.0}", bend(JointKind::Elbow, upper, fore)));
+        parts.push(format!(
+            "elb{tag}={:+4.0}",
+            bend(flex_axis(JointKind::Elbow, across), upper, fore)
+        ));
     }
     info!("[bones] t={:.2} {}", bench.elapsed - shot_at(), parts.join(" "));
 }

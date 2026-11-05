@@ -130,7 +130,7 @@ impl Ragdolling {
 #[derive(Component)]
 pub(crate) struct RagdollBody;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum JointKind {
     Spine,
     Shoulder,
@@ -434,6 +434,22 @@ pub(crate) fn spawn_what_was_armed_last_frame(
             let Some(parent_body) = bodies[parent_slot] else { continue };
             let Ok(pivot) = globals.get(link.bone).map(|g| g.translation()) else { continue };
             let hinge = hinge_for(link.joint, alongs[parent_slot], alongs[slot], across);
+            if crate::ragdoll_range::enabled() && matches!(link.joint, JointKind::Elbow | JointKind::Knee)
+            {
+                match &hinge {
+                    Some((_, limit)) => info!(
+                        "[arm] {:?} hinge bent={:+.0} range={:+.0}..{:+.0}",
+                        link.joint,
+                        -limit.min.to_degrees(),
+                        limit.min.to_degrees(),
+                        limit.max.to_degrees(),
+                    ),
+                    // A hinge that could not be pointed falls back to a ball,
+                    // and a ball's cone is symmetric: the joint is then free
+                    // to open as far backwards as it closes forwards.
+                    None => warn!("[arm] {:?} fell back to a ball", link.joint),
+                }
+            }
             match hinge {
                 Some((axis, limit)) => {
                     commands.spawn((
@@ -660,6 +676,12 @@ fn hinge_for(
     let turned = parent_along.cross(child_along).dot(axis);
     let bent = parent_along.dot(child_along).clamp(-1.0, 1.0).acos() * turned.signum();
     let bent = bent.clamp(0.0, flex);
+    // A probe, not a feature: pinning a hinge shut says which readings of it
+    // are honest, because a pinned joint must read the angle it armed with
+    // and nothing else.
+    if std::env::var("RAGDOLL_PIN_HINGES").is_ok() {
+        return Some((axis, AngleLimit { min: -0.05, max: 0.05 }));
+    }
     Some((axis, AngleLimit { min: -bent, max: flex - bent }))
 }
 
