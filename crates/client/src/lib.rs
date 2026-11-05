@@ -981,7 +981,6 @@ app.init_resource::<MagazineInHand>()
 .init_resource::<attachment_effects::AttachmentEffects>()
 .init_resource::<ragdoll_range::RagdollBench>()
             .init_resource::<ragdoll_range::BoneLog>()
-.init_resource::<grip_pose::GripChoice>()
 .init_resource::<grip_pose::HeldGrip>()
             .init_resource::<sight_mount::FittedSight>()
 .init_resource::<sight_swap::ShownSight>()
@@ -1560,9 +1559,7 @@ app.init_resource::<MagazineInHand>()
 
             (
 
-                grip_pose::choose_grip,
 
-                grip_pose::blend_held_grip,
 
                 grip_pose::hold_left_finger_grip,
 
