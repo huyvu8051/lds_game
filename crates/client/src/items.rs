@@ -143,16 +143,10 @@ pub(crate) enum ItemKind {
     CheekPad,
     BulletLoops,
 
-    // Sights. One per mesh we own, which is why there are two red dots and
-    // three holographics and no 4x: each was taken off a weapon that wore
-    // one, and they differ by more than a label. The open dot carries its
-    // line of sight 53mm over the rail and the tube 32mm, so the weapon
-    // hangs twenty-one millimetres lower under one than the other.
-    RedDot,
-    TubeDot,
+    // Sights. One per mesh we own, and one per step of reach: a holographic
+    // for no magnification, a three-power, and the M24's glass above it.
     HoloWide,
-    Scope2x,
-    ScopeAk,
+    Scope3x,
     ScopeM24,
 
     // Armour, three levels apiece.
@@ -215,7 +209,7 @@ impl ItemGroup {
 }
 
 /// Everything, in the order the pack lists it.
-pub(crate) const ALL_ITEMS: [ItemKind; 49] = [
+pub(crate) const ALL_ITEMS: [ItemKind; 46] = [
     ItemKind::Ammo556,
     ItemKind::Ammo762,
     ItemKind::Ammo9mm,
@@ -240,11 +234,8 @@ pub(crate) const ALL_ITEMS: [ItemKind; 49] = [
     ItemKind::TacticalStock,
     ItemKind::CheekPad,
     ItemKind::BulletLoops,
-    ItemKind::RedDot,
-    ItemKind::TubeDot,
     ItemKind::HoloWide,
-    ItemKind::Scope2x,
-    ItemKind::ScopeAk,
+    ItemKind::Scope3x,
     ItemKind::ScopeM24,
     ItemKind::Helmet1,
     ItemKind::Helmet2,
@@ -299,11 +290,8 @@ impl ItemKind {
             TacticalStock => "Tactical Stock",
             CheekPad => "Cheek Pad",
             BulletLoops => "Bullet Loops",
-            RedDot => "Red Dot Sight",
-            TubeDot => "Tube Red Dot",
             HoloWide => "Wide Holographic",
-            Scope2x => "2x Scope",
-            ScopeAk => "AK Optic",
+            Scope3x => "3x Scope",
             ScopeM24 => "M24 Scope",
             Helmet1 => "Helmet Lv1",
             Helmet2 => "Helmet Lv2",
@@ -392,7 +380,7 @@ impl ItemKind {
             }
             QuickdrawMag | ExtendedMag | ExtendedQuickdrawMag => AttachSlot::Magazine,
             TacticalStock | CheekPad | BulletLoops => AttachSlot::Stock,
-            RedDot | TubeDot | HoloWide | Scope2x | ScopeAk | ScopeM24 => AttachSlot::Sight,
+            HoloWide | Scope3x | ScopeM24 => AttachSlot::Sight,
             _ => return None,
         })
     }

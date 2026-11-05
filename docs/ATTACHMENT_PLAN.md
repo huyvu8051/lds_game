@@ -6,9 +6,8 @@ thirty-five weapons, PUBG-style. Nothing below is built yet.
 ## What already exists
 
 - **`ItemKind` carries the whole attachment set** and no logic at all:
-  six muzzles, six grips, three magazines, three stocks, and nine
-  sights -- `RedDot`, `Holographic`, `Scope2x`, `Scope3x`, `Scope4x`,
-  `Scope15x`, `CantedSight`. They drop, they are
+  six muzzles, six grips, three magazines, three stocks, and three
+  sights -- `HoloWide`, `Scope3x`, `ScopeM24`. They drop, they are
   carried, they do nothing.
 - **Every weapon mesh carries six named sockets**: `Socket_Muzzle`,
   `Socket_Aim`, `Socket_SightFront`, `Socket_Eject`, `Socket_RearGrip`,
@@ -111,18 +110,21 @@ harvests rather than the two that needed a foot modelled.
 
 | `ItemKind` | taken from | note |
 |---|---|---|
-| `RedDot` | `famas` or `mk47_mutant` | two to choose between |
-| `Scope2x` | `aug_a3` | short prism, the right length for 2x |
-| `Scope15x` | **nothing** | needs sourcing or modelling |
-| `CantedSight` | **nothing** | small, 45-degree mount; probably modelled |
+| `HoloWide` | `mk47_mutant` | no magnification |
+| `Scope3x` | `ak47_scope` | Soviet side rail, mount a hand's width up |
+| `ScopeM24` | `m24` | the long glass above it |
 
-Seven of nine covered from what we already own.
+Three sights, one per step of reach, and the list stops there. It was
+longer: two red dots that differed only in how high they carried the line
+of sight, and a 2x that sat between the holographic and the three. Both
+red dots and the 2x are gone, along with their meshes -- a sight nobody
+can tell from the one next to it is a menu entry, not a choice.
 
 ### Done so far
 
-Four are off and filed under `zombie_assets/attachments/scopes`:
-`scope_2x` from the AUG at 206mm,
-and that is all of them.
+The harvested scopes are filed under `zombie_assets/attachments/scopes`.
+`scope_2x` from the AUG at 206mm is among them, kept as source even though
+the game no longer ships it.
 Each carries `Socket_Mount` at the bottom of its foot, `Socket_Eye` and
 `Socket_Objective` on the axis, and between fourteen and twenty-seven
 blended lens discs.
@@ -248,7 +250,7 @@ scope**, not of the gun. So most of it is one global table:
 
 ```
 ScopeDef {
-    kind: ItemKind,          // RedDot .. Scope15x
+    kind: ItemKind,          // HoloWide .. ScopeM24
     mesh: &str,
     magnification: f32,      // 1.0 for a red dot
     eye_offset: Vec3,        // Socket_Mount -> Socket_Eye
@@ -315,10 +317,9 @@ weapon, before phase 5's grind is committed to.
 
 ## Still open
 
-- **Which of the duplicates to keep.** Two red dots and three
-  holographics; the rest become spares or skins.
-- **`Scope15x` and `CantedSight`** have no source at all, and
-  `Scope4x` has one that needs hand work.
+- **Whether three sights is enough.** It is three because the duplicates
+  were cut, not because three was designed. A canted sight and something
+  above the M24 both have a place and neither has a source.
 - **What each attachment actually does to the numbers.** Decision 6 says
   they change them; nobody has said by how much. That is a balance pass,
   and it wants its own table next to the weapon one.

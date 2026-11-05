@@ -6,18 +6,13 @@ use crate::{
     load_gltf_scene, ActiveWeapon, AimSocket, Gun, GunMeshPart, WeaponId, WorldAssetRoot,
 };
 
-/// A sight that clamps to a rail. Each is a real mesh taken off a weapon that
-/// wore one, so two red dots are two products rather than one with a skin:
-/// the FAMAS's carries its line of sight 53mm over the rail and the MK47's
-/// 32mm, which is twenty-one millimetres of difference in where the weapon
-/// has to hang.
+/// A sight that clamps to a rail. Each is a real mesh taken off a weapon
+/// that wore one, and each is a step of reach rather than a skin: no
+/// magnification, three power, and the M24's glass above it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum SightId {
-    RedDotA,
-    RedDotB,
     HoloD,
-    Scope2x,
-    ScopeAk,
+    Scope3x,
     ScopeM24,
 }
 
@@ -83,36 +78,6 @@ pub(crate) struct SightDef {
     pub(crate) ads_eye_relief: f32,
 }
 
-static RED_DOT_A: SightDef = SightDef {
-    name: "Red dot",
-    mesh_path: "models/sights/reddot_a/reddot_a.glb",
-    eye_back: 0.045,
-    eye_rise: 0.047,
-    aim_fov_multiplier: 0.75,
-    ads_eye_relief: 0.11,
-    masks_weapon: false,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
-
-static RED_DOT_B: SightDef = SightDef {
-    name: "Red dot II",
-    mesh_path: "models/sights/reddot_b/reddot_b.glb",
-    eye_back: 0.033,
-    eye_rise: 0.045,
-    aim_fov_multiplier: 0.75,
-    ads_eye_relief: 0.11,
-    masks_weapon: false,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
-
 
 
 
@@ -135,44 +100,38 @@ static HOLO_D: SightDef = SightDef {
     window_radius: Some(0.011),
 };
 
-static SCOPE_2X: SightDef = SightDef {
-    name: "2x scope",
-    mesh_path: "models/sights/scope_2x/scope_2x.glb",
-    eye_back: 0.141,
-    eye_rise: 0.044,
-    aim_fov_multiplier: 0.620,
-    ads_eye_relief: 0.12,
-    masks_weapon: false,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
-};
 
 
 
 
-
-/// The AK's own optic, which arrived bolted to the rifle.
+/// The three-power, which came off the AK bolted to the rifle.
 ///
-/// Its mount is deeper than any of the others: the sight sits a hand's
+/// Its mount is deeper than the holographic's: the sight sits a hand's
 /// width above the rail on a bracket that reaches down the receiver's left
-/// side, which is how a Soviet side-rail optic mounts and why eye_rise is
-/// nearly double a red dot's.
-static SCOPE_AK: SightDef = SightDef {
-    name: "AK optic",
+/// side, which is how a Soviet side-rail optic mounts.
+///
+/// Sighted like the M24 rather than looked through like a red dot -- a
+/// tube with an eyepiece has a mouth, and a mouth has a rim that goes dark
+/// when the eye leaves the axis. The numbers below are that tube's, not the
+/// M24's scaled: the eye end's bore measures 12mm across the slices behind
+/// the first flare, which is where `window_forward` puts the glass.
+///
+/// Power is read off the two ends of the range rather than from physics:
+/// irons are 0.75 and the AK's optic was called four-power at 0.525, so
+/// three sits at 0.60.
+static SCOPE_3X: SightDef = SightDef {
+    name: "3x scope",
     mesh_path: "models/sights/scope_ak/scope_ak.glb",
     eye_back: 0.057,
     eye_rise: 0.045,
-    aim_fov_multiplier: 0.62,
+    aim_fov_multiplier: 0.60,
     ads_eye_relief: 0.12,
-    masks_weapon: false,
-    reticle: None,
-    picture_feather: 0.0000,
-    picture_radius: 0.0000,
-    window_forward: 0.000,
-    window_radius: None,
+    masks_weapon: true,
+    reticle: Some(crate::weapon::ReticleKind::Duplex),
+    picture_feather: 0.0026,
+    picture_radius: 0.0105,
+    window_forward: 0.025,
+    window_radius: Some(0.013),
 };
 
 /// The M24's own glass, which the rifle was drawn wearing.
@@ -208,32 +167,20 @@ impl SightId {
     pub(crate) fn from_item(item: crate::items::ItemKind) -> Option<SightId> {
         use crate::items::ItemKind::*;
         Some(match item {
-            RedDot => SightId::RedDotA,
-            TubeDot => SightId::RedDotB,
             HoloWide => SightId::HoloD,
-            Scope2x => SightId::Scope2x,
-            ScopeAk => SightId::ScopeAk,
+            Scope3x => SightId::Scope3x,
             ScopeM24 => SightId::ScopeM24,
             _ => return None,
         })
     }
 
-    pub(crate) const ALL: [SightId; 6] = [
-        SightId::RedDotA,
-        SightId::RedDotB,
-        SightId::HoloD,
-        SightId::Scope2x,
-        SightId::ScopeAk,
-        SightId::ScopeM24,
-    ];
+    pub(crate) const ALL: [SightId; 3] =
+        [SightId::HoloD, SightId::Scope3x, SightId::ScopeM24];
 
     pub(crate) fn def(self) -> &'static SightDef {
         match self {
-            SightId::RedDotA => &RED_DOT_A,
-            SightId::RedDotB => &RED_DOT_B,
             SightId::HoloD => &HOLO_D,
-            SightId::Scope2x => &SCOPE_2X,
-            SightId::ScopeAk => &SCOPE_AK,
+            SightId::Scope3x => &SCOPE_3X,
             SightId::ScopeM24 => &SCOPE_M24,
         }
     }
