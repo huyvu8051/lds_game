@@ -115,7 +115,7 @@ mod muzzle_fx;
 mod explosion;
 mod ragdoll;
 mod ragdoll_range;
-mod viewmodel_body;
+pub(crate) mod viewmodel_body;
 use grip_ik::*;
 use muzzle_fx::*;
 use explosion::*;
@@ -1534,7 +1534,12 @@ app.init_resource::<MagazineInHand>()
             shape_viewmodel_skeleton,
             // Chained: the ghost has to be read off the clip before the
             // simulated pose is written over the top of it.
-            (ragdoll::track_muscle_targets, drive_skeleton_from_ragdoll).chain(),
+            (
+                ragdoll::track_muscle_targets,
+                drive_skeleton_from_ragdoll,
+                ragdoll_range::hold_the_pose.run_if(ragdoll_range::posing),
+            )
+                .chain(),
             aim_zombie_heads,
             apply_bone_flinch,
             lean_zombie_into_turn,

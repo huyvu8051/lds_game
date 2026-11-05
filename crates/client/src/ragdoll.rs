@@ -29,18 +29,29 @@ const MIN_BONE_LENGTH: f32 = 0.06;
 const CORPSE_FRICTION: f32 = 0.9;
 const LEAF_BONE_LENGTH: f32 = 0.12;
 
-const SWING_LIMIT_SPINE: f32 = 0.5;
-const SWING_LIMIT_SHOULDER: f32 = 1.6;
+/// Half the cone a joint may swing through, measured from the pose the body
+/// died in.
+///
+/// Anatomy would rather have these centred on the joint's own rest -- a hip
+/// takes a leg far further forward than back -- and that was tried: give the
+/// parent frame the rest direction and the child frame the real one, so the
+/// solver reads deviation from anatomy. It is worse, both ways round. Any
+/// joint already outside its cone at death gets yanked into it on the first
+/// step, and the body arrives at rest through a snap rather than a fall:
+/// knees came out at a hundred and fourteen degrees the wrong way, against
+/// forty-eight for the pose-centred cone here.
+pub(crate) const SWING_LIMIT_SPINE: f32 = 0.5;
+pub(crate) const SWING_LIMIT_SHOULDER: f32 = 1.6;
 const SWING_LIMIT_ELBOW: f32 = 1.3;
-const SWING_LIMIT_HIP: f32 = 1.2;
+pub(crate) const SWING_LIMIT_HIP: f32 = 1.2;
 const SWING_LIMIT_KNEE: f32 = 1.3;
 /// How far a knee and an elbow close, from straight. A knee reaches about a
 /// hundred and forty degrees and an elbow a hundred and forty-five; these are
 /// under both, because the last of a joint's range needs tendons to reach and
 /// a corpse has none.
-const FLEX_LIMIT_ELBOW: f32 = 2.2;
-const FLEX_LIMIT_KNEE: f32 = 2.1;
-const TWIST_LIMIT: f32 = 0.4;
+pub(crate) const FLEX_LIMIT_ELBOW: f32 = 2.2;
+pub(crate) const FLEX_LIMIT_KNEE: f32 = 2.1;
+pub(crate) const TWIST_LIMIT: f32 = 0.4;
 
 /// How long a body keeps the pose it died in before it is only weight.
 ///
@@ -120,7 +131,7 @@ impl Ragdolling {
 pub(crate) struct RagdollBody;
 
 #[derive(Clone, Copy)]
-enum JointKind {
+pub(crate) enum JointKind {
     Spine,
     Shoulder,
     Elbow,
@@ -407,30 +418,22 @@ pub(crate) fn spawn_what_was_armed_last_frame(
             pairs.push((link.bone, body, bone_from_body));
         }
 
-        // The body's own left-right and forward, taken while it is still
-        // standing and whole. Every hinge below is pointed by these, which
-        // is the only reading that does not depend on where the clip
-        // happened to be when the round landed.
+        // The body's own left-right, taken while it is still standing and
+        // whole. Every hinge below is pointed by it, which is the only
+        // reading that does not depend on where the clip happened to be when
+        // the round landed.
         let hip_span = bones
             .left_leg[0]
             .zip(bones.right_leg[0])
             .and_then(|(l, r)| globals.get(l).ok().zip(globals.get(r).ok()))
             .and_then(|(l, r)| (l.translation() - r.translation()).try_normalize());
-        let spine_up = bones
-            .chest
-            .zip(bones.belly)
-            .and_then(|(c, b)| globals.get(c).ok().zip(globals.get(b).ok()))
-            .and_then(|(c, b)| (c.translation() - b.translation()).try_normalize());
-        let (across, forward) = match (hip_span, spine_up) {
-            (Some(across), Some(up)) => (across, across.cross(up).normalize_or_zero()),
-            _ => (Vec3::X, Vec3::NEG_Z),
-        };
+        let across = hip_span.unwrap_or(Vec3::X);
 
         for (slot, link) in links.iter().enumerate() {
             let (Some(body), Some(parent_slot)) = (bodies[slot], link.parent_slot) else { continue };
             let Some(parent_body) = bodies[parent_slot] else { continue };
             let Ok(pivot) = globals.get(link.bone).map(|g| g.translation()) else { continue };
-            let hinge = hinge_for(link.joint, alongs[parent_slot], alongs[slot], across, forward);
+            let hinge = hinge_for(link.joint, alongs[parent_slot], alongs[slot], across);
             match hinge {
                 Some((axis, limit)) => {
                     commands.spawn((
@@ -639,23 +642,42 @@ fn hinge_for(
     parent_along: Vec3,
     child_along: Vec3,
     across: Vec3,
-    forward: Vec3,
 ) -> Option<(Vec3, AngleLimit)> {
     let flex = match kind {
         JointKind::Elbow => FLEX_LIMIT_ELBOW,
         JointKind::Knee => FLEX_LIMIT_KNEE,
         _ => return None,
     };
-    let axis = (across - child_along * across.dot(child_along)).try_normalize()?;
-    // Which way round is flexion. Turning about `axis` moves the far end of
-    // the limb along `axis x child_along`; a knee wants that going backwards
-    // and an elbow forwards.
-    let goes_forward = axis.cross(child_along).dot(forward) > 0.0;
-    let axis = if goes_forward == matches!(kind, JointKind::Elbow) { axis } else { -axis };
+    // Which way round is flexion -- off the torso, which is true of the
+    // joint whatever pose it is caught in.
+    //
+    // Asking the limb was worse than wrong, it was unstable: the old test
+    // turned on `axis x child_along` pointing forwards, which goes to
+    // nothing the moment a shin leaves vertical. Every bent knee is that
+    // moment, so the sign a leg armed with came down to noise.
+    let turning = flex_axis(kind, across);
+    let axis = (turning - child_along * turning.dot(child_along)).try_normalize()?;
     let turned = parent_along.cross(child_along).dot(axis);
     let bent = parent_along.dot(child_along).clamp(-1.0, 1.0).acos() * turned.signum();
     let bent = bent.clamp(0.0, flex);
     Some((axis, AngleLimit { min: -bent, max: flex - bent }))
+}
+
+/// Which way a joint of this kind turns when it flexes, about the body's
+/// left. A knee's heel swings backwards and an elbow's hand forwards, so the
+/// two take opposite signs.
+///
+/// A knee takes the positive one: with the body's left `l`, its up `u` and
+/// its forward `f = u x l`, a shin hanging at `-u` swings to `-f` under
+/// `l x -u`, which is backwards. Reasoning about it the other way round got
+/// this inverted once, and nothing caught it -- the joint and the log read
+/// the same axis, so a knee folding forwards still logged as healthy
+/// flexion. Only the picture caught it.
+///
+/// Anything measuring a hinge reads it from here rather than deriving its
+/// own, so that the two cannot disagree.
+pub(crate) fn flex_axis(kind: JointKind, across: Vec3) -> Vec3 {
+    if matches!(kind, JointKind::Knee) { across } else { -across }
 }
 
 /// A hinge between two bones, with both frames sharing one world basis so the
