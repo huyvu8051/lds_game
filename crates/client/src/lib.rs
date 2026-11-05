@@ -593,7 +593,7 @@ const CROSSHAIR_LINE_THICKNESS_PX: f32 = 2.0;
 const CROSSHAIR_BASE_GAP_PX: f32 = 4.0;
 const CROSSHAIR_GAP_SPREAD_SCALE: f32 = 500.0;
 /// A ceiling on the gap, because the scale above was tuned when one spread
-/// figure served all thirty-five weapons and its worst case was 0.057 rad.
+/// figure served every weapon and its worst case was 0.057 rad.
 /// A moving, sprinting, red-hot rifle fired from the hip now reaches 0.30,
 /// which that scale would draw as a cross 155px from the middle of the
 /// screen. Nothing past this point tells the player anything the gap at this

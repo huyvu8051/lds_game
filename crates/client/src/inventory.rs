@@ -36,7 +36,7 @@ impl Slot {
 /// A weapon small enough for the third slot. The sidearm slot is the only one
 /// that asks.
 pub(crate) fn is_sidearm(weapon: WeaponId) -> bool {
-    matches!(weapon, WeaponId::Deagle | WeaponId::P1911 | WeaponId::R1895)
+    matches!(weapon, WeaponId::Deagle)
 }
 
 #[derive(Resource)]

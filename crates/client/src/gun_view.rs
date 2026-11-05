@@ -137,7 +137,7 @@ pub(crate) fn gun_pose_timings(
     // out, which is the curve the sights and the kick already use.
     let dip = ops::sin(std::f32::consts::PI * reload_t).powi(2);
     let reloaded = if gun.reload_remaining > 0.0 { 1.0 - reload_t } else { 1.0 };
-    let charge = crate::charge_kick(weapon, reloaded);
+    let charge = crate::charge_kick(reloaded);
     let charge_roll = crate::charge_roll(weapon, reloaded);
     let amount = cycle.amount();
     let bob_x = ops::sin(cycle.phase) * GUN_BOB_AMOUNT_X * amount;

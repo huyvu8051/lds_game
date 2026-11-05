@@ -1,7 +1,13 @@
 # Attachments
 
-A plan for mounting sights, muzzles, grips, magazines and stocks on the
-thirty-five weapons, PUBG-style. Nothing below is built yet.
+A plan for mounting sights, muzzles, grips, magazines and stocks,
+PUBG-style. Nothing below is built yet.
+
+It was written against a library of thirty-five weapons. The game now
+ships five -- the AK, the M4A1, the M24, the UMP45 and the Deagle -- and
+the rest are gone from `crates/client/assets`. Everything below about
+harvesting parts still holds: the source meshes it reads from live in
+`zombie_assets` and were not touched.
 
 ## What already exists
 

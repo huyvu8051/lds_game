@@ -50,10 +50,9 @@ impl StockId {
     /// What this item becomes on this weapon, if that weapon takes it.
     ///
     /// Who takes what is PUBG's answer, with its guns read across to ours:
-    /// the tactical stock on the carbines and the two machine guns, the
-    /// cheek pad on anything shot at distance, the loops on what is fed one
-    /// round at a time. A weapon off all three lists has no stock socket at
-    /// all, which is most of them.
+    /// the tactical stock on the carbines, the cheek pad on anything shot
+    /// at distance. Nothing here is fed a round at a time any more, so the
+    /// bullet loops fit nothing -- the item stays, with no weapon to go on.
     pub(crate) fn from_item(item: crate::items::ItemKind, weapon: WeaponId) -> Option<StockId> {
         use crate::items::ItemKind::*;
         use WeaponId::*;
@@ -64,14 +63,9 @@ impl StockId {
             _ => return None,
         };
         let fits = match id {
-            StockId::Tactical => {
-                matches!(weapon, M16a4 | Mk47Mutant | Ace32 | Vector | Mp5k | M249 | M4a1)
-            }
-            StockId::CheekPad => matches!(
-                weapon,
-                M24 | MosinNagant | Sks | Vss | Mk14Ebr | Slr | Svd | Mini14 | Mk12
-            ),
-            StockId::BulletLoops => matches!(weapon, S686 | MosinNagant),
+            StockId::Tactical => matches!(weapon, M4a1),
+            StockId::CheekPad => matches!(weapon, M24),
+            StockId::BulletLoops => false,
         };
         fits.then_some(id)
     }
@@ -86,23 +80,8 @@ impl StockId {
 fn anchor(weapon: WeaponId) -> Option<Vec3> {
     use WeaponId::*;
     Some(match weapon {
-        M16a4 => Vec3::new(0.0, 0.0164, 0.9115),
-        Mk47Mutant => Vec3::new(0.0, 0.0168, 0.8565),
-        Ace32 => Vec3::new(0.0, 0.0050, 0.7600),
-        Vector => Vec3::new(0.0, 0.0349, 0.5680),
-        Mp5k => Vec3::new(0.0, 0.0367, 0.5715),
-        M249 => Vec3::new(0.0, 0.0063, 0.9146),
         M4a1 => Vec3::new(0.0, 0.0157, 0.6770),
         M24 => Vec3::new(0.0, -0.0054, 1.1401),
-        MosinNagant => Vec3::new(0.0, -0.0382, 1.1520),
-        Sks => Vec3::new(0.0, -0.0147, 0.9408),
-        Vss => Vec3::new(0.0, -0.0208, 0.8140),
-        Mk14Ebr => Vec3::new(0.0, 0.0046, 1.0430),
-        Slr => Vec3::new(0.0, -0.0005, 1.0606),
-        Svd => Vec3::new(0.0, -0.0113, 1.1450),
-        Mini14 => Vec3::new(0.0, -0.0363, 0.8660),
-        Mk12 => Vec3::new(0.0, 0.0168, 0.8600),
-        S686 => Vec3::new(0.0, -0.0362, 1.1170),
         _ => return None,
     })
 }

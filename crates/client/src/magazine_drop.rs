@@ -15,47 +15,26 @@ use crate::*;
 /// half of it that can be had without splitting every receiver.
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum Charging {
-    /// Nothing to work. A revolver's cylinder and a break-action's barrels
-    /// chamber themselves as they close.
-    None,
     /// On the side of the receiver, pulled straight back. +1 is the strong
     /// side, -1 the weak one.
     Side(f32),
     /// Behind the receiver on the bore line: the AR's paddle, worked with
     /// the fingers either side of the stock.
     Rear,
-    /// On top of the receiver: the Uzi's, and a bullpup's under its handle.
-    Top,
 }
 
 fn charging_of(weapon: WeaponId) -> Charging {
     use WeaponId::*;
     match weapon {
-        // AR-pattern: the T-handle behind the upper.
-        M4a1 | M16a4 | Mk12 | Mk47Mutant => Charging::Rear,
+        // AR-pattern: the T-handle behind the upper. A pistol's slide is
+        // racked from behind too, over the top.
+        M4a1 | Deagle => Charging::Rear,
 
-        // Weak side, where the support hand already is. The FAL is here
-        // too: the SLR's handle is on the left, unlike almost everything
-        // else of its size.
-        G36c | Mp5k | Ump45 | Famas | AugA3 | Vector | P90 | ScarL | Slr => {
-            Charging::Side(-1.0)
-        }
+        // Weak side, where the support hand already is.
+        Ump45 => Charging::Side(-1.0),
 
-        // Strong side: the AK family and everything else that puts it by the
-        // ejection port. The Groza and the Bizon are built on AK receivers
-        // and keep the AK's handle with them.
-        Ak47 | BerylM762 | Ace32 | Groza | Bizon | Sks | Vss | Svd | Dp28 | M249 | Mini14
-        | Mk14Ebr | TommyGun | Skorpion | M24 | MosinNagant => Charging::Side(1.0),
-
-        // Over the receiver: the Uzi's handle sits on top, and the QBZ's is
-        // under its carry handle on the centreline.
-        MicroUzi | Qbz95 => Charging::Top,
-
-        // A pistol's slide is racked from behind, over the top.
-        Deagle | P1911 => Charging::Rear,
-
-        // Closing them is what chambers them.
-        R1895 | S686 => Charging::None,
+        // Strong side: the AK, and the bolt that sits by the ejection port.
+        Ak47 | M24 => Charging::Side(1.0),
     }
 }
 
@@ -144,8 +123,8 @@ pub(crate) fn charge_roll(weapon: WeaponId, progress: f32) -> f32 {
 }
 
 /// How much of the jolt is showing, by the reload's own progress.
-pub(crate) fn charge_kick(weapon: WeaponId, progress: f32) -> Vec3 {
-    if charging_of(weapon) == Charging::None || progress < CHARGE_HELD {
+pub(crate) fn charge_kick(progress: f32) -> Vec3 {
+    if progress < CHARGE_HELD {
         return Vec3::ZERO;
     }
     // Nothing until the handle is let go of, then all of it at once, then
@@ -261,14 +240,9 @@ pub(crate) fn drive_reload_hand(
     // down -Z and up is +Y -- so mirroring a right-hand port to the left is a
     // sign on x, and pulling the handle back is +Z.
     let handle = match charging_of(active.0) {
-        Charging::None => None,
         Charging::Side(sign) => eject.single().ok().map(|port| {
             let at = port.reparented_to(gun_global).translation;
             Vec3::new(sign * at.x.abs(), at.y + CHARGE_LIFT, at.z)
-        }),
-        Charging::Top => eject.single().ok().map(|port| {
-            let at = port.reparented_to(gun_global).translation;
-            Vec3::new(0.0, at.y + CHARGE_LIFT * 3.0, at.z)
         }),
         Charging::Rear => eject.single().ok().map(|port| {
             let at = port.reparented_to(gun_global).translation;
