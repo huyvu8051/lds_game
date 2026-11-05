@@ -172,11 +172,6 @@ pub(crate) fn view_pullback() -> f32 {
     std::env::var("VIEW_PULLBACK").ok().and_then(|v| v.parse().ok()).unwrap_or(0.13)
 }
 
-/// Low ready: held near the middle and a little forward of the hip rest, so
-/// coming back onto the sights is a short move instead of a full swing across
-/// the body. Sits just right of centre, on the firing-hand side, and
-/// muzzle-down, which is where a rifle hangs when its owner is waiting.
-const GUN_READY_SPEED: f32 = 7.0;
 const GUN_READY_LEAN_CUTOFF: f32 = 0.12;
 /// How far the resting weapon may land from where it last rested.
 ///
@@ -417,42 +412,6 @@ const WALL_GUN_RAISE_SPEED: f32 = 10.0;
 /// metre, and `WALL_GUN_RAISE_SPEED` smooths the steps out: at a 100ms time
 /// constant an 83ms sample interval never shows.
 const WALL_PROBE_INTERVAL: f32 = 1.0 / 12.0;
-/// Where the side probes point, in degrees off straight abeam, mirrored onto
-/// both sides -- so six rays covering everything from 45 degrees ahead round
-/// to 45 behind on each flank.
-///
-/// Two rays straight out to the sides missed a corner sitting ahead and to
-/// the left, which is exactly where a player tucks in and exactly where the
-/// weapon has nowhere to go.
-///
-/// Measured off abeam rather than off forward because the camera's right
-/// stays horizontal when the player looks straight up, and its forward does
-/// not -- a fan built on a vertical forward collapses.
-const WALL_SIDE_ANGLES_DEG: [f32; 3] = [-45.0, 0.0, 45.0];
-/// How far the side probes look.
-const WALL_SIDE_DISTANCE: f32 = 1.2;
-/// Close enough beside the player to count, as a share of the above -- 0.3 of
-/// 1.2m is anything inside 85cm. Near enough that the weapon has nowhere to
-/// swing on that side, which is the thing being detected.
-const WALL_SIDE_PROXIMITY: f32 = 0.3;
-/// How close a wall ahead has to be before it owns the weapon outright and
-/// the side rule stands down, as a share of `WALL_GUN_RAISE_DISTANCE`.
-///
-/// The two rules must never fire on the same wall: one asks the weapon up and
-/// the other asks it in, and a flat face in front is seen by both. The
-/// forward ray finds it at `d`, and the innermost ray of the fan is 45
-/// degrees off, so it finds the same face at `d / cos 45` = 1.414d. The fan
-/// trips at 0.85m, so it reaches that wall once `d` is 0.6m -- which reads
-/// 0.6 here. Half is that with room to spare, and leaves the side rule
-/// working for anything beyond 75cm ahead.
-const WALL_AHEAD_OWNS: f32 = 0.5;
-/// How much further the wall has to fall away before the weapon goes back
-/// out, as the same share -- 0.08 of 1.2m is about 10cm of slack.
-///
-/// Without it a player standing on the boundary flips the pose every time the
-/// probe twitches, which is the same thing AUTOPILOT_ADS_DISTANCE_MARGIN is
-/// for: a bare comparison chatters on anything sitting exactly on it.
-const WALL_SIDE_HYSTERESIS: f32 = 0.08;
 
 /// The weapon rises to reload rather than dropping out of the way, so the
 /// magazine coming out of the well is in frame while it falls.

@@ -369,9 +369,6 @@ pub(crate) struct LocalPlayerState<'w> {
 pub(crate) struct WallProbe {
     /// The wall ahead, which raises the muzzle over it.
     target: f32,
-    /// The nearer of the two walls beside the player, which does not -- there
-    /// is nothing out there to raise the weapon over, only nowhere to hold it.
-    side: f32,
     until_next: f32,
 }
 
@@ -380,7 +377,6 @@ pub(crate) fn gun_view_animation(
     time: Res<Time>,
     aim_held: Res<AimHeld>,
     touch_aiming: Res<TouchAiming>,
-    game_over: Res<GameOver>,
     keys: Res<ButtonInput<KeyCode>>,
     mut look_delta: ResMut<MouseLookDelta>,
     mut pose: ResMut<WeaponPose>,
@@ -441,25 +437,13 @@ pub(crate) fn gun_view_animation(
                 .and_then(|dir| spatial_query.cast_ray(origin, dir, reach, true, &filter))
                 .map_or(0.0, |hit| 1.0 - (hit.distance / reach).clamp(0.0, 1.0))
         };
-        let (target, side) = camera_single.map_or((0.0, 0.0), |(camera_transform, _)| {
-            let eye = camera_transform.translation;
-            // Flattened: a lean rolls the camera, and a side probe that rolls
-            // with it stops measuring the wall and starts measuring the floor.
-            let right = camera_transform.right().as_vec3();
-            let flat_right = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
-            let side = WALL_SIDE_ANGLES_DEG
-                .iter()
-                .flat_map(|deg| [flat_right, -flat_right].map(|basis| (*deg, basis)))
-                .map(|(deg, basis)| Quat::from_rotation_y(deg.to_radians()) * basis)
-                .map(|dir| reading(eye, dir, WALL_SIDE_DISTANCE))
-                .fold(0.0f32, f32::max);
-            (
-                reading(eye, camera_transform.forward().as_vec3(), WALL_GUN_RAISE_DISTANCE),
-                side,
+        wall_probe.target = camera_single.map_or(0.0, |(camera_transform, _)| {
+            reading(
+                camera_transform.translation,
+                camera_transform.forward().as_vec3(),
+                WALL_GUN_RAISE_DISTANCE,
             )
         });
-        wall_probe.target = target;
-        wall_probe.side = side;
     }
     // Neither wall rule speaks while the legs are going. A sprint already
     // has the weapon carried across the body on its own path, and a corridor
@@ -468,11 +452,6 @@ pub(crate) fn gun_view_animation(
     // the entire way and the run read as a stutter rather than a run.
     let walls_heard = !local.sprinting.0;
     let wall_target = if walls_heard { wall_probe.target } else { 0.0 };
-    // A wall close ahead takes the weapon over completely. Letting both rules
-    // speak would have the muzzle asked up and in at the same time, and the
-    // one the player is about to walk into is the one worth answering.
-    let wall_side =
-        if !walls_heard || wall_target >= WALL_AHEAD_OWNS { 0.0 } else { wall_probe.side };
 
     // Which way there is room to move the weapon. Up by default, because that
     // is where the room usually is. Looking down there is floor in front of
@@ -556,22 +535,11 @@ pub(crate) fn gun_view_animation(
         } else {
             0.0
         };
-        // Latched on the rising edge of the request, not on ads_blend nearing
-        // zero -- it decays towards zero and never arrives. ready_blend is
-        // last frame's, before aiming drives it down. The max covers a raise
-        // that starts before the last one finished coming down.
-        if ads_target > 0.0 && !gun.ads_wanted {
-            gun.ads_from_ready = gun.ready_blend.max(gun.ads_blend);
-        }
         gun.ads_wanted = ads_target > 0.0;
-        // Dropping the sights is the ready speed either way: what the rest
-        // pose costs is the distance up, not the distance back down.
+        // Up and down are not the same speed: what the rest pose costs is
+        // the distance up, not the distance back down.
         let speed = &active.def().ads_speed;
-        let ads_rate = if ads_target > 0.0 {
-            speed.from_rest + (speed.from_ready - speed.from_rest) * gun.ads_from_ready
-        } else {
-            speed.from_ready
-        } * fx.ads_speed;
+        let ads_rate = if ads_target > 0.0 { speed.up } else { speed.down } * fx.ads_speed;
         // A damped spring, not an exponential ease. The ease could only ever
         // arrive from one side: the weapon slid up to the sight line and
         // stopped dead on it, which is the one thing arms carrying three kilos
@@ -604,39 +572,6 @@ pub(crate) fn gun_view_animation(
         // jump, however abruptly the player changes their mind.
         gun.ads_settle_error = gun.ads_velocity / ads_rate.max(0.001);
 
-        // Having aimed once means the player is working a sight line and will
-        // likely aim again, so the gun waits near the middle instead of
-        // swinging all the way back to the hip. Breaking into a sprint says
-        // they are done with that sight line, so it drops to the normal rest.
-        if aiming {
-            gun.ready_armed = true;
-        } else if local.sprinting.0 || game_over.0 {
-            gun.ready_armed = false;
-        }
-        // Leaning takes the gun back to its shoulder: the swap is a deliberate
-        // move to the other side of cover, and a centred ready pose has nothing
-        // to swap. Releasing the lean settles back to ready.
-        // A wall *beside* the player, not the one in front. The one in front
-        // has something to raise the muzzle over and keeps doing it; a wall
-        // at the shoulder has nowhere to hold the weapon out, so it comes in
-        // to the ready.
-        //
-        // No timer: `ready_blend` below chases this at GUN_READY_SPEED, so
-        // the weapon still swings in over a few frames rather than snapping,
-        // and a held-down counter would only delay a move that is already
-        // eased. What it does need is somewhere to leave from that is not
-        // where it arrived, or standing on the boundary chatters.
-        gun.wall_near = if gun.wall_near {
-            wall_side >= WALL_SIDE_PROXIMITY - WALL_SIDE_HYSTERESIS
-        } else {
-            wall_side >= WALL_SIDE_PROXIMITY
-        };
-        let wall_ready = gun.wall_near;
-
-        let ready_target =
-            if (gun.ready_armed || wall_ready) && !aiming && !leaning { 1.0 } else { 0.0 };
-        let ready_step = (GUN_READY_SPEED * time.delta_secs()).min(1.0);
-        gun.ready_blend += (ready_target - gun.ready_blend) * ready_step;
 
         // Carried across the body, but only once the sprint has gone a second
         // without a shot. Aiming, reloading or standing still all mean the
@@ -858,16 +793,13 @@ pub(crate) fn gun_view_animation(
             * pose_turn
             * Quat::IDENTITY.slerp(gun.optical_fix, gun.ads_blend);
 
-        // Back to the rest height first. The ready pose deliberately sits a
-        // hand lower -- muzzle down, waiting -- and the look-over was being
-        // added on top of wherever the weapon happened to be, so starting it
-        // from ready put the whole gesture ten centimetres under where
-        // starting it from rest did. It is the same gesture either way.
-        let posture = gun
-            .base_offset
-            .lerp(active.def().ready_offset, gun.ready_blend)
-            .lerp(gun.base_offset, gun.inspect_blend);
-        let resting = posture
+        // One resting pose and no other. There used to be a second, a hand
+        // lower with the muzzle down, that the weapon waited in after the
+        // first time the player aimed -- and the look-over gesture was added
+        // on top of wherever the weapon happened to be, so beginning it from
+        // the lower pose put the whole thing ten centimetres under where
+        // beginning it from rest did.
+        let resting = gun.base_offset
             + timings.charge
             + present_pull
             + gun.settle_current

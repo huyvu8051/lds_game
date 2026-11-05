@@ -56,10 +56,6 @@ pub(crate) struct Gun {
     /// points the mesh marks along the tube rather than assumed. Identity for
     /// a scope mounted true, and for a weapon with no glass at all.
     pub(crate) optical_fix: Quat,
-    /// How ready the weapon was when the sights started coming up, latched for
-    /// the whole of that raise, and whether they were being asked for last
-    /// frame -- which is what says a raise is starting.
-    pub(crate) ads_from_ready: f32,
     pub(crate) ads_wanted: bool,
     pub(crate) base_offset: Vec3,
     pub(crate) recoil: f32,
@@ -111,15 +107,9 @@ pub(crate) struct Gun {
     pub(crate) ads_settle_error: f32,
 
     pub(crate) wall_raise: f32,
-    /// Whether a wall is close enough on one side to bring the weapon in.
-    /// Latched, so the distance it leaves at is further than the one it
-    /// entered at and a player on the boundary is not flipped back and forth.
-    pub(crate) wall_near: bool,
 
     pub(crate) shoulder_blend: f32,
 
-    pub(crate) ready_blend: f32,
-    pub(crate) ready_armed: bool,
 
     /// Yaw and roll of the kick, drawn fresh each shot. Two numbers rather
     /// than one scaling both: sharing a scalar fixes the direction of the

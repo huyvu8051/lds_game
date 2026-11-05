@@ -377,7 +377,6 @@ pub(crate) fn setup_gameplay(
             Visibility::default(),
             Gun {
                 optical_fix: Quat::IDENTITY,
-                ads_from_ready: 0.0,
                 ads_wanted: false,
                 base_offset: active.def().rest_offset,
                 muzzle_local: Transform::IDENTITY,
@@ -400,10 +399,7 @@ pub(crate) fn setup_gameplay(
                 ads_velocity: 0.0,
                 ads_settle_error: 0.0,
                 wall_raise: 0.0,
-                wall_near: false,
                 shoulder_blend: 0.0,
-                ready_blend: 0.0,
-                ready_armed: false,
                 sprint_blend: 0.0,
                 since_shot: f32::MAX,
                 idle_elapsed: 0.0,

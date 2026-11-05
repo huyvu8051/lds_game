@@ -39,7 +39,6 @@ pub(crate) struct WeaponDef {
     pub(crate) mesh_path: &'static str,
 
     pub(crate) rest_offset: Vec3,
-    pub(crate) ready_offset: Vec3,
     /// How far the eye sits behind Socket_Aim when sighted: the rear glass on
     /// a scope, the rear sight on irons. The gun is then placed so that point
     /// lands on the camera axis, which is the whole of ads_offset.
@@ -345,14 +344,15 @@ pub(crate) struct HoloWindow {
     pub(crate) max: Vec2,
 }
 
-/// How fast the sights come up, from each starting pose. A raise that begins
-/// between them interpolates; dropping the sights always uses from_ready.
+/// How fast the sights come up, and how fast they go back down. They are
+/// not the same number: what the rest pose costs is the distance up, not
+/// the distance back.
 pub(crate) struct AdsSpeed {
-    pub(crate) from_ready: f32,
-    pub(crate) from_rest: f32,
+    pub(crate) down: f32,
+    pub(crate) up: f32,
 }
 
-/// Where a weapon sits when it is being carried rather than held ready.
+/// Where a weapon sits when it is being carried rather than held up.
 ///
 /// The offset is in camera space off the rest pose -- x right, y up, -z away.
 /// The angles are in the weapon's own, turned about the trigger grip, so yaw
@@ -656,9 +656,8 @@ static AK47: WeaponDef = WeaponDef {
     name: "AK-47",
     mesh_path: "models/ak47_scope/mesh/ak47_scope.glb",
     rest_offset: Vec3::new(0.160, -0.0905, -0.7094),
-    ready_offset: Vec3::new(0.045, -0.1655, -0.6194),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 8.0, from_rest: 5.5 },
+    ads_speed: AdsSpeed { down: 8.0, up: 5.5 },
     hold_ads_fraction: 0.192,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.03, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.028,
@@ -743,9 +742,8 @@ static M4A1: WeaponDef = WeaponDef {
     name: "M4A1",
     mesh_path: "models/m4a1/mesh/m4a1_rigged.glb",
     rest_offset: Vec3::new(0.160, -0.1018, -0.626),
-    ready_offset: Vec3::new(0.071, -0.1468, -0.536),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.0 },
+    ads_speed: AdsSpeed { down: 16.0, up: 9.0 },
     hold_ads_fraction: 0.300,
     // 0.031 rather than 0.07. The carry offset rides on rest_offset, which
     // differs per weapon, so the number to compare is the sum: the M4 sat at
@@ -835,10 +833,9 @@ static SCAR_L: WeaponDef = WeaponDef {
     // does. Copying the M4's own -0.1018 put the AUG's eyepiece 23mm under
     // the eye, where it filled the screen.
     rest_offset: Vec3::new(0.160, -0.1252, -0.7720),
-    ready_offset: Vec3::new(0.071, -0.1702, -0.682),
     ads_eye_relief: 0.11,
     // About a kilo heavier than the M4, so it comes up slower.
-    ads_speed: AdsSpeed { from_ready: 14.0, from_rest: 8.0 },
+    ads_speed: AdsSpeed { down: 14.0, up: 8.0 },
     hold_ads_fraction: 0.280,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0547, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.018,
@@ -915,10 +912,9 @@ static M16A4: WeaponDef = WeaponDef {
     mesh_path: "models/m16a4/mesh/m16a4.glb",
     // Socket_Aim sits 0.655 down this weapon against the M4's 0.5125.
     rest_offset: Vec3::new(0.160, -0.1088, -0.7685),
-    ready_offset: Vec3::new(0.071, -0.1538, -0.6785),
     ads_eye_relief: 0.11,
     // A full-length rifle: slower onto the eye than either carbine.
-    ads_speed: AdsSpeed { from_ready: 12.5, from_rest: 7.0 },
+    ads_speed: AdsSpeed { down: 12.5, up: 7.0 },
     hold_ads_fraction: 0.260,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0383, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.020,
@@ -994,11 +990,10 @@ static FAMAS: WeaponDef = WeaponDef {
     name: "FAMAS",
     mesh_path: "models/famas/mesh/famas.glb",
     rest_offset: Vec3::new(0.160, -0.2031, -0.6570),
-    ready_offset: Vec3::new(0.071, -0.2481, -0.567),
     ads_eye_relief: 0.11,
     // Short and balanced over the hand: the quickest of the rifles onto the
     // eye.
-    ads_speed: AdsSpeed { from_ready: 17.0, from_rest: 10.0 },
+    ads_speed: AdsSpeed { down: 17.0, up: 10.0 },
     hold_ads_fraction: 0.310,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.1326, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.013,
@@ -1072,10 +1067,9 @@ static G36C: WeaponDef = WeaponDef {
     name: "G36C",
     mesh_path: "models/g36c/mesh/g36c.glb",
     rest_offset: Vec3::new(0.160, -0.1131, -0.5615),
-    ready_offset: Vec3::new(0.071, -0.1581, -0.4715),
     ads_eye_relief: 0.11,
     // The shortest rifle here, and it comes up like one.
-    ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.5 },
+    ads_speed: AdsSpeed { down: 16.0, up: 9.5 },
     hold_ads_fraction: 0.300,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0426, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.014,
@@ -1149,9 +1143,8 @@ static QBZ95: WeaponDef = WeaponDef {
     name: "QBZ-95",
     mesh_path: "models/qbz95/mesh/qbz95.glb",
     rest_offset: Vec3::new(0.160, -0.1273, -0.6285),
-    ready_offset: Vec3::new(0.071, -0.1723, -0.5385),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 15.0, from_rest: 8.5 },
+    ads_speed: AdsSpeed { down: 15.0, up: 8.5 },
     hold_ads_fraction: 0.290,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0568, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.016,
@@ -1223,10 +1216,9 @@ static AUG_A3: WeaponDef = WeaponDef {
     name: "AUG A3",
     mesh_path: "models/aug_a3/mesh/aug_a3.glb",
     rest_offset: Vec3::new(0.160, -0.1191, -0.5185),
-    ready_offset: Vec3::new(0.071, -0.1641, -0.4285),
     // An eyepiece, not an aperture: the eye sits further back than on irons.
     ads_eye_relief: 0.085,
-    ads_speed: AdsSpeed { from_ready: 13.5, from_rest: 7.5 },
+    ads_speed: AdsSpeed { down: 13.5, up: 7.5 },
     hold_ads_fraction: 0.270,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0486, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.017,
@@ -1299,10 +1291,9 @@ static BERYL_M762: WeaponDef = WeaponDef {
     name: "Beryl M762",
     mesh_path: "models/beryl_m762/mesh/beryl_m762.glb",
     rest_offset: Vec3::new(0.160, -0.0886, -0.7835),
-    ready_offset: Vec3::new(0.071, -0.1336, -0.6935),
     ads_eye_relief: 0.12,
     // Heavier than any of the 5.56s and it comes up like it.
-    ads_speed: AdsSpeed { from_ready: 11.0, from_rest: 6.5 },
+    ads_speed: AdsSpeed { down: 11.0, up: 6.5 },
     hold_ads_fraction: 0.230,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0181, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.024,
@@ -1371,9 +1362,8 @@ static ACE32: WeaponDef = WeaponDef {
     name: "ACE32",
     mesh_path: "models/ace32/mesh/ace32.glb",
     rest_offset: Vec3::new(0.160, -0.0948, -0.6985),
-    ready_offset: Vec3::new(0.071, -0.1398, -0.6085),
     ads_eye_relief: 0.115,
-    ads_speed: AdsSpeed { from_ready: 12.5, from_rest: 7.2 },
+    ads_speed: AdsSpeed { down: 12.5, up: 7.2 },
     hold_ads_fraction: 0.250,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0243, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.022,
@@ -1442,9 +1432,8 @@ static MK47_MUTANT: WeaponDef = WeaponDef {
     name: "MK47 Mutant",
     mesh_path: "models/mk47_mutant/mesh/mk47_mutant.glb",
     rest_offset: Vec3::new(0.160, -0.1135, -0.6264),
-    ready_offset: Vec3::new(0.071, -0.1585, -0.5364),
     ads_eye_relief: 0.115,
-    ads_speed: AdsSpeed { from_ready: 12.0, from_rest: 7.0 },
+    ads_speed: AdsSpeed { down: 12.0, up: 7.0 },
     hold_ads_fraction: 0.240,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.043, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.022,
@@ -1516,10 +1505,9 @@ static GROZA: WeaponDef = WeaponDef {
     name: "Groza",
     mesh_path: "models/groza/mesh/groza.glb",
     rest_offset: Vec3::new(0.160, -0.1635, -0.4415),
-    ready_offset: Vec3::new(0.071, -0.2085, -0.3515),
     ads_eye_relief: 0.115,
     // Short enough to swing like an SMG.
-    ads_speed: AdsSpeed { from_ready: 15.0, from_rest: 8.8 },
+    ads_speed: AdsSpeed { down: 15.0, up: 8.8 },
     hold_ads_fraction: 0.280,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.093, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.019,
@@ -1590,10 +1578,9 @@ static VECTOR: WeaponDef = WeaponDef {
     name: "Vector",
     mesh_path: "models/vector/mesh/vector.glb",
     rest_offset: Vec3::new(0.160, -0.1113, -0.4580),
-    ready_offset: Vec3::new(0.071, -0.1563, -0.368),
     ads_eye_relief: 0.11,
     // Nothing comes up faster.
-    ads_speed: AdsSpeed { from_ready: 18.0, from_rest: 11.0 },
+    ads_speed: AdsSpeed { down: 18.0, up: 11.0 },
     hold_ads_fraction: 0.330,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0408, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.012,
@@ -1666,9 +1653,8 @@ static MP5K: WeaponDef = WeaponDef {
     name: "MP5K",
     mesh_path: "models/mp5k/mesh/mp5k.glb",
     rest_offset: Vec3::new(0.160, -0.1248, -0.5200),
-    ready_offset: Vec3::new(0.071, -0.1698, -0.43),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 17.0, from_rest: 10.0 },
+    ads_speed: AdsSpeed { down: 17.0, up: 10.0 },
     hold_ads_fraction: 0.320,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0543, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.013,
@@ -1739,10 +1725,9 @@ static SKS: WeaponDef = WeaponDef {
     name: "SKS",
     mesh_path: "models/sks/mesh/sks.glb",
     rest_offset: Vec3::new(0.160, -0.0840, -0.6400),
-    ready_offset: Vec3::new(0.071, -0.1290, -0.55),
     ads_eye_relief: 0.12,
     // Long and nose-heavy: slower onto the eye than any of the rifles.
-    ads_speed: AdsSpeed { from_ready: 9.0, from_rest: 5.5 },
+    ads_speed: AdsSpeed { down: 9.0, up: 5.5 },
     hold_ads_fraction: 0.180,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0135, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.028,
@@ -1813,9 +1798,8 @@ static P1911: WeaponDef = WeaponDef {
     mesh_path: "models/p1911/mesh/p1911.glb",
     // A pistol comes to the middle of the chest, not the right shoulder.
     rest_offset: Vec3::new(0.095, -0.0292, -0.3160),
-    ready_offset: Vec3::new(0.045, -0.1042, -0.226),
     ads_eye_relief: 0.14,
-    ads_speed: AdsSpeed { from_ready: 21.0, from_rest: 13.0 },
+    ads_speed: AdsSpeed { down: 21.0, up: 13.0 },
     hold_ads_fraction: 0.520,
     sprint_carry: SprintCarry { offset: Vec3::new(0.03, 0.06, 0.12), yaw_deg: 12.0, pitch_deg: 60.0, roll_deg: 8.0 },
     ads_settle_miss_m: 0.007,
@@ -1883,9 +1867,8 @@ static BIZON: WeaponDef = WeaponDef {
     name: "PP-19 Bizon",
     mesh_path: "models/bizon/mesh/bizon.glb",
     rest_offset: Vec3::new(0.16, -0.0901, -0.326),
-    ready_offset: Vec3::new(0.071, -0.1351, -0.236),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 16.0, from_rest: 9.5 },
+    ads_speed: AdsSpeed { down: 16.0, up: 9.5 },
     hold_ads_fraction: 0.3,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0196, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.014,
@@ -1949,9 +1932,8 @@ static SKORPION: WeaponDef = WeaponDef {
     name: "Skorpion",
     mesh_path: "models/skorpion/mesh/skorpion.glb",
     rest_offset: Vec3::new(0.16, -0.0697, -0.383),
-    ready_offset: Vec3::new(0.071, -0.1147, -0.293),
     ads_eye_relief: 0.12,
-    ads_speed: AdsSpeed { from_ready: 19.0, from_rest: 12.0 },
+    ads_speed: AdsSpeed { down: 19.0, up: 12.0 },
     hold_ads_fraction: 0.36,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.0008, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.011,
@@ -2015,9 +1997,8 @@ static TOMMY_GUN: WeaponDef = WeaponDef {
     name: "Tommy Gun",
     mesh_path: "models/tommy_gun/mesh/tommy_gun.glb",
     rest_offset: Vec3::new(0.16, -0.0667, -0.705),
-    ready_offset: Vec3::new(0.071, -0.1117, -0.615),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 12.0, from_rest: 7.0 },
+    ads_speed: AdsSpeed { down: 12.0, up: 7.0 },
     hold_ads_fraction: 0.25,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.0038, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.02,
@@ -2081,9 +2062,8 @@ static MICRO_UZI: WeaponDef = WeaponDef {
     name: "Micro UZI",
     mesh_path: "models/micro_uzi/mesh/micro_uzi.glb",
     rest_offset: Vec3::new(0.16, -0.115, -0.551),
-    ready_offset: Vec3::new(0.071, -0.1600, -0.461),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 18.5, from_rest: 11.5 },
+    ads_speed: AdsSpeed { down: 18.5, up: 11.5 },
     hold_ads_fraction: 0.34,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0445, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.011,
@@ -2147,9 +2127,8 @@ static DP28: WeaponDef = WeaponDef {
     name: "DP-28",
     mesh_path: "models/dp28/mesh/dp28.glb",
     rest_offset: Vec3::new(0.16, -0.0935, -0.999),
-    ready_offset: Vec3::new(0.071, -0.1385, -0.909),
     ads_eye_relief: 0.12,
-    ads_speed: AdsSpeed { from_ready: 8.0, from_rest: 4.5 },
+    ads_speed: AdsSpeed { down: 8.0, up: 4.5 },
     hold_ads_fraction: 0.15,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.023, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.03,
@@ -2213,9 +2192,8 @@ static M249: WeaponDef = WeaponDef {
     name: "M249",
     mesh_path: "models/m249/mesh/m249.glb",
     rest_offset: Vec3::new(0.16, -0.142, -0.693),
-    ready_offset: Vec3::new(0.071, -0.1870, -0.603),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 7.5, from_rest: 4.0 },
+    ads_speed: AdsSpeed { down: 7.5, up: 4.0 },
     hold_ads_fraction: 0.14,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0715, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.032,
@@ -2279,9 +2257,8 @@ static MINI14: WeaponDef = WeaponDef {
     name: "Mini 14",
     mesh_path: "models/mini14/mesh/mini14.glb",
     rest_offset: Vec3::new(0.16, -0.0627, -0.628),
-    ready_offset: Vec3::new(0.071, -0.1077, -0.538),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 10.0, from_rest: 6.0 },
+    ads_speed: AdsSpeed { down: 10.0, up: 6.0 },
     hold_ads_fraction: 0.19,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.0078, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.026,
@@ -2345,9 +2322,8 @@ static MK12: WeaponDef = WeaponDef {
     name: "Mk12",
     mesh_path: "models/mk12/mesh/mk12.glb",
     rest_offset: Vec3::new(0.16, -0.1075, -0.729),
-    ready_offset: Vec3::new(0.071, -0.1525, -0.639),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 9.5, from_rest: 5.8 },
+    ads_speed: AdsSpeed { down: 9.5, up: 5.8 },
     hold_ads_fraction: 0.185,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.037, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.027,
@@ -2411,9 +2387,8 @@ static MK14_EBR: WeaponDef = WeaponDef {
     name: "Mk14 EBR",
     mesh_path: "models/mk14_ebr/mesh/mk14_ebr.glb",
     rest_offset: Vec3::new(0.16, -0.069, -0.83),
-    ready_offset: Vec3::new(0.071, -0.1140, -0.74),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 8.5, from_rest: 5.0 },
+    ads_speed: AdsSpeed { down: 8.5, up: 5.0 },
     hold_ads_fraction: 0.17,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.0015, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.03,
@@ -2477,9 +2452,8 @@ static SLR: WeaponDef = WeaponDef {
     name: "SLR",
     mesh_path: "models/slr/mesh/slr.glb",
     rest_offset: Vec3::new(0.16, -0.0922, -0.998),
-    ready_offset: Vec3::new(0.071, -0.1372, -0.908),
     ads_eye_relief: 0.12,
-    ads_speed: AdsSpeed { from_ready: 8.5, from_rest: 5.0 },
+    ads_speed: AdsSpeed { down: 8.5, up: 5.0 },
     hold_ads_fraction: 0.17,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0217, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.03,
@@ -2543,9 +2517,8 @@ static VSS: WeaponDef = WeaponDef {
     name: "VSS Vintorez",
     mesh_path: "models/vss/mesh/vss.glb",
     rest_offset: Vec3::new(0.16, -0.0795, -0.717),
-    ready_offset: Vec3::new(0.071, -0.1245, -0.627),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 13.0, from_rest: 7.5 },
+    ads_speed: AdsSpeed { down: 13.0, up: 7.5 },
     hold_ads_fraction: 0.24,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.009, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.02,
@@ -2609,9 +2582,8 @@ static SVD: WeaponDef = WeaponDef {
     name: "SVD Dragunov",
     mesh_path: "models/svd/mesh/svd.glb",
     rest_offset: Vec3::new(0.16, -0.1068, -0.974),
-    ready_offset: Vec3::new(0.071, -0.1518, -0.884),
     ads_eye_relief: 0.03,
-    ads_speed: AdsSpeed { from_ready: 6.5, from_rest: 3.8 },
+    ads_speed: AdsSpeed { down: 6.5, up: 3.8 },
     hold_ads_fraction: 0.12,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0363, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.034,
@@ -2675,9 +2647,8 @@ static MOSIN_NAGANT: WeaponDef = WeaponDef {
     name: "Mosin-Nagant",
     mesh_path: "models/mosin_nagant/mesh/mosin_nagant.glb",
     rest_offset: Vec3::new(0.16, -0.0563, -0.753),
-    ready_offset: Vec3::new(0.071, -0.1013, -0.663),
     ads_eye_relief: 0.12,
-    ads_speed: AdsSpeed { from_ready: 5.5, from_rest: 3.0 },
+    ads_speed: AdsSpeed { down: 5.5, up: 3.0 },
     hold_ads_fraction: 0.1,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.0142, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.04,
@@ -2741,9 +2712,8 @@ static R1895: WeaponDef = WeaponDef {
     name: "R1895",
     mesh_path: "models/r1895/mesh/r1895.glb",
     rest_offset: Vec3::new(0.095, -0.0202, -0.308),
-    ready_offset: Vec3::new(0.045, -0.0952, -0.218),
     ads_eye_relief: 0.14,
-    ads_speed: AdsSpeed { from_ready: 20.0, from_rest: 12.0 },
+    ads_speed: AdsSpeed { down: 20.0, up: 12.0 },
     hold_ads_fraction: 0.54,
     sprint_carry: SprintCarry { offset: Vec3::new(0.03, 0.06, 0.12), yaw_deg: 12.0, pitch_deg: 60.0, roll_deg: 8.0 },
     ads_settle_miss_m: 0.008,
@@ -2807,9 +2777,8 @@ static P90: WeaponDef = WeaponDef {
     name: "P90",
     mesh_path: "models/p90/mesh/p90.glb",
     rest_offset: Vec3::new(0.16, -0.1348, -0.29),
-    ready_offset: Vec3::new(0.071, -0.1798, -0.2),
     ads_eye_relief: 0.11,
-    ads_speed: AdsSpeed { from_ready: 17.0, from_rest: 10.0 },
+    ads_speed: AdsSpeed { down: 17.0, up: 10.0 },
     hold_ads_fraction: 0.32,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.0643, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.012,
@@ -2873,9 +2842,8 @@ static S686: WeaponDef = WeaponDef {
     name: "S686",
     mesh_path: "models/s686/mesh/s686.glb",
     rest_offset: Vec3::new(0.16, -0.0581, -0.87),
-    ready_offset: Vec3::new(0.071, -0.1031, -0.78),
     ads_eye_relief: 0.12,
-    ads_speed: AdsSpeed { from_ready: 11.0, from_rest: 6.5 },
+    ads_speed: AdsSpeed { down: 11.0, up: 6.5 },
     hold_ads_fraction: 0.22,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, -0.0124, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.024,
@@ -2947,14 +2915,13 @@ static M24: WeaponDef = WeaponDef {
     name: "M24",
     mesh_path: "models/m24/mesh/m24.glb",
     rest_offset: Vec3::new(0.160, -0.0905, -0.9770),
-    ready_offset: Vec3::new(0.045, -0.1655, -0.887),
     // Was 0.02, the closest of any weapon here: the eye came right up behind
     // the rear glass and the tube filled the view it was aiming through.
     // 0.10 stands the rifle off about where the AK holds its optic, and the
     // glass sits 55mm further down the tube again, clear of the 100mm near
     // plane either way.
     ads_eye_relief: 0.10,
-    ads_speed: AdsSpeed { from_ready: 5.5, from_rest: 2.575 },
+    ads_speed: AdsSpeed { down: 5.5, up: 2.575 },
     hold_ads_fraction: 0.096,
     sprint_carry: SprintCarry { offset: Vec3::new(-0.05, 0.02, 0.08), yaw_deg: 40.0, pitch_deg: -14.0, roll_deg: 20.0 },
     ads_settle_miss_m: 0.040,
@@ -3039,11 +3006,10 @@ static UMP45: WeaponDef = WeaponDef {
     // one is 0.34m out and the same number threw it 26 degrees, half off the
     // right of the screen.
     rest_offset: Vec3::new(0.090, -0.0700, -0.3375),
-    ready_offset: Vec3::new(0.025, -0.1150, -0.2475),
     ads_eye_relief: 0.11,
     // Lightest of the five and the shortest: it comes up faster than either
     // carbine and far faster than the bolt gun.
-    ads_speed: AdsSpeed { from_ready: 18.0, from_rest: 10.0 },
+    ads_speed: AdsSpeed { down: 18.0, up: 10.0 },
     hold_ads_fraction: 0.330,
     // Muzzle up rather than across the body, and pitch_deg positive where
     // every rifle's is negative. The lift is small: the angle is what says
@@ -3129,13 +3095,12 @@ static DEAGLE: WeaponDef = WeaponDef {
     // comes to the middle of the chest and goes out on the arms.
 
     rest_offset: Vec3::new(0.095, -0.0450, -0.4200),
-    ready_offset: Vec3::new(0.045, -0.1200, -0.33),
     // Furthest eye relief of the five: a pistol's rear sight ends up further
     // from the eye than a carbine's, because the arms set the distance rather
     // than the stock.
     ads_eye_relief: 0.14,
     // Fastest up of anything here. There is nothing to shoulder.
-    ads_speed: AdsSpeed { from_ready: 20.0, from_rest: 12.0 },
+    ads_speed: AdsSpeed { down: 20.0, up: 12.0 },
     // Highest of the five by a wide margin. Two hands and no stock is three
     // points of contact short of a rifle, and the sights show every one of
     // them missing.
@@ -3253,17 +3218,6 @@ pub(crate) fn switch_weapon(
     gun.ammo = rounds.unwrap_or(0);
     gun.magazine_out = rounds.is_none();
     gun.reload_remaining = 0.0;
-    // A sidearm comes out at the ready rather than level. It is short enough
-    // that holding it out buys no sight picture, and one carried straight
-    // with nothing to point at reads as a threat the player is not making.
-    //
-    // Armed rather than forced, so everything that already puts a weapon
-    // back to rest still does -- breaking into a run most of all, which a
-    // standing flag would have overridden.
-    if crate::inventory::is_sidearm(wanted) {
-        gun.ready_armed = true;
-    }
-
     for entity in &mesh_parts {
         commands.entity(entity).despawn();
     }
