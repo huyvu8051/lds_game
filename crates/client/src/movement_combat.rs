@@ -802,11 +802,12 @@ pub(crate) fn shoot(
     spatial_query: SpatialQuery,
     // Grouped because Bevy takes sixteen parameters and this is the
     // seventeenth thing the shot needs.
-    (touch_firing, casings, mouse, aim_distance): (
+    (touch_firing, casings, mouse, aim_distance, aim_socket): (
         Res<TouchFiring>,
         Res<CasingAssets>,
         Res<ButtonInput<MouseButton>>,
         Res<AimDistance>,
+        Query<&GlobalTransform, (With<crate::AimSocket>, Without<FpsCamera>)>,
     ),
     (mut cooldown, mut burst_left, mut burst_gap): (Local<f32>, Local<u32>, Local<f32>),
     (mut smoke_materials, mut flash_materials, mut shock): (
@@ -994,6 +995,34 @@ pub(crate) fn shoot(
         let aim_point = camera_transform.translation + view_axis * aim_distance.0;
         (aim_point - muzzle_world_pos).normalize_or_zero()
     };
+
+    // SHOT_LOG=1 prints, per round, where the shot went against the two
+    // places a player might think it is going: the camera's own forward,
+    // which is the hip crosshair, and the weapon's bore, which is what the
+    // sighted mark is hung off. If the mark climbs and the shot does not,
+    // the angle to the bore is what says so.
+    if std::env::var("SHOT_LOG").is_ok() {
+        // The mark is hung off Socket_Aim, not off the muzzle, so that is
+        // what the shot has to be measured against. Signed in pitch: a
+        // negative number is the shot landing below the mark.
+        // Straight off the socket in world space, which is the frame the
+        // shot direction is already in.
+        let mark = aim_socket
+            .single()
+            .map(|aim| aim.rotation() * Vec3::NEG_Z)
+            .unwrap_or(bore * Vec3::NEG_Z);
+        let up = camera_transform.rotation * Vec3::Y;
+        let pitch = |v: Vec3| (v.dot(up)).asin().to_degrees();
+        info!(
+            "[shot] ads={} climb={:.3} | ban-tam {:+.3} do | tam-camera {:+.3} do | nong-tam {:+.3} do | spread={:.4}",
+            aiming,
+            recoil.climb,
+            pitch(bore_axis) - pitch(mark),
+            pitch(mark) - pitch(*camera_transform.forward()),
+            pitch(bore * Vec3::NEG_Z) - pitch(mark),
+            spread,
+        );
+    }
 
     let spread_x = ops::sin(time.elapsed_secs() * 613.0) * spread;
     let spread_y = ops::sin(time.elapsed_secs() * 811.0) * spread;
