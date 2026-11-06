@@ -983,9 +983,7 @@ pub(crate) fn shoot(
     let bore_axis = if aiming {
         let sight_line = bore * Vec3::NEG_Z;
         // Eased from the bore onto the mark across the near band.
-        let converge = ((aim_distance.0 - crate::SIGHT_CONVERGE_NEAR_M)
-            / (crate::SIGHT_CONVERGE_FAR_M - crate::SIGHT_CONVERGE_NEAR_M))
-            .clamp(0.0, 1.0);
+        let converge = crate::SIGHT_CONVERGE.amount(aim_distance.0);
         // The mark hangs off the eye down the bore, so this is what it covers.
         let marked = camera_transform.translation + sight_line * aim_distance.0;
         let onto_mark = (marked - muzzle_world_pos).normalize_or_zero();

@@ -310,11 +310,35 @@ const AIM_BOB_MULTIPLIER: f32 = 0.35;
 /// SENSITIVITY is degrees of lag per radian the view turned, so sway follows
 /// the view rather than the mouse and stays right at any sensitivity or zoom.
 /// Where a sighted shot stops running parallel to the sight line and starts
-/// converging on what the mark covers. Under the near distance the bullet
-/// lands low by the sight's height; over the far one it goes where the mark
-/// points.
-const SIGHT_CONVERGE_NEAR_M: f32 = 10.0;
-const SIGHT_CONVERGE_FAR_M: f32 = 25.0;
+/// converging on what the mark covers.
+///
+/// One band for every weapon rather than a number each. What the band is
+/// correcting for is the height of the sight over the bore, and every weapon
+/// here carries its sight within a couple of centimetres of every other --
+/// a table of five would be five places to keep honest for a difference
+/// nobody can see.
+struct SightConverge {
+    /// Short of this the shot runs parallel to the sight line, so it lands
+    /// low by the whole height of the sight above the bore.
+    near_m: f32,
+    /// At this and beyond the shot goes where the mark points.
+    far_m: f32,
+}
+
+impl SightConverge {
+    /// How far onto the mark a shot going this far has come: 0 parallel to
+    /// the sight line, 1 dead on it.
+    fn amount(&self, distance: f32) -> f32 {
+        ((distance - self.near_m) / (self.far_m - self.near_m)).clamp(0.0, 1.0)
+    }
+}
+
+/// Converging from the muzzle rather than from some distance out: the error
+/// short of the band is what the player actually walks into, and a band that
+/// starts late holds the full sight height -- eight and a half centimetres on
+/// the AK's holo -- flat across every metre of it. Starting at zero costs
+/// nothing and halves the miss at half the range.
+const SIGHT_CONVERGE: SightConverge = SightConverge { near_m: 0.0, far_m: 5.0 };
 
 const LOOK_SWAY_SENSITIVITY: f32 = 30.0;
 const LOOK_SWAY_MAX_DEG: f32 = 3.5;
