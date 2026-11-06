@@ -225,11 +225,11 @@ fn apply_settings_to_world(world: &mut World, settings: &PersistedSettings) {
     if let (Some(saved), Some(walk)) =
         (&settings.zombie_walk, world.get_resource_mut::<ZombieWalk>())
     {
-        // Through the smart pointer once, so the four field borrows below can
-        // be taken apart.
+        // Through the smart pointer once, so the three field borrows below
+        // can be taken apart.
         let walk = walk.into_inner();
         let mut it = saved.iter();
-        for slot in [&mut walk.turn_rate, &mut walk.lean, &mut walk.hips, &mut walk.feet] {
+        for slot in [&mut walk.turn_rate, &mut walk.lean, &mut walk.hips] {
             let Some(on) = it.next() else { break };
             *slot = *on;
         }
@@ -432,7 +432,7 @@ fn read_settings_from_world(world: &World) -> PersistedSettings {
         infinite_ammo: world.get_resource::<InfiniteAmmo>().map(|r| r.0),
         zombie_walk: world
             .get_resource::<ZombieWalk>()
-            .map(|r| vec![r.turn_rate, r.lean, r.hips, r.feet]),
+            .map(|r| vec![r.turn_rate, r.lean, r.hips]),
         damage_multiplier: world.get_resource::<DamageMultiplierUi>().map(|r| r.0),
         noclip: world.get_resource::<Noclip>().map(|r| r.0),
         god_mode: world.get_resource::<GodMode>().map(|r| r.0),

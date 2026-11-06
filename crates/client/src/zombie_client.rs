@@ -195,9 +195,10 @@ impl ZombieKindAnims {
 
 #[derive(Resource)]
 pub(crate) struct ZombieAnimGltfs {
-    /// None for a kind ZOMBIE_KIND_WEIGHTS never spawns. Loading one costs
-    /// its whole texture set: zombie_female alone carries three 4096s, 192 MB
-    /// decoded, for a kind that never appears.
+    /// None for a kind ZOMBIE_KIND_WEIGHTS never spawns: loading one costs
+    /// its whole texture set, whether or not anybody meets it. All three
+    /// are wanted now, and all three are cheap -- the Mixamo files carry
+    /// 1.5MB of texture apiece where the female alone used to carry 192.
     kinds: [Option<Handle<bevy::gltf::Gltf>>; 3],
     player: Handle<bevy::gltf::Gltf>,
 }
@@ -217,11 +218,8 @@ pub(crate) fn load_zombie_anim_gltfs(
     // skinned mesh whose joints are never driven is not a zombie anyone can
     // see. That is what hid the soldier in the wave mode.
     //
-    // The weights below are the sandbox's, where only the classic spawns.
-    // The wave mode sends the soldier too, and the soldier's clips come out
-    // of the classic's file -- so wanting it costs nothing that is not
-    // already loaded, and the female's 192 MB of texture is not pulled in
-    // for a kind neither mode spawns.
+    // The wave mode is still asked for separately: it sends the soldier from
+    // wave three whatever the sandbox's weights say.
     let wanted = |kind: ZombieKind| {
         ZOMBIE_KIND_WEIGHTS[kind as usize] > 0.0
             || (crate::waves::in_wave_mode() && kind != ZombieKind::Female)

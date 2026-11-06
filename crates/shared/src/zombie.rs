@@ -163,27 +163,17 @@ pub const ZOMBIE_SOLDIER_PATH: &str = "characters/zombie_soldier/mesh/zombie_sol
 
 pub const ZOMBIE_FEMALE_PATH: &str = "characters/zombie_female/mesh/zombie_female.glb";
 
-/// Which file a kind's *clips* come from, which is not always its own.
+/// Which file a kind's clips come from. Its own, now.
 ///
-/// The soldier reads the classic's. Its own glb carries three clips -- an
-/// idle, a walk and a run -- so it stood still while biting and had no crawl
-/// at all, and the classic beside it has forty-nine. The two rigs share
-/// twenty-three joints with the same names in the same order, which is what
-/// makes the loan work.
-///
-/// Their bind poses do *not* match: the inverse bind matrices differ by up
-/// to 104, an axis permutation rather than rounding, and the merge checklist
-/// in zombie_assets/CLIP_STATUS.md calls that a reason not to merge. It is
-/// the right rule for merging clips into a file. Here nothing is merged --
-/// the soldier mesh keeps its own skin and its own inverse bind matrices,
-/// and only the joint transforms are borrowed -- so the mismatch does not
-/// reach the deformation. Checked by looking: a dozen soldiers walking the
-/// classic's gait, undistorted.
+/// The soldier used to read the classic's, because its own glb carried
+/// three clips and the classic beside it had forty-nine. All three are
+/// Mixamo now and each was converted with its own copy of the same thirteen
+/// animations, so there is nothing left to borrow -- and nothing left that
+/// could be borrowed: the three rigs are 65, 72 and 63 bones. The extra
+/// ones are a cap and a coat on the soldier, hair and a skirt on the
+/// female, and a clip bound to one of those rigs does not fit the others.
 pub fn zombie_kind_anim_path(kind: ZombieKind) -> &'static str {
-    match kind {
-        ZombieKind::Classic | ZombieKind::Soldier => ZOMBIE_PATH,
-        ZombieKind::Female => ZOMBIE_FEMALE_PATH,
-    }
+    zombie_kind_mesh_path(kind)
 }
 
 #[derive(Component, Clone, Copy, PartialEq, Eq, Hash, Default, Debug, Serialize, Deserialize)]
@@ -194,7 +184,12 @@ pub enum ZombieKind {
     Female,
 }
 
-pub const ZOMBIE_KIND_WEIGHTS: [f32; 3] = [1.0, 0.0, 0.0];
+/// How often each kind spawns in the sandbox, in `ZombieKind` order.
+///
+/// All three, evenly. The female was zero for a long while because her
+/// textures cost 192MB decoded for a kind nobody met; the Mixamo rebuild
+/// put that at 1.5MB and took the reason away.
+pub const ZOMBIE_KIND_WEIGHTS: [f32; 3] = [1.0, 1.0, 1.0];
 
 /// What each kind is, beyond which mesh it wears.
 ///
@@ -267,12 +262,14 @@ pub fn zombie_kind_mesh_path(kind: ZombieKind) -> &'static str {
     }
 }
 
-pub fn zombie_kind_clip_count(kind: ZombieKind) -> usize {
-    match kind {
-        // Borrowing the classic's file means borrowing its clip count too.
-        ZombieKind::Classic | ZombieKind::Soldier => 49,
-        ZombieKind::Female => 4,
-    }
+/// The same thirteen in every file, so the tables below need no match.
+///
+/// Mixamo's two zombie packs hold thirty-six between them; these are the
+/// ones the game dispatches. Bevy reloads the whole file per animation
+/// label, so the other twenty-three would be paid for on every load and
+/// played never. They stay in `zombie_assets/zombies/_mixamo/*/raw/`.
+pub fn zombie_kind_clip_count(_kind: ZombieKind) -> usize {
+    13
 }
 
 pub const ZOMBIE_LIMP_HEALTH_FRACTION: f32 = 0.6;
@@ -280,18 +277,22 @@ pub const ZOMBIE_LIMP_HEALTH_FRACTION: f32 = 0.6;
 #[derive(Component, Default)]
 pub struct ZombieWalkVariant(pub Option<AnimationNodeIndex>);
 
-pub fn zombie_kind_healthy_walk_clips(kind: ZombieKind) -> &'static [usize] {
-    match kind {
-        ZombieKind::Classic => &[37, 38, 43, 44, 45, 46],
-        ZombieKind::Soldier | ZombieKind::Female => &[1],
-    }
+/// Clip indices are positions in the file, and the glTF exporter writes
+/// animations in alphabetical order -- not the order they were handed to
+/// it. Read off the built files rather than assumed:
+///
+///   0 bite        4 death_01    8 idle_02    12 walk_limp
+///   1 bite_02     5 death_02    9 run
+///   2 crawl       6 death_03   10 walk
+///   3 crawl_02    7 idle       11 walk_02
+pub fn zombie_kind_healthy_walk_clips(_kind: ZombieKind) -> &'static [usize] {
+    &[10, 11]
 }
 
-pub fn zombie_kind_limping_walk_clips(kind: ZombieKind) -> &'static [usize] {
-    match kind {
-        ZombieKind::Classic => &[39, 40, 41, 42],
-        ZombieKind::Soldier | ZombieKind::Female => &[1],
-    }
+/// One only: Mixamo's zombie set has a single dragging walk, the pack's
+/// "Creeping Zombie Walk", against two upright ones.
+pub fn zombie_kind_limping_walk_clips(_kind: ZombieKind) -> &'static [usize] {
+    &[12]
 }
 
 /// Clip index, and how long to let it run before physics takes the body.
@@ -299,45 +300,28 @@ pub fn zombie_kind_limping_walk_clips(kind: ZombieKind) -> &'static [usize] {
 /// These are the clip lengths, so each death plays out in full. Measured from
 /// the chest bone, clips 21 to 24 hold the body upright for the first 1.2 to
 /// 1.7 seconds, so the fall lands late in the clip either way.
-pub fn zombie_kind_death_clips(kind: ZombieKind) -> &'static [(usize, f32)] {
-    match kind {
-        ZombieKind::Classic => &[
-            (21, 3.0),
-            (22, 3.0),
-            (23, 3.0),
-            (24, 4.0),
-            (25, 3.0),
-            (26, 3.0),
-            (27, 3.0),
-            (28, 3.0),
-        ],
-        ZombieKind::Soldier | ZombieKind::Female => &[(2, 1.0)],
-    }
+pub fn zombie_kind_death_clips(_kind: ZombieKind) -> &'static [(usize, f32)] {
+    // Three, where the Meshy set had eight. Mixamo's whole zombie library
+    // holds exactly three clips that end on the floor -- hit and fall back,
+    // hit and fall forward, stumble right and fall. The seconds are the
+    // clip lengths, read off the built file, so each plays out before
+    // physics takes the body.
+    &[(4, 2.83), (5, 3.17), (6, 3.87)]
 }
 
 /// Spent: the ragdoll itself now runs on for seconds after the clip, so the
 /// body has already been still and watchable by the time this is reached.
 pub const ZOMBIE_LIE_STILL_SECONDS: f32 = 0.0;
 
-pub fn zombie_kind_pose_clips(kind: ZombieKind) -> [usize; ZombiePose::COUNT] {
-    match kind {
-        // The soldier reads the classic's file, so it reads its indices
-        // too. Leaving it on its own file's [2, 1, 0, 2, 2] pointed Idle at
-        // index 2 of the *classic*, which is Attack -- a soldier standing
-        // still was biting the air, and so was one crawling.
-        ZombieKind::Classic | ZombieKind::Soldier => [20, 16, 0, 47, 2],
-        ZombieKind::Female => [2, 1, 0, 2, 2],
-    }
+/// Idle, Walk, Run, Crawl, Bite -- in `ZombiePose::clip_slot` order.
+pub fn zombie_kind_pose_clips(_kind: ZombieKind) -> [usize; ZombiePose::COUNT] {
+    [7, 10, 9, 2, 0]
 }
 
-/// Appended to the end of the file on purpose: these are looked up by index,
-/// so anything inserted ahead of them moves every clip after it.
-pub fn zombie_kind_crawl_clips(kind: ZombieKind) -> &'static [usize] {
-    match kind {
-        ZombieKind::Classic => &[47, 48],
-        // Neither has one yet, so they fall back to the pose slot.
-        ZombieKind::Soldier | ZombieKind::Female => &[],
-    }
+/// A crawl and a faster one. Every kind has both now, so none of them falls
+/// back to the pose slot.
+pub fn zombie_kind_crawl_clips(_kind: ZombieKind) -> &'static [usize] {
+    &[2, 3]
 }
 
 pub fn zombie_kind_metal_model_name(kind: ZombieKind) -> &'static str {

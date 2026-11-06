@@ -1540,8 +1540,6 @@ app.init_resource::<MagazineInHand>()
             aim_zombie_heads,
             apply_bone_flinch,
             lean_zombie_into_turn,
-            attach_foot_pins,
-            pin_zombie_feet,
             // Chained: the blend decides what the left fingers hold, and both
 
             // have to land after the clip and before transforms propagate.

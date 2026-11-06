@@ -73,13 +73,11 @@ pub(crate) struct ZombieWalk {
     pub(crate) lean: bool,
     /// Let the hips point along the path while the torso comes round.
     pub(crate) hips: bool,
-    /// Pin the planted foot instead of sliding it.
-    pub(crate) feet: bool,
 }
 
 impl Default for ZombieWalk {
     fn default() -> Self {
-        Self { turn_rate: true, lean: true, hips: true, feet: true }
+        Self { turn_rate: true, lean: true, hips: true }
     }
 }
 

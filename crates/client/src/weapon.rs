@@ -583,20 +583,21 @@ static AK47: WeaponDef = WeaponDef {
     recoil: Recoil {
         strike_speed: 60.0,
         view: ViewKick {
-            climb_per_shot: 0.06,
+            climb_per_shot: 0.0, // ngửa camera lên khi bắn 
             climb_max: 0.09,
-            wander_per_shot: 0.008,
-            shove_per_shot: 0.01,
-            shove_max: 0.06,
+            wander_per_shot: 0.008,  //  lắc ngang 
+            shove_per_shot: 0.2, // giật lùi cam về sau khi bắn 
+            shove_max: 0.3,
             recover_speed: 6.6,
             rise_speed: 20.0,
         },
         weapon: WeaponKick {
             slide_back: 0.14,
             lift: 0.000,
-            pitch_deg: 0.6,
+            pitch_deg: 0.6, // độ ngửa đầu khi giật, đã có bù tâm reddot ngửa lên thì vị trí trúng
+            // đạn cũng ngửa    
             roll_deg: 0.6,
-            yaw_deg: 0.5,
+            yaw_deg: 0.6,  //  lệch lắc ngang khi giật về sau
             settle_speed: 10.0,
         },
         // Low: a heavy round out of a loose action. Spent in 56ms, inside a

@@ -477,7 +477,6 @@ pub(crate) fn spawn_settings_menu(commands: &mut Commands) {
                     spawn_cheat_toggle_button(row, "Turn rate", ZombieWalkButton(0));
                     spawn_cheat_toggle_button(row, "Lean", ZombieWalkButton(1));
                     spawn_cheat_toggle_button(row, "Hips", ZombieWalkButton(2));
-                    spawn_cheat_toggle_button(row, "Feet", ZombieWalkButton(3));
                 });
                 page.spawn((
                     Text::new("Weapons"),
@@ -971,8 +970,7 @@ fn zombie_walk_flag(walk: &mut ZombieWalk, which: usize) -> &mut bool {
     match which {
         0 => &mut walk.turn_rate,
         1 => &mut walk.lean,
-        2 => &mut walk.hips,
-        _ => &mut walk.feet,
+        _ => &mut walk.hips,
     }
 }
 
