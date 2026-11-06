@@ -442,6 +442,15 @@ pub(crate) struct ViewKick {
     pub(crate) shove_max: f32,
     /// How fast the marks above tend back to zero: the aim coming home.
     pub(crate) recover_speed: f32,
+    /// How fast the aim rises to meet them. Split off `Recoil::strike_speed`,
+    /// which still drives the weapon, because the two are read by different
+    /// things: nobody tracks the weapon, and everybody tracks the mark.
+    ///
+    /// Much above a third of the frame rate and a shot's whole rise lands
+    /// inside one frame, so the mark teleports rather than climbs -- there is
+    /// no travel to follow, only a new position, and the eye reads that as
+    /// the mark having been somewhere the shot was not.
+    pub(crate) rise_speed: f32,
 }
 
 /// What a shot does to the weapon in the hands: how much it visibly jumps,
@@ -574,17 +583,18 @@ static AK47: WeaponDef = WeaponDef {
     recoil: Recoil {
         strike_speed: 60.0,
         view: ViewKick {
-            climb_per_shot: 0.0110,
-            climb_max: 0.090,
-            wander_per_shot: 0.0060,
-            shove_per_shot: 0.03,
-            shove_max: 0.058,
+            climb_per_shot: 0.06,
+            climb_max: 0.09,
+            wander_per_shot: 0.008,
+            shove_per_shot: 0.01,
+            shove_max: 0.06,
             recover_speed: 6.6,
+            rise_speed: 20.0,
         },
         weapon: WeaponKick {
             slide_back: 0.14,
             lift: 0.000,
-            pitch_deg: 1.0,
+            pitch_deg: 0.6,
             roll_deg: 0.6,
             yaw_deg: 0.5,
             settle_speed: 10.0,
@@ -663,6 +673,7 @@ static M4A1: WeaponDef = WeaponDef {
             shove_per_shot: 0.0095,
             shove_max: 0.038,
             recover_speed: 7.4,
+            rise_speed: 24.0,
         },
         weapon: WeaponKick {
             slide_back: 0.12,
@@ -750,6 +761,7 @@ static M24: WeaponDef = WeaponDef {
             shove_per_shot: 0.4,
             shove_max: 0.925,
             recover_speed: 2.6,
+            rise_speed: 10.0,
         },
         weapon: WeaponKick {
             slide_back: 0.07,
@@ -847,6 +859,7 @@ static UMP45: WeaponDef = WeaponDef {
             shove_per_shot: 0.012,
             shove_max: 0.040,
             recover_speed: 7.0,
+            rise_speed: 22.0,
         },
         weapon: WeaponKick {
             slide_back: 0.130,
@@ -932,6 +945,7 @@ static DEAGLE: WeaponDef = WeaponDef {
             shove_per_shot: 0.250,
             shove_max: 0.600,
             recover_speed: 4.0,
+            rise_speed: 14.0,
         },
         weapon: WeaponKick {
             slide_back: 0.190,

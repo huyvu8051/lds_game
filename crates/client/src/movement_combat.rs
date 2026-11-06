@@ -411,7 +411,7 @@ pub(crate) fn apply_view_recoil(
         recoil.wander_target *= settling;
         recoil.shove_target *= settling;
 
-        let strike = 1.0 - ops::exp(-kick.strike_speed * time.delta_secs());
+        let strike = 1.0 - ops::exp(-kick.view.rise_speed * time.delta_secs());
         recoil.climb += (recoil.climb_target - recoil.climb) * strike;
         recoil.wander += (recoil.wander_target - recoil.wander) * strike;
         recoil.shove += (recoil.shove_target - recoil.shove) * strike;

@@ -338,7 +338,7 @@ impl SightConverge {
 /// starts late holds the full sight height -- eight and a half centimetres on
 /// the AK's holo -- flat across every metre of it. Starting at zero costs
 /// nothing and halves the miss at half the range.
-const SIGHT_CONVERGE: SightConverge = SightConverge { near_m: 0.0, far_m: 5.0 };
+const SIGHT_CONVERGE: SightConverge = SightConverge { near_m: 0.0, far_m: 1.0 };
 
 const LOOK_SWAY_SENSITIVITY: f32 = 30.0;
 const LOOK_SWAY_MAX_DEG: f32 = 3.5;
@@ -1289,10 +1289,6 @@ app.init_resource::<MagazineInHand>()
                     // clock, or the press that asked for it would be eaten.
 
                     (movement_combat::slap_magazine_back, gun_view_animation).chain(),
-                    // Grouped only to stay inside the twenty this tuple
-                    // takes; chained because the shot reads the distance the
-                    // first one measures.
-                    (movement_combat::measure_aim_distance, shoot).chain(),
                     (movement_combat::reload_empty_well, reload_gun).chain(),
                     // After it: the grace period it opens is counted here.
                     movement_combat::settle_quiet_reload,
@@ -1301,6 +1297,20 @@ app.init_resource::<MagazineInHand>()
                     // be made before it is applied.
                     (suggest_auto_lean, apply_lean_input).chain(),
                     apply_view_recoil,
+                    // After the recoil, not before it. The shot reads the
+                    // camera's `Transform`, which this writes, so firing
+                    // first sent the round out along the view as it stood at
+                    // the end of the previous frame while the mark was drawn
+                    // from this one -- a whole frame of climb between where
+                    // the player was looking and where the bullet went, and
+                    // at sixty a frame is most of the rise. The mark read
+                    // high by four tenths of a degree every shot, which at
+                    // thirty metres is twenty centimetres.
+                    //
+                    // Grouped only to stay inside the twenty this tuple
+                    // takes; chained because the shot reads the distance the
+                    // first one measures.
+                    (movement_combat::measure_aim_distance, shoot).chain(),
                     apply_aim_zoom,
                     apply_aim_dof,
                     send_player_input.run_if(map::world_ready),
