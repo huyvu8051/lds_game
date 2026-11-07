@@ -33,6 +33,8 @@ pub(crate) fn spawn_blood_effects(
     hit_point: Vec3,
     hit_normal: Vec3,
     bone: Option<(Entity, &GlobalTransform)>,
+    // The body that was hit, kept out of the rays below.
+    hit_body: Option<Entity>,
     killed: bool,
     shot_direction: Vec3,
     blood: BloodEnabled,
@@ -61,7 +63,7 @@ pub(crate) fn spawn_blood_effects(
     }
     // The exit wound is a stain on whatever is behind the target, so it goes
     // with the stains rather than with the spray.
-    spawn_exit_wound(commands, blood_assets, spatial_query, hit_point, shot_direction, time.elapsed_secs() * 541.0);
+    spawn_exit_wound(commands, blood_assets, spatial_query, hit_point, shot_direction, time.elapsed_secs() * 541.0, hit_body);
 
     match bone {
         Some((entity, bone_global)) => {
@@ -78,7 +80,15 @@ pub(crate) fn spawn_blood_effects(
     let Ok(down) = Dir3::new(Vec3::NEG_Y) else {
         return;
     };
-    let filter = SpatialQueryFilter::default();
+    // The ray starts inside the body it just hit, and `solid` reports a ray
+    // that begins inside a shape as a hit at zero distance. So the floor
+    // came back as the victim's own chest, and the stain -- which has no
+    // parent, because it is meant for the ground -- hung in the air where
+    // the zombie had been standing. Two to four of them, every shot.
+    let filter = match hit_body {
+        Some(body) => SpatialQueryFilter::default().with_excluded_entities([body]),
+        None => SpatialQueryFilter::default(),
+    };
     for i in 0..count {
         let seed = time.elapsed_secs() * 613.0 + i as f32 * 219.3;
         let jitter = Vec3::new(ops::sin(seed), 0.0, ops::sin(seed * 1.7)) * BLOOD_FLOOR_STAIN_SPREAD;
@@ -284,6 +294,7 @@ fn spawn_exit_wound(
     hit_point: Vec3,
     shot_direction: Vec3,
     seed_base: f32,
+    hit_body: Option<Entity>,
 ) {
     let Ok(forward) = Dir3::new(shot_direction) else {
         return;
@@ -310,7 +321,13 @@ fn spawn_exit_wound(
     let exit_point = hit_point + *forward * BLOOD_EXIT_WOUND_OFFSET;
     spawn_blood_burst(commands, blood_assets, exit_point, *forward, seed_base * 1.7);
 
-    let filter = SpatialQueryFilter::default();
+    // Behind the target, not the target: this ray leaves from inside the body
+    // it just went through, and a solid cast answers a ray that starts inside
+    // a shape with that shape, at zero distance.
+    let filter = match hit_body {
+        Some(body) => SpatialQueryFilter::default().with_excluded_entities([body]),
+        None => SpatialQueryFilter::default(),
+    };
     for i in 0..BLOOD_WALL_STAIN_COUNT {
         let seed = seed_base + i as f32 * 263.1;
         let jitter = (lateral * ops::sin(seed * 1.3) + other * ops::sin(seed * 2.1)) * BLOOD_WALL_STAIN_SPREAD;

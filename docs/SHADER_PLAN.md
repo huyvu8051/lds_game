@@ -138,8 +138,40 @@ creeping across the body needs a material on a skinned mesh — the deepest
 coupling of anything here.
 
 ### Projected decals — tier 2
-Blood is a flat quad, so it clips through curved walls and stair edges. Proper
-decal projection needs depth reconstruction.
+Blood is a flat quad, so it clips through curved walls and stair edges, and at
+a corner it juts out into the air on the far side. Proper decal projection
+needs depth reconstruction.
+
+**What the shipped games do.** Not quads. A decal is drawn as a *box volume*:
+for each pixel inside the box the fragment shader rebuilds the world position
+from the depth buffer, takes it into the box's local space, discards anything
+outside the unit cube, and reads the blood texture from what is left. The
+stain is then painted by the surface receiving it rather than by geometry of
+its own, so it wraps a corner, stops dead at a table edge, and cannot hang in
+the air — with no surface there are no pixels to shade.
+
+Two limits, and both apply here:
+
+- **It does not suit skinned characters.** The depth buffer knows where a
+  body is this frame, not which bone a stain should follow. Shipped games
+  blend wounds into the character's own material instead, or skip them.
+  Parenting the stain to the bone, which `spawn_blood_stain_on_zombie` already
+  does, is the right answer for a body.
+- **It needs the depth buffer readable mid-pass.** The Metal renderer here can
+  do that, but it is a new pass, not an edit to `blood.rs`.
+
+**A cheaper half**, if the full thing is not wanted yet: raycast the quad's
+four corners, and shrink or drop the stain when a corner finds no surface.
+That ends the jutting without any shader work. It does not wrap a corner —
+the stain just gets smaller near one.
+
+**Already fixed, and not this.** Stains used to hang in mid-air, which looked
+like the same fault and was not. The floor-stain ray starts at the hit point,
+which is *inside* the body that was hit, and `cast_ray`'s `solid` flag reports
+a ray beginning inside a shape as a hit at zero distance. So the floor came
+back as the victim's chest, and an unparented stain was left there when the
+zombie walked on — two to four of them, every shot. The rays now exclude the
+body they came from.
 
 ## Rules of thumb
 
