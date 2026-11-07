@@ -178,28 +178,22 @@ pub(crate) struct GunMeshPart;
 
 #[derive(Resource)]
 pub(crate) struct ZombieKindAnims {
-    classic: (Handle<AnimationGraph>, Vec<AnimationNodeIndex>),
-    soldier: (Handle<AnimationGraph>, Vec<AnimationNodeIndex>),
-    female: (Handle<AnimationGraph>, Vec<AnimationNodeIndex>),
+    kinds: [(Handle<AnimationGraph>, Vec<AnimationNodeIndex>); ZombieKind::COUNT],
 }
 
 impl ZombieKindAnims {
     fn slot(&self, kind: ZombieKind) -> &(Handle<AnimationGraph>, Vec<AnimationNodeIndex>) {
-        match kind {
-            ZombieKind::Classic => &self.classic,
-            ZombieKind::Soldier => &self.soldier,
-            ZombieKind::Female => &self.female,
-        }
+        &self.kinds[kind.index()]
     }
 }
 
 #[derive(Resource)]
 pub(crate) struct ZombieAnimGltfs {
     /// None for a kind ZOMBIE_KIND_WEIGHTS never spawns: loading one costs
-    /// its whole texture set, whether or not anybody meets it. All three
-    /// are wanted now, and all three are cheap -- the Mixamo files carry
+    /// its whole texture set, whether or not anybody meets it. All seven are
+    /// wanted now, and all seven are cheap -- the Mixamo files carry 0.1 to
     /// 1.5MB of texture apiece where the female alone used to carry 192.
-    kinds: [Option<Handle<bevy::gltf::Gltf>>; 3],
+    kinds: [Option<Handle<bevy::gltf::Gltf>>; ZombieKind::COUNT],
     player: Handle<bevy::gltf::Gltf>,
 }
 
@@ -228,11 +222,7 @@ pub(crate) fn load_zombie_anim_gltfs(
         wanted(kind).then(|| asset_server.load(zombie_kind_anim_path(kind)))
     };
     ZombieAnimGltfs {
-        kinds: [
-            load(ZombieKind::Classic),
-            load(ZombieKind::Soldier),
-            load(ZombieKind::Female),
-        ],
+        kinds: ZombieKind::ALL.map(load),
         player: asset_server.load(tuning.anim_source_or_mesh().to_string()),
     }
 }
@@ -273,18 +263,10 @@ pub(crate) fn build_zombie_anims_when_loaded(
     let clips_of = |handle: Option<&Handle<bevy::gltf::Gltf>>| -> &[Handle<AnimationClip>] {
         handle.and_then(|h| gltfs.get(h)).map_or(&[][..], |gltf| &gltf.animations)
     };
-    let classic = clips_of(pending.of(ZombieKind::Classic));
-    let soldier = clips_of(pending.of(ZombieKind::Soldier));
-    let female = clips_of(pending.of(ZombieKind::Female));
+    let by_kind = ZombieKind::ALL.map(|kind| clips_of(pending.of(kind)));
     let player = clips_of(Some(&pending.player));
 
-    let all = |kind: ZombieKind| -> &[Handle<AnimationClip>] {
-        match kind {
-            ZombieKind::Classic => classic,
-            ZombieKind::Soldier => soldier,
-            ZombieKind::Female => female,
-        }
-    };
+    let all = |kind: ZombieKind| -> &[Handle<AnimationClip>] { by_kind[kind.index()] };
 
     commands.insert_resource(ZombieAnim::build(&mut graphs, |kind, index| {
         all(kind).get(index).cloned().unwrap_or_else(|| {
@@ -296,34 +278,24 @@ pub(crate) fn build_zombie_anims_when_loaded(
             Handle::default()
         })
     }));
-    commands.insert_resource(build_zombie_kind_anims(
-        &mut graphs,
-        classic,
-        soldier,
-        female,
-    ));
+    commands.insert_resource(build_zombie_kind_anims(&mut graphs, &by_kind));
     commands.insert_resource(build_player_model_anim(&mut graphs, &tuning, player));
     commands.remove_resource::<ZombieAnimGltfs>();
 }
 
 fn build_zombie_kind_anims(
     graphs: &mut Assets<AnimationGraph>,
-    classic: &[Handle<AnimationClip>],
-    soldier: &[Handle<AnimationClip>],
-    female: &[Handle<AnimationClip>],
+    by_kind: &[&[Handle<AnimationClip>]; ZombieKind::COUNT],
 ) -> ZombieKindAnims {
-    let mut build = |kind: ZombieKind, all: &[Handle<AnimationClip>]| {
+    let mut build = |kind: ZombieKind| {
+        let all = by_kind[kind.index()];
         let clips: Vec<Handle<AnimationClip>> = (0..zombie_kind_clip_count(kind))
             .filter_map(|i| all.get(i).cloned())
             .collect();
         let (graph, nodes) = AnimationGraph::from_clips(clips);
         (graphs.add(graph), nodes)
     };
-    ZombieKindAnims {
-        classic: build(ZombieKind::Classic, classic),
-        soldier: build(ZombieKind::Soldier, soldier),
-        female: build(ZombieKind::Female, female),
-    }
+    ZombieKindAnims { kinds: ZombieKind::ALL.map(&mut build) }
 }
 
 #[derive(Resource)]

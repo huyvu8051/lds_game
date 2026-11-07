@@ -11,6 +11,7 @@
 //! deciding how many zombies there should be.
 
 use bevy::prelude::*;
+use shared::ZombieKind;
 
 /// What a wave is allowed to spend. Rises by a flat amount so the early
 /// waves grow fast in proportion and the late ones grow slowly, which is the
@@ -141,24 +142,33 @@ impl Wave {
         shared::ZOMBIE_MAX_HEALTH * (1.0 + WAVE_HEALTH_GAIN * n as f32)
     }
 
-    /// What the wave is willing to send, as weights over the three kinds.
+    /// What the wave is willing to send, as weights over the kinds.
     ///
     /// Classic alone to begin with, because the first wave should read as the
-    /// game the player already knows. The soldier joins at three and its
-    /// share keeps climbing without the classic ever dropping out -- a wave
-    /// of nothing but soldiers is slow, and slow is not hard.
+    /// game the player already knows. Everything else joins on its own wave
+    /// and climbs from there, and the classic never drops out -- a wave of
+    /// nothing but soldiers is slow, and slow is not hard.
     ///
-    /// The female stays at zero. She carries three 4096 textures, 192 MB
-    /// decoded, and her rig is a different one: twenty-eight joints in a
-    /// different order, so she cannot borrow the classic's clips the way the
-    /// soldier does and would go on standing still while biting. Dropped
-    /// until she has clips of her own.
-    fn kind_weights(&self) -> [f32; 3] {
-        let n = self.number as f32;
+    /// The order they arrive in is the order they change the fight: another
+    /// body first, then something that takes a magazine, then something that
+    /// reaches you early, then armour, then the thing you have to walk
+    /// backwards from.
+    ///
+    /// The female's note here used to say she was dropped for want of clips
+    /// and 192MB of texture. The Mixamo rebuild gave her thirteen clips of
+    /// her own and 1.5MB, so she is in from wave two with the rest.
+    fn kind_weights(&self) -> [f32; ZombieKind::COUNT] {
+        let from = |wave: u32, rate: f32| {
+            if self.number >= wave { (self.number - wave + 1) as f32 * rate } else { 0.0 }
+        };
         [
-            1.0,
-            if self.number >= 3 { (n - 2.0) * 0.20 } else { 0.0 },
-            0.0,
+            1.0,              // classic
+            from(3, 0.20),    // soldier
+            from(2, 0.25),    // female
+            from(5, 0.20),    // cop
+            from(4, 0.25),    // parasite
+            from(2, 0.30),    // prisoner
+            from(6, 0.15),    // romero
         ]
     }
 }

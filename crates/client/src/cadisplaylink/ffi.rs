@@ -43,15 +43,12 @@ fn zombie_model_specs() -> Vec<SkinnedModelSpec> {
         y_offset: 0.0,
         facing_radians: 0.0,
     }];
-    // Every kind, not the two that used to spawn. A kind missing from here
-    // has no model for the renderer to hang its joint matrices on, so it
-    // draws as nothing at all -- which is a quieter failure than it sounds,
-    // because everything else about the zombie works.
-    for kind in [
-        shared::ZombieKind::Classic,
-        shared::ZombieKind::Soldier,
-        shared::ZombieKind::Female,
-    ] {
+    // Every kind, from the list rather than by hand. A kind missing from
+    // here has no model for the renderer to hang its joint matrices on, so
+    // it draws as nothing at all -- a quieter failure than it sounds,
+    // because everything else about the zombie works. It was written out
+    // three at a time and went stale the moment there were seven.
+    for kind in shared::ZombieKind::ALL {
         specs.push(SkinnedModelSpec {
             name: shared::zombie_kind_metal_model_name(kind),
             asset_path: shared::zombie_kind_mesh_path(kind),

@@ -59,9 +59,12 @@ const CLASSIC_HITBOX_SLOTS: &[(&str, HitboxSetter)] = &[
 ];
 
 pub fn zombie_hitbox_bone_slots(kind: ZombieKind) -> &'static [(&'static str, HitboxSetter)] {
-    match kind {
-        ZombieKind::Classic | ZombieKind::Soldier | ZombieKind::Female => CLASSIC_HITBOX_SLOTS,
-    }
+    // Every kind is a Mixamo rig with the same bone names, which is the
+    // whole reason `fit_zombie_glb.js` rewrites `mixamorig5:` back to
+    // `mixamorig:`: a character whose joints miss this table is not shootable
+    // and nothing says so.
+    let _ = kind;
+    CLASSIC_HITBOX_SLOTS
 }
 
 pub fn wire_zombie_hitbox_bones(
@@ -162,6 +165,10 @@ pub const ZOMBIE_PATH: &str = "characters/zombie/mesh/zombie.glb";
 pub const ZOMBIE_SOLDIER_PATH: &str = "characters/zombie_soldier/mesh/zombie_soldier.glb";
 
 pub const ZOMBIE_FEMALE_PATH: &str = "characters/zombie_female/mesh/zombie_female.glb";
+pub const ZOMBIE_COP_PATH: &str = "characters/zombie_cop/mesh/zombie_cop.glb";
+pub const ZOMBIE_PARASITE_PATH: &str = "characters/zombie_parasite/mesh/zombie_parasite.glb";
+pub const ZOMBIE_PRISONER_PATH: &str = "characters/zombie_prisoner/mesh/zombie_prisoner.glb";
+pub const ZOMBIE_ROMERO_PATH: &str = "characters/zombie_romero/mesh/zombie_romero.glb";
 
 /// Which file a kind's clips come from. Its own, now.
 ///
@@ -182,14 +189,44 @@ pub enum ZombieKind {
     Classic,
     Soldier,
     Female,
+    Cop,
+    Parasite,
+    Prisoner,
+    Romero,
+}
+
+impl ZombieKind {
+    /// Every kind, in declaration order. The tables keyed by kind are arrays
+    /// rather than seven-arm matches, and this is what indexes them.
+    pub const ALL: [ZombieKind; 7] = [
+        ZombieKind::Classic,
+        ZombieKind::Soldier,
+        ZombieKind::Female,
+        ZombieKind::Cop,
+        ZombieKind::Parasite,
+        ZombieKind::Prisoner,
+        ZombieKind::Romero,
+    ];
+
+    pub const COUNT: usize = Self::ALL.len();
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
 }
 
 /// How often each kind spawns in the sandbox, in `ZombieKind` order.
 ///
-/// All three, evenly. The female was zero for a long while because her
-/// textures cost 192MB decoded for a kind nobody met; the Mixamo rebuild
-/// put that at 1.5MB and took the reason away.
-pub const ZOMBIE_KIND_WEIGHTS: [f32; 3] = [1.0, 1.0, 1.0];
+/// Evenly, except Romero. The female was zero for a long while because her
+/// textures cost 192MB decoded for a kind nobody met; the Mixamo rebuild put
+/// that at 1.5MB and took the reason away.
+///
+/// Romero is half because he is 49593 triangles against the 8000 to 14000
+/// the rest carry -- a legacy non-PBR character, five times the geometry for
+/// no more silhouette. Half as often is what keeps a crowd of them off the
+/// phone while still letting him show up.
+pub const ZOMBIE_KIND_WEIGHTS: [f32; ZombieKind::COUNT] =
+    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5];
 
 /// What each kind is, beyond which mesh it wears.
 ///
@@ -219,26 +256,37 @@ impl ZombieKind {
             // Dies to anything and arrives first. Cheap, so a wave that
             // spends on these sends a great many.
             ZombieKind::Female => ZombieKindStats { health: 0.6, speed: 1.35, cost: 1 },
+            // Riot gear: slower than the classic and harder to put down, but
+            // nothing like the soldier's wall of health.
+            ZombieKind::Cop => ZombieKindStats { health: 1.4, speed: 0.9, cost: 2 },
+            // The one that arrives before you have finished turning. Lean,
+            // quick, and folds to a burst.
+            ZombieKind::Parasite => ZombieKindStats { health: 0.7, speed: 1.55, cost: 2 },
+            // Unremarkable on purpose: a second body at the classic's price,
+            // so a wave can be made wider without being made harder.
+            ZombieKind::Prisoner => ZombieKindStats { health: 1.0, speed: 1.1, cost: 1 },
+            // The shambler. Slowest and toughest thing in the set, which is
+            // what the budget is paying three for.
+            ZombieKind::Romero => ZombieKindStats { health: 2.5, speed: 0.6, cost: 3 },
         }
     }
 }
 
-pub fn zombie_kind_for_phase(phase: f32, weights: [f32; 3]) -> ZombieKind {
+pub fn zombie_kind_for_phase(phase: f32, weights: [f32; ZombieKind::COUNT]) -> ZombieKind {
     let total: f32 = weights.iter().sum();
     if total <= 0.0 {
         return ZombieKind::default();
     }
     let target = phase * total;
     let mut cumulative = 0.0;
-    for (kind, &weight) in
-        [ZombieKind::Classic, ZombieKind::Soldier, ZombieKind::Female].into_iter().zip(&weights)
-    {
+    for (kind, &weight) in ZombieKind::ALL.into_iter().zip(&weights) {
         cumulative += weight;
         if target < cumulative {
             return kind;
         }
     }
-    ZombieKind::Female
+    // Only reachable on a rounding edge at phase == 1.0.
+    *ZombieKind::ALL.last().unwrap()
 }
 
 impl std::fmt::Display for ZombieKind {
@@ -247,6 +295,10 @@ impl std::fmt::Display for ZombieKind {
             ZombieKind::Classic => "classic",
             ZombieKind::Soldier => "soldier",
             ZombieKind::Female => "female",
+            ZombieKind::Cop => "cop",
+            ZombieKind::Parasite => "parasite",
+            ZombieKind::Prisoner => "prisoner",
+            ZombieKind::Romero => "romero",
         })
     }
 }
@@ -259,6 +311,10 @@ pub fn zombie_kind_mesh_path(kind: ZombieKind) -> &'static str {
         ZombieKind::Classic => ZOMBIE_PATH,
         ZombieKind::Soldier => ZOMBIE_SOLDIER_PATH,
         ZombieKind::Female => ZOMBIE_FEMALE_PATH,
+        ZombieKind::Cop => ZOMBIE_COP_PATH,
+        ZombieKind::Parasite => ZOMBIE_PARASITE_PATH,
+        ZombieKind::Prisoner => ZOMBIE_PRISONER_PATH,
+        ZombieKind::Romero => ZOMBIE_ROMERO_PATH,
     }
 }
 
@@ -329,6 +385,10 @@ pub fn zombie_kind_metal_model_name(kind: ZombieKind) -> &'static str {
         ZombieKind::Classic => "zombie_classic",
         ZombieKind::Soldier => "zombie_soldier",
         ZombieKind::Female => "zombie_female",
+        ZombieKind::Cop => "zombie_cop",
+        ZombieKind::Parasite => "zombie_parasite",
+        ZombieKind::Prisoner => "zombie_prisoner",
+        ZombieKind::Romero => "zombie_romero",
     }
 }
 
@@ -410,18 +470,12 @@ impl ZombieKindAnim {
 
 #[derive(Resource)]
 pub struct ZombieAnim {
-    classic: ZombieKindAnim,
-    soldier: ZombieKindAnim,
-    female: ZombieKindAnim,
+    kinds: [ZombieKindAnim; ZombieKind::COUNT],
 }
 
 impl ZombieAnim {
     pub fn slot(&self, kind: ZombieKind) -> &ZombieKindAnim {
-        match kind {
-            ZombieKind::Classic => &self.classic,
-            ZombieKind::Soldier => &self.soldier,
-            ZombieKind::Female => &self.female,
-        }
+        &self.kinds[kind.index()]
     }
 
     pub fn build(
@@ -445,11 +499,7 @@ impl ZombieAnim {
             let limping_walks = add_walks(zombie_kind_limping_walk_clips(kind));
             ZombieKindAnim { graph: graphs.add(graph), poses, deaths, crawls, healthy_walks, limping_walks }
         };
-        Self {
-            classic: build_kind(ZombieKind::Classic),
-            soldier: build_kind(ZombieKind::Soldier),
-            female: build_kind(ZombieKind::Female),
-        }
+        Self { kinds: ZombieKind::ALL.map(&mut build_kind) }
     }
 }
 
