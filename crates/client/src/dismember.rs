@@ -133,6 +133,9 @@ fn spray(commands: &mut Commands, blood: &BloodAssets, at: Vec3, along: Vec3, co
             Mesh3d(blood.particle_mesh.clone()),
             MeshMaterial3d(blood.particle_material.clone()),
             Transform::from_translation(at),
+            // Nothing to keep out of the way here: a severance bleeds from a
+            // limb that is already its own loose piece, and the limb is on the
+            // corpse layer, which blood ignores.
             BloodParticle { velocity: dir * speed, remaining: BLOOD_PARTICLE_LIFETIME },
         ));
     }

@@ -541,6 +541,10 @@ const BLOOD_WALL_STAIN_SPREAD: f32 = 0.22;
 const BLOOD_MIST_SIZE_SCALE: f32 = 1.9;
 const BLOOD_MIST_LIFETIME_SCALE: f32 = 2.1;
 
+/// A droplet's own landing mark. Smaller than a wound's: this is one drop
+/// arriving, and the spray throws eleven of them.
+const BLOOD_DROPLET_STAIN_SIZE: f32 = 0.10;
+
 const BLOOD_FLOOR_RAYCAST_DISTANCE: f32 = 5.0;
 const BLOOD_FLOOR_STAIN_MIN: usize = 1;
 const BLOOD_FLOOR_STAIN_MAX: usize = 3;

@@ -37,6 +37,8 @@ pub(crate) struct BloodAssets {
     pub(crate) particle_mesh: Handle<Mesh>,
     pub(crate) particle_material: Handle<StandardMaterial>,
     pub(crate) stain_mesh: Handle<Mesh>,
+    /// Smaller than the others: this is one droplet landing, not a wound.
+    pub(crate) droplet_stain_mesh: Handle<Mesh>,
     pub(crate) floor_stain_mesh: Handle<Mesh>,
     pub(crate) stain_materials: Vec<Handle<StandardMaterial>>,
     pub(crate) wall_stain_mesh: Handle<Mesh>,
@@ -191,6 +193,9 @@ pub(crate) fn update_blood_particles(
     mut commands: Commands,
     time: Res<Time>,
     camera: Query<&GlobalTransform, With<FpsCamera>>,
+    spatial_query: SpatialQuery,
+    blood_assets: Res<BloodAssets>,
+    blood: Res<BloodEnabled>,
     mut query: Query<(Entity, &mut Transform, &mut BloodParticle)>,
 ) {
     let dt = time.delta_secs();
@@ -204,7 +209,37 @@ pub(crate) fn update_blood_particles(
             over_budget -= 1;
         }
         particle.velocity.y += BLOOD_PARTICLE_GRAVITY * dt;
-        transform.translation += particle.velocity * dt;
+        let step = particle.velocity * dt;
+
+        // Where a droplet lands is where a stain belongs. The spray and the
+        // staining used to be unrelated -- droplets flew and vanished, while
+        // stains were placed by their own rays from the hit point -- so blood
+        // never arrived anywhere it had been seen going. Cast along the step
+        // about to be taken, so nothing is missed between frames.
+        if blood.stains && particle.remaining > 0.0 {
+            if let Ok(dir) = Dir3::new(step) {
+                let reach = step.length();
+                if reach > 1e-4 {
+                    if let Some(hit) =
+                        spatial_query.cast_ray(transform.translation, dir, reach, true, &world_filter())
+                    {
+                        let at = transform.translation + *dir * hit.distance;
+                        spawn_blood_stain(
+                            &mut commands,
+                            &blood_assets,
+                            None,
+                            at,
+                            hit.normal,
+                            at.x * 311.0 + at.z * 97.0,
+                            blood_assets.droplet_stain_mesh.clone(),
+                        );
+                        commands.entity(entity).try_despawn();
+                        continue;
+                    }
+                }
+            }
+        }
+        transform.translation += step;
 
         if let Some(eye) = eye {
             let to_eye = (eye - transform.translation).normalize_or_zero();

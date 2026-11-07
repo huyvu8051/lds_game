@@ -179,6 +179,7 @@ pub(crate) fn setup_common(
             })
             .collect(),
         wall_stain_mesh: meshes.add(Rectangle::new(BLOOD_WALL_STAIN_SIZE, BLOOD_WALL_STAIN_SIZE)),
+        droplet_stain_mesh: meshes.add(Rectangle::new(BLOOD_DROPLET_STAIN_SIZE, BLOOD_DROPLET_STAIN_SIZE)),
         burst_mesh: meshes.add(Rectangle::new(BLOOD_BURST_SIZE, BLOOD_BURST_SIZE)),
         // Generated, not loaded. The burst used to borrow splatter_{i}.png --
         // the dried stain the floor gets -- and grow it while fading, which
