@@ -35,6 +35,7 @@ mod weapon;
 mod items;
 mod inventory;
 mod zombie_locomotion;
+mod blood_burst;
 mod inventory_screen;
 mod grenade;
 mod weapon_swap;

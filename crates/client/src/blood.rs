@@ -41,6 +41,7 @@ pub(crate) struct BloodAssets {
     pub(crate) stain_materials: Vec<Handle<StandardMaterial>>,
     pub(crate) wall_stain_mesh: Handle<Mesh>,
     pub(crate) burst_mesh: Handle<Mesh>,
+    /// Frame sequences, `[variant][frame]`. A flipbook, not a fade ladder.
     pub(crate) burst_materials: Vec<Vec<Handle<StandardMaterial>>>,
 }
 
@@ -231,10 +232,6 @@ pub(crate) struct BloodBurst {
     variant: usize,
 }
 
-/// Steps in the burst's fade ladder. The burst lives 0.22s, so at 60Hz this is
-/// about one step a frame -- as smooth as the frame rate can show.
-pub(crate) const BLOOD_BURST_FADE_STEPS: usize = 10;
-
 fn spawn_blood_burst(
     commands: &mut Commands,
     blood_assets: &BloodAssets,
@@ -284,13 +281,12 @@ pub(crate) fn update_blood_bursts(
                 transform.rotation = Quat::from_rotation_arc(Vec3::Z, to_eye) * Quat::from_rotation_z(burst.spin);
             }
         }
-        let Some(ladder) = blood_assets.burst_materials.get(burst.variant) else {
+        let Some(frames) = blood_assets.burst_materials.get(burst.variant) else {
             continue;
         };
-        let step = ((life * BLOOD_BURST_FADE_STEPS as f32) as usize).min(BLOOD_BURST_FADE_STEPS - 1);
-        if let Some(rung) = ladder.get(step) {
-            if material.0 != *rung {
-                material.0 = rung.clone();
+        if let Some(frame) = frames.get(crate::blood_burst::burst_frame_index(life)) {
+            if material.0 != *frame {
+                material.0 = frame.clone();
             }
         }
     }
