@@ -106,6 +106,56 @@ They fade out over `BLOOD_STAIN_FADE_SECONDS` through a shared ladder of
 materials rather than a material per stain, so everything on the same rung
 still batches. Before this a stain vanished between one frame and the next.
 
+## Fitting the surface, without a depth buffer
+
+A stain used to be a flat quad laid tangent at the hit. On a corner, half of
+it hung in open air; on anything curved it clipped through. The shipped
+answer is a projected decal: draw the stain as a box volume and have the
+fragment shader rebuild world position from the depth buffer, discarding what
+falls outside the box, so the stain is painted by the surface receiving it
+and has no geometry of its own to stick out.
+
+**That was priced and rejected.** The Metal renderer has no depth prepass and
+throws depth away (`set_store_action(DontCare)`), and scene and UI share one
+command encoder, so a decal pass means cutting one pass into three. On a tile
+GPU that is the thing not to do, and it breaks the MSAA resolve besides,
+which sits at the end of the one pass today. The alternative that keeps one
+pass — a second colour attachment carrying world position, read back through
+programmable blending — costs no bandwidth but means touching both scene
+shaders and about twelve pipeline descriptors.
+
+**What is done instead is the same idea on the CPU, at spawn.** Where a
+projected decal asks the depth buffer what surface is under each pixel, this
+asks the physics world what surface is under each of 81 sample points, and
+builds geometry out of the answers:
+
+- Each grid point casts along the stain's normal from `BLOOD_STAIN_CONFORM_DEPTH`
+  above the hit plane to the same distance below. The hit becomes a vertex,
+  **carrying its own normal**, so the lighting is the receiving surface's
+  rather than one flat plane's.
+- A cell with any corner over open air is dropped. The stain stops dead at an
+  edge instead of hanging past it.
+- A face turned further than `BLOOD_STAIN_FACING_MIN` from the stain's normal
+  is rejected, not stretched onto. A projected decal makes the same choice
+  for the same reason, so like one, **this does not carry round a sharp
+  corner** — it ends at it.
+- `BLOOD_STAIN_CONFORM_DEPTH` is the depth of the decal box by another name,
+  and decides the same thing: a step inside the reach is draped over, a lip
+  taller than it ends the stain.
+
+**The common case still costs four rays and still batches.** Before building
+anything, the four corners are sampled; if they all sit within
+`BLOOD_STAIN_FLAT_TOLERANCE` of the hit plane, the stain is laid flat on the
+shared quad exactly as before. Only a stain that is actually on something
+uneven pays for 81 rays and a mesh of its own. Marks under
+`BLOOD_STAIN_CONFORM_MIN_SIZE` — the 10cm droplet marks, which are also the
+most numerous — skip the test entirely.
+
+**What this does not fix** is the sorting: stains are still alpha-blended
+quads that sort per object, so two overlapping ones can swap order as the
+camera moves. Only writing into a GBuffer fixes that, and there is no
+GBuffer.
+
 ## Why there is no stain on the body
 
 There was one: a 22cm quad parented to the bone that was hit. It read as
@@ -148,15 +198,6 @@ the same reason: in a fast shooter the body is gone before anyone can look.
 The blood that reads as theirs is the spray and the marks left on the world.
 
 ## Not done
-
-**Stains jut out at wall edges.** A stain is a flat quad, so on a corner half
-of it hangs in open air. The real answer is a projected decal — draw it as a
-box volume and have the fragment shader rebuild world position from the depth
-buffer, discarding what falls outside — which is a new pass in the Metal
-renderer, not an edit to `blood.rs`. See `SHADER_PLAN.md`. The cheap half is
-to raycast the quad's four corners and shrink the stain when one finds no
-surface: that ends the jutting without shader work, but does not wrap a
-corner. **Neither is chosen yet.**
 
 **Soft particles.** Droplets and bursts cut hard against geometry they
 intersect. Same work package, same reason: it needs the depth buffer readable

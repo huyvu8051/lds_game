@@ -31,6 +31,7 @@ pub(crate) fn on_corpse_hit(
     blood_assets: Res<crate::blood::BloodAssets>,
     blood_enabled: Res<BloodEnabled>,
     spatial_query: SpatialQuery,
+    mut meshes: ResMut<Assets<Mesh>>,
     time: Res<Time>,
 ) {
     let CorpseHit { body, point, normal, damage, direction } = *trigger.event();
@@ -48,6 +49,7 @@ pub(crate) fn on_corpse_hit(
         &mut commands,
         &blood_assets,
         &spatial_query,
+        &mut meshes,
         &time,
         point,
         normal,
@@ -61,6 +63,7 @@ pub(crate) fn spawn_zombie_hit_feedback(
     blood_assets: &BloodAssets,
     spark_assets: &SparkAssets,
     spatial_query: &SpatialQuery,
+    meshes: &mut Assets<Mesh>,
     time: &Time,
     point: Vec3,
     normal: Vec3,
@@ -74,7 +77,7 @@ pub(crate) fn spawn_zombie_hit_feedback(
         if show_floating_damage {
             spawn_floating_damage(commands, point, damage);
         }
-        spawn_blood_effects(commands, blood_assets, spatial_query, time, point, normal, shot_direction, blood);
+        spawn_blood_effects(commands, blood_assets, spatial_query, meshes, time, point, normal, shot_direction, blood);
     } else {
         spawn_spark_effects(commands, spark_assets, time, point, normal, sparks);
     }

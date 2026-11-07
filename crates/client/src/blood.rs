@@ -1,3 +1,4 @@
+use bevy::mesh::{Indices, PrimitiveTopology};
 use bevy::prelude::*;
 
 use crate::*;
@@ -59,6 +60,7 @@ pub(crate) fn spawn_blood_effects(
     commands: &mut Commands,
     blood_assets: &BloodAssets,
     spatial_query: &SpatialQuery,
+    meshes: &mut Assets<Mesh>,
     time: &Time,
     hit_point: Vec3,
     hit_normal: Vec3,
@@ -95,7 +97,7 @@ pub(crate) fn spawn_blood_effects(
     //
     // The exit wound is a stain on whatever is behind the target, so it goes
     // with the stains rather than with the spray.
-    spawn_exit_wound(commands, blood_assets, spatial_query, hit_point, shot_direction, time.elapsed_secs() * 541.0);
+    spawn_exit_wound(commands, blood_assets, spatial_query, meshes, hit_point, shot_direction, time.elapsed_secs() * 541.0);
 
 
     let range = (BLOOD_FLOOR_STAIN_MAX - BLOOD_FLOOR_STAIN_MIN + 1) as f32;
@@ -113,7 +115,7 @@ pub(crate) fn spawn_blood_effects(
         if let Some(floor_hit) = spatial_query.cast_ray(origin, down, BLOOD_FLOOR_RAYCAST_DISTANCE, true, &filter) {
             let floor_point = origin + Vec3::NEG_Y * floor_hit.distance;
 
-            spawn_blood_stain(commands, blood_assets, None, floor_point, floor_hit.normal, seed, blood_assets.floor_stain_mesh.clone());
+            spawn_blood_stain(commands, blood_assets, meshes, spatial_query, floor_point, floor_hit.normal, seed, blood_assets.floor_stain_mesh.clone(), BLOOD_FLOOR_STAIN_SIZE);
         }
     }
 }
@@ -132,14 +134,132 @@ fn stain_rotation(normal: Vec3, seed: f32) -> Quat {
     Quat::from_rotation_arc(Vec3::Z, normal.normalize_or_zero()) * Quat::from_rotation_z(spin)
 }
 
+/// Where the surface is beneath one sample of a stain, and which way it
+/// faces. `None` where there is nothing to take a stain: past the lip of a
+/// crate, or on a face turned too far to be the same surface.
+fn surface_under(
+    spatial_query: &SpatialQuery,
+    at: Vec3,
+    normal: Dir3,
+    lift: f32,
+    reach: f32,
+) -> Option<(Vec3, Vec3)> {
+    let from = at + *normal * lift;
+    let hit = spatial_query.cast_ray(from, -normal, lift + reach, true, &world_filter())?;
+    (hit.normal.dot(*normal) >= BLOOD_STAIN_FACING_MIN)
+        .then(|| (from - *normal * hit.distance, hit.normal))
+}
+
+/// Whether the four corners of a stain sit close enough to the plane of the
+/// hit for a flat quad to pass.
+fn lies_flat(
+    spatial_query: &SpatialQuery,
+    point: Vec3,
+    u: Vec3,
+    v: Vec3,
+    normal: Dir3,
+    size: f32,
+) -> bool {
+    let half = size * 0.5;
+    let depth = size * BLOOD_STAIN_CONFORM_DEPTH;
+    [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)].iter().all(|(su, sv): &(f32, f32)| {
+        match surface_under(spatial_query, point + u * su * half + v * sv * half, normal, depth, depth) {
+            Some((hit, _)) => (hit - point).dot(*normal).abs() <= BLOOD_STAIN_FLAT_TOLERANCE,
+            None => false,
+        }
+    })
+}
+
+/// A stain built to fit the surface under it, or `None` where nothing under
+/// it can take one.
+///
+/// This is what a projected decal gets out of the depth buffer, done on the
+/// CPU at spawn instead: sample the surface across the stain's footprint and
+/// make geometry out of whatever answers. A cell with a corner over open air
+/// is dropped, so the stain stops dead at an edge rather than hanging past
+/// it into the sky, and every vertex carries the normal of the face it
+/// landed on, so the lighting is the receiving surface's own rather than one
+/// flat plane's.
+///
+/// Like a projected decal it does not carry round a sharp corner. A face
+/// turned too far is rejected rather than stretched across it, which is the
+/// same choice and for the same reason: a decal dragged onto a perpendicular
+/// face reads as streaks.
+fn conforming_stain_mesh(
+    spatial_query: &SpatialQuery,
+    point: Vec3,
+    u: Vec3,
+    v: Vec3,
+    normal: Dir3,
+    size: f32,
+) -> Option<Mesh> {
+    let depth = size * BLOOD_STAIN_CONFORM_DEPTH;
+    let row = BLOOD_STAIN_GRID + 1;
+    let mut positions = Vec::with_capacity(row * row);
+    let mut normals = Vec::with_capacity(row * row);
+    let mut uvs = Vec::with_capacity(row * row);
+    let mut found = Vec::with_capacity(row * row);
+
+    for j in 0..row {
+        for i in 0..row {
+            let fx = i as f32 / BLOOD_STAIN_GRID as f32;
+            let fy = j as f32 / BLOOD_STAIN_GRID as f32;
+            let at = point + u * (fx - 0.5) * size + v * (fy - 0.5) * size;
+            match surface_under(spatial_query, at, normal, depth, depth) {
+                Some((hit, hit_normal)) => {
+                    let lifted = hit + hit_normal.normalize_or_zero() * BLOOD_STAIN_SURFACE_OFFSET;
+                    positions.push((lifted - point).to_array());
+                    normals.push(hit_normal.to_array());
+                    found.push(true);
+                }
+                None => {
+                    positions.push([0.0; 3]);
+                    normals.push(normal.to_array());
+                    found.push(false);
+                }
+            }
+            uvs.push([fx, 1.0 - fy]);
+        }
+    }
+
+    // Winding so the face looks back along the normal: u cross v is the
+    // normal, and the material does not cull anyway, but the lighting reads
+    // the normals these carry.
+    let mut indices: Vec<u32> = Vec::new();
+    for j in 0..BLOOD_STAIN_GRID {
+        for i in 0..BLOOD_STAIN_GRID {
+            let a = j * row + i;
+            let (b, c, d) = (a + 1, a + row, a + row + 1);
+            if found[a] && found[b] && found[c] && found[d] {
+                indices.extend_from_slice(&[
+                    a as u32, b as u32, c as u32,
+                    b as u32, d as u32, c as u32,
+                ]);
+            }
+        }
+    }
+    if indices.is_empty() {
+        return None;
+    }
+    Some(
+        Mesh::new(PrimitiveTopology::TriangleList, crate::gltf_usages())
+            .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+            .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uvs)
+            .with_inserted_indices(Indices::U32(indices)),
+    )
+}
+
 pub(crate) fn spawn_blood_stain(
     commands: &mut Commands,
     blood_assets: &BloodAssets,
-    parent: Option<Entity>,
+    meshes: &mut Assets<Mesh>,
+    spatial_query: &SpatialQuery,
     point: Vec3,
     normal: Vec3,
     seed: f32,
-    mesh: Handle<Mesh>,
+    flat_mesh: Handle<Mesh>,
+    size: f32,
 ) {
     let Some(variant) = stain_variant(blood_assets, seed) else {
         return;
@@ -147,18 +267,37 @@ pub(crate) fn spawn_blood_stain(
     let Some(material) = blood_assets.stain_materials.get(variant).and_then(|ladder| ladder.first()) else {
         return;
     };
-    let transform =
-        Transform::from_translation(point + normal.normalize_or_zero() * BLOOD_STAIN_SURFACE_OFFSET)
-            .with_rotation(stain_rotation(normal, seed));
-    let mut stain = commands.spawn((
+    let Ok(normal) = Dir3::new(normal) else {
+        return;
+    };
+    let rotation = stain_rotation(*normal, seed);
+    let (u, v) = (rotation * Vec3::X, rotation * Vec3::Y);
+
+    let (mesh, transform) = if size >= BLOOD_STAIN_CONFORM_MIN_SIZE
+        && !lies_flat(spatial_query, point, u, v, normal, size)
+    {
+        // Built in the stain's own frame, so the entity carries no rotation
+        // and each vertex keeps the normal it was found with. Nothing back
+        // means nothing under it to stain, and no stain is the right answer
+        // -- the flat quad here is what used to hang in the air.
+        let Some(built) = conforming_stain_mesh(spatial_query, point, u, v, normal, size) else {
+            return;
+        };
+        (meshes.add(built), Transform::from_translation(point))
+    } else {
+        (
+            flat_mesh,
+            Transform::from_translation(point + *normal * BLOOD_STAIN_SURFACE_OFFSET)
+                .with_rotation(rotation),
+        )
+    };
+
+    commands.spawn((
         Mesh3d(mesh),
         MeshMaterial3d(material.clone()),
         transform,
         BloodStain { remaining: BLOOD_STAIN_LIFETIME, variant },
     ));
-    if let Some(parent) = parent {
-        stain.insert(ChildOf(parent));
-    }
 }
 
 pub(crate) fn update_blood_particles(
@@ -167,6 +306,7 @@ pub(crate) fn update_blood_particles(
     camera: Query<&GlobalTransform, With<FpsCamera>>,
     spatial_query: SpatialQuery,
     blood_assets: Res<BloodAssets>,
+    mut meshes: ResMut<Assets<Mesh>>,
     blood: Res<BloodEnabled>,
     mut query: Query<(Entity, &mut Transform, &mut BloodParticle)>,
 ) {
@@ -199,11 +339,13 @@ pub(crate) fn update_blood_particles(
                         spawn_blood_stain(
                             &mut commands,
                             &blood_assets,
-                            None,
+                            &mut meshes,
+                            &spatial_query,
                             at,
                             hit.normal,
                             at.x * 311.0 + at.z * 97.0,
                             blood_assets.droplet_stain_mesh.clone(),
+                            BLOOD_DROPLET_STAIN_SIZE,
                         );
                         commands.entity(entity).try_despawn();
                         continue;
@@ -401,6 +543,7 @@ fn spawn_exit_wound(
     commands: &mut Commands,
     blood_assets: &BloodAssets,
     spatial_query: &SpatialQuery,
+    meshes: &mut Assets<Mesh>,
     hit_point: Vec3,
     shot_direction: Vec3,
     seed_base: f32,
@@ -441,7 +584,7 @@ fn spawn_exit_wound(
             continue;
         };
         let wall_point = exit_point + *ray * wall.distance;
-        spawn_blood_stain(commands, blood_assets, None, wall_point, wall.normal, seed, blood_assets.wall_stain_mesh.clone());
+        spawn_blood_stain(commands, blood_assets, meshes, spatial_query, wall_point, wall.normal, seed, blood_assets.wall_stain_mesh.clone(), BLOOD_WALL_STAIN_SIZE);
     }
 }
 

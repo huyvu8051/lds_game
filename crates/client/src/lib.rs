@@ -526,6 +526,34 @@ const BLOOD_STAIN_LIFETIME: f32 = 12.0;
 /// material's `depth_bias` instead, which is what the bullet holes do.
 const BLOOD_STAIN_SURFACE_OFFSET: f32 = 0.006;
 
+/// Grid cells across a stain that is built to fit the surface under it.
+/// Nine vertices a side over a 55cm floor stain is a sample every 7cm, which
+/// catches the lip of a crate without the rays becoming the cost of the shot.
+const BLOOD_STAIN_GRID: usize = 8;
+
+/// How far a corner may sit from the plane of the hit before the stain is
+/// built to fit instead of laid flat. Under this it stays the shared quad,
+/// so a stain on open floor -- the common case -- batches as it always did
+/// and costs four rays rather than eighty-one.
+const BLOOD_STAIN_FLAT_TOLERANCE: f32 = 0.015;
+
+/// Below this a stain is too small to span anything worth fitting to, and
+/// the rays would be the most expensive part of it. Droplet marks are 10cm.
+const BLOOD_STAIN_CONFORM_MIN_SIZE: f32 = 0.2;
+
+/// How deep the stain reaches for a surface, above and below the plane of
+/// the hit, as a fraction of its own size. This is the depth of a projected
+/// decal's box by another name, and it decides the same thing: a low step
+/// inside the reach is draped over, a lip taller than it ends the stain.
+/// A quarter of 55cm is 14cm, which takes a kerb and stops at a crate.
+const BLOOD_STAIN_CONFORM_DEPTH: f32 = 0.25;
+
+/// A face turned further than this from the stain's own normal is not the
+/// surface the stain is on -- it is the side of whatever the stain is lying
+/// on. Projected decals reject those for the same reason: carried onto a
+/// perpendicular face, a decal stretches into streaks.
+const BLOOD_STAIN_FACING_MIN: f32 = 0.5;
+
 /// A stain used to vanish between one frame and the next at the end of its
 /// twelve seconds. It fades now, which also lets the budget below hurry one
 /// out without it popping.
