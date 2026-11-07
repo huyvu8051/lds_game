@@ -115,7 +115,7 @@ pub(crate) fn spawn_blood_effects(
         if let Some(floor_hit) = spatial_query.cast_ray(origin, down, BLOOD_FLOOR_RAYCAST_DISTANCE, true, &filter) {
             let floor_point = origin + Vec3::NEG_Y * floor_hit.distance;
 
-            spawn_blood_stain(commands, blood_assets, meshes, spatial_query, floor_point, floor_hit.normal, seed, blood_assets.floor_stain_mesh.clone(), BLOOD_FLOOR_STAIN_SIZE);
+            spawn_blood_stain(commands, blood_assets, meshes, spatial_query, floor_point, floor_hit.normal, seed, blood_assets.floor_stain_mesh.clone(), BLOOD_FLOOR_STAIN_SIZE, BLOOD_STAIN_LIFETIME);
         }
     }
 }
@@ -260,6 +260,7 @@ pub(crate) fn spawn_blood_stain(
     seed: f32,
     flat_mesh: Handle<Mesh>,
     size: f32,
+    lifetime: f32,
 ) {
     let Some(variant) = stain_variant(blood_assets, seed) else {
         return;
@@ -296,7 +297,7 @@ pub(crate) fn spawn_blood_stain(
         Mesh3d(mesh),
         MeshMaterial3d(material.clone()),
         transform,
-        BloodStain { remaining: BLOOD_STAIN_LIFETIME, variant },
+        BloodStain { remaining: lifetime, variant },
     ));
 }
 
@@ -346,6 +347,7 @@ pub(crate) fn update_blood_particles(
                             at.x * 311.0 + at.z * 97.0,
                             blood_assets.droplet_stain_mesh.clone(),
                             BLOOD_DROPLET_STAIN_SIZE,
+                            BLOOD_DROPLET_STAIN_LIFETIME,
                         );
                         commands.entity(entity).try_despawn();
                         continue;
@@ -373,9 +375,11 @@ pub(crate) fn update_blood_particles(
 ///
 /// Written against `update_bullet_holes`, which had the same problem first:
 /// an unbounded decal spawn is a leak, and at ten rounds a second it is a
-/// fast one. Over budget, the oldest are told to leave early -- every stain
-/// is born with the same lifetime, so `remaining` is age, and the smallest
-/// are the oldest.
+/// fast one. Over budget, whatever is nearest death goes early. That is not
+/// quite "the oldest" any more, since a droplet's mark is born with a
+/// shorter life than a pool's -- and that is the point. There are up to
+/// twenty-two specks a shot against a pool or two, so the specks are what
+/// fills the budget, and the specks are what it takes back.
 pub(crate) fn update_blood_stains(
     mut commands: Commands,
     time: Res<Time>,
@@ -584,7 +588,7 @@ fn spawn_exit_wound(
             continue;
         };
         let wall_point = exit_point + *ray * wall.distance;
-        spawn_blood_stain(commands, blood_assets, meshes, spatial_query, wall_point, wall.normal, seed, blood_assets.wall_stain_mesh.clone(), BLOOD_WALL_STAIN_SIZE);
+        spawn_blood_stain(commands, blood_assets, meshes, spatial_query, wall_point, wall.normal, seed, blood_assets.wall_stain_mesh.clone(), BLOOD_WALL_STAIN_SIZE, BLOOD_STAIN_LIFETIME);
     }
 }
 

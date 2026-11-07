@@ -518,7 +518,17 @@ const BLOOD_DROPLET_TEXTURE_SIZE: u32 = 32;
 const MAX_BLOOD_PARTICLES: usize = 900;
 const BLOOD_FLOOR_STAIN_SIZE: f32 = 0.55;
 const BLOOD_STAIN_VARIANTS: usize = 4;
-const BLOOD_STAIN_LIFETIME: f32 = 12.0;
+/// As long as a bullet hole lasts, and for the same reason: there is no
+/// argument for a chipped wall outliving the blood under it by four to one,
+/// which is what twelve seconds against the holes' forty-five came to.
+const BLOOD_STAIN_LIFETIME: f32 = 45.0;
+
+/// A droplet's mark goes sooner. There are up to twenty-two of them a shot
+/// against one or two pools, so they are what fills the budget, and the
+/// budget takes whatever is nearest death first -- which, with a shorter
+/// life, is always these. A speck drains before a pool it would have
+/// evicted.
+const BLOOD_DROPLET_STAIN_LIFETIME: f32 = 10.0;
 
 /// How far a stain stands off the surface it is on. Millimetres, not the
 /// centimetre it used to be: a centimetre is visible as a sheet floating off
@@ -557,7 +567,7 @@ const BLOOD_STAIN_FACING_MIN: f32 = 0.5;
 /// A stain used to vanish between one frame and the next at the end of its
 /// twelve seconds. It fades now, which also lets the budget below hurry one
 /// out without it popping.
-const BLOOD_STAIN_FADE_SECONDS: f32 = 1.5;
+const BLOOD_STAIN_FADE_SECONDS: f32 = 3.0;
 const BLOOD_STAIN_FADE_STEPS: usize = 10;
 
 /// Ceiling on live stains. Stains were the one blood effect with no bound at

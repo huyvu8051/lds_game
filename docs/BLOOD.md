@@ -15,7 +15,7 @@ rather than a trip through an art tool.
 | Spray burst | `blood_burst.rs`, `spawn_blood_burst` | 0.22s |
 | Mist cloud | the same frames, two puffs, larger and fainter | 0.37-0.55s |
 | Droplets | `BloodParticle`, `update_blood_particles` | 0.6s |
-| Stains | `spawn_blood_stain`, `update_blood_stains` | 12s, fading, capped |
+| Stains | `spawn_blood_stain`, `update_blood_stains` | 45s pools, 10s specks |
 
 A hit spawns, in order: a burst at the entry point with its mist behind it,
 eleven droplets, the same pair again at the exit point with its own droplets,
@@ -93,7 +93,18 @@ no bias, which is visible as a sheet floating off a wall at a grazing angle
 and still z-fights at range. Physical offset buys nothing that depth bias
 does not buy better.
 
-**Stains fade, and there is a ceiling.** `MAX_BLOOD_STAINS` is 256. Stains
+**Stains fade, and there is a ceiling.** `MAX_BLOOD_STAINS` is 256.
+
+A pool lasts `BLOOD_STAIN_LIFETIME`, 45s, which is what a bullet hole lasts:
+there is no argument for a chipped wall outliving the blood under it. A
+droplet's mark lasts `BLOOD_DROPLET_STAIN_LIFETIME`, 10s, and that difference
+is doing work. Up to twenty-two specks land per shot against one or two
+pools, so the specks are what fills the budget — and since the budget takes
+whatever is nearest death first, and a speck's shorter life always leaves it
+nearer, a speck drains before a pool it would otherwise have evicted. Without
+that split the ceiling is reached in about ten shots and the pools are the
+first thing to go, which is exactly backwards.
+ Stains
 were the only blood effect with no bound: particles have had
 `MAX_BLOOD_PARTICLES` all along, and since droplets began marking where they
 land the number a shot leaves is not even fixed — ten rounds a second against
