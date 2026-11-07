@@ -536,6 +536,11 @@ const BLOOD_WALL_STAIN_SIZE: f32 = 0.42;
 const BLOOD_WALL_STAIN_COUNT: usize = 3;
 const BLOOD_WALL_STAIN_SPREAD: f32 = 0.22;
 
+/// The mist layer behind the spray: larger, slower, fainter. Shipped impacts
+/// stack three to five elements; one effect on its own reads as a sticker.
+const BLOOD_MIST_SIZE_SCALE: f32 = 1.9;
+const BLOOD_MIST_LIFETIME_SCALE: f32 = 2.1;
+
 const BLOOD_FLOOR_RAYCAST_DISTANCE: f32 = 5.0;
 const BLOOD_FLOOR_STAIN_MIN: usize = 1;
 const BLOOD_FLOOR_STAIN_MAX: usize = 3;

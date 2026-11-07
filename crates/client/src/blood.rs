@@ -43,6 +43,11 @@ pub(crate) struct BloodAssets {
     pub(crate) burst_mesh: Handle<Mesh>,
     /// Frame sequences, `[variant][frame]`. A flipbook, not a fade ladder.
     pub(crate) burst_materials: Vec<Vec<Handle<StandardMaterial>>>,
+    /// The same frames at a larger, fainter, cooler tint -- the mist that
+    /// hangs behind the spray. Shipped effects layer three to five elements
+    /// into one impact; this is the cheapest second one.
+    pub(crate) mist_materials: Vec<Vec<Handle<StandardMaterial>>>,
+    pub(crate) mist_mesh: Handle<Mesh>,
 }
 
 pub(crate) fn spawn_blood_effects(
@@ -228,8 +233,17 @@ pub(crate) fn despawn_blood_stains(mut commands: Commands, time: Res<Time>, mut 
 #[derive(Component)]
 pub(crate) struct BloodBurst {
     remaining: f32,
+    lifetime: f32,
     spin: f32,
     variant: usize,
+    /// Which layer's frames to step through, and how long it has to do it.
+    layer: BurstLayer,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BurstLayer {
+    Spray,
+    Mist,
 }
 
 fn spawn_blood_burst(
@@ -244,16 +258,25 @@ fn spawn_blood_burst(
         return;
     }
     let variant = ((ops::sin(seed).abs() * variants.len() as f32) as usize).min(variants.len() - 1);
-    let Some(material) = variants.get(variant).and_then(|ladder| ladder.first()) else {
-        return;
-    };
-    commands.spawn((
-        Mesh3d(blood_assets.burst_mesh.clone()),
-        MeshMaterial3d(material.clone()),
-        Transform::from_translation(hit_point + hit_normal.normalize_or_zero() * BLOOD_BURST_NORMAL_OFFSET)
-            .with_scale(Vec3::splat(BLOOD_BURST_START_SCALE)),
-        BloodBurst { remaining: BLOOD_BURST_LIFETIME, spin: seed, variant },
-    ));
+    let at = hit_point + hit_normal.normalize_or_zero() * BLOOD_BURST_NORMAL_OFFSET;
+
+    // Two layers, offset in time. One effect reads as a sticker; shipped
+    // impacts stack three to five, and the cheapest second one is the same
+    // sequence played slower, larger and fainter behind the first.
+    for (layer, sequences, mesh, lifetime) in [
+        (BurstLayer::Spray, &blood_assets.burst_materials, &blood_assets.burst_mesh, BLOOD_BURST_LIFETIME),
+        (BurstLayer::Mist, &blood_assets.mist_materials, &blood_assets.mist_mesh, BLOOD_BURST_LIFETIME * BLOOD_MIST_LIFETIME_SCALE),
+    ] {
+        let Some(first) = sequences.get(variant).and_then(|frames| frames.first()) else {
+            continue;
+        };
+        commands.spawn((
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(first.clone()),
+            Transform::from_translation(at).with_scale(Vec3::splat(BLOOD_BURST_START_SCALE)),
+            BloodBurst { remaining: lifetime, lifetime, spin: seed, variant, layer },
+        ));
+    }
 }
 
 pub(crate) fn update_blood_bursts(
@@ -271,7 +294,7 @@ pub(crate) fn update_blood_bursts(
             commands.entity(entity).try_despawn();
             continue;
         }
-        let life = 1.0 - (burst.remaining / BLOOD_BURST_LIFETIME).clamp(0.0, 1.0);
+        let life = 1.0 - (burst.remaining / burst.lifetime).clamp(0.0, 1.0);
         let eased_out = 1.0 - (1.0 - life) * (1.0 - life);
         transform.scale = Vec3::splat(BLOOD_BURST_START_SCALE + (BLOOD_BURST_END_SCALE - BLOOD_BURST_START_SCALE) * eased_out);
 
@@ -281,7 +304,11 @@ pub(crate) fn update_blood_bursts(
                 transform.rotation = Quat::from_rotation_arc(Vec3::Z, to_eye) * Quat::from_rotation_z(burst.spin);
             }
         }
-        let Some(frames) = blood_assets.burst_materials.get(burst.variant) else {
+        let sequences = match burst.layer {
+            BurstLayer::Spray => &blood_assets.burst_materials,
+            BurstLayer::Mist => &blood_assets.mist_materials,
+        };
+        let Some(frames) = sequences.get(burst.variant) else {
             continue;
         };
         if let Some(frame) = frames.get(crate::blood_burst::burst_frame_index(life)) {

@@ -189,6 +189,16 @@ pub(crate) fn setup_common(
             BLOOD_STAIN_VARIANTS,
             Color::srgba(1.0, 0.16, 0.12, 1.0),
         ),
+        // The same frames, bigger, fainter and cooler: a hanging mist behind
+        // the spray. One sequence serving two layers is why the frames carry
+        // their shape in alpha and take their colour from the material.
+        mist_materials: crate::blood_burst::build_burst_frames(
+            &mut images,
+            &mut materials,
+            BLOOD_STAIN_VARIANTS,
+            Color::srgba(0.72, 0.10, 0.10, 0.38),
+        ),
+        mist_mesh: meshes.add(Rectangle::new(BLOOD_BURST_SIZE * BLOOD_MIST_SIZE_SCALE, BLOOD_BURST_SIZE * BLOOD_MIST_SIZE_SCALE)),
     });
 
     commands.insert_resource(SparkAssets {
