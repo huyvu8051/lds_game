@@ -271,6 +271,9 @@ pub(crate) struct BloodBurst {
     lifetime: f32,
     spin: f32,
     variant: usize,
+    /// A per-burst size, on top of the growth every burst shares. Only the
+    /// mist uses it, to keep its puffs from being one shape repeated.
+    size: f32,
     /// Which layer's frames to step through, and how long it has to do it.
     layer: BurstLayer,
 }
@@ -298,18 +301,46 @@ fn spawn_blood_burst(
     // Two layers, offset in time. One effect reads as a sticker; shipped
     // impacts stack three to five, and the cheapest second one is the same
     // sequence played slower, larger and fainter behind the first.
-    for (layer, sequences, mesh, lifetime) in [
-        (BurstLayer::Spray, &blood_assets.burst_materials, &blood_assets.burst_mesh, BLOOD_BURST_LIFETIME),
-        (BurstLayer::Mist, &blood_assets.mist_materials, &blood_assets.mist_mesh, BLOOD_BURST_LIFETIME * BLOOD_MIST_LIFETIME_SCALE),
-    ] {
-        let Some(first) = sequences.get(variant).and_then(|frames| frames.first()) else {
-            continue;
-        };
+    if let Some(first) = variants.get(variant).and_then(|frames| frames.first()) {
         commands.spawn((
-            Mesh3d(mesh.clone()),
+            Mesh3d(blood_assets.burst_mesh.clone()),
             MeshMaterial3d(first.clone()),
             Transform::from_translation(at).with_scale(Vec3::splat(BLOOD_BURST_START_SCALE)),
-            BloodBurst { remaining: lifetime, lifetime, spin: seed, variant, layer },
+            BloodBurst {
+                remaining: BLOOD_BURST_LIFETIME,
+                lifetime: BLOOD_BURST_LIFETIME,
+                spin: seed,
+                variant,
+                size: 1.0,
+                layer: BurstLayer::Spray,
+            },
+        ));
+    }
+
+    // The mist is a cloud rather than a second sticker, so it is several
+    // puffs and not one: same spot, same sequence and same size three times
+    // over is indistinguishable from one puff at three times the opacity.
+    let mist = &blood_assets.mist_materials;
+    if mist.is_empty() {
+        return;
+    }
+    let spread = BLOOD_BURST_SIZE * BLOOD_MIST_SIZE_SCALE * BLOOD_MIST_DRIFT;
+    for i in 0..BLOOD_MIST_PUFFS {
+        let s = seed + i as f32 * 157.3;
+        let puff = ((ops::sin(s).abs() * mist.len() as f32) as usize).min(mist.len() - 1);
+        let Some(first) = mist.get(puff).and_then(|frames| frames.first()) else {
+            continue;
+        };
+        let drift = Vec3::new(ops::sin(s * 1.7), ops::sin(s * 2.3), ops::sin(s * 3.1)) * spread;
+        let size = 0.7 + ops::sin(s * 4.7).abs() * 0.6;
+        let lifetime =
+            BLOOD_BURST_LIFETIME * BLOOD_MIST_LIFETIME_SCALE * (0.8 + ops::sin(s * 5.3).abs() * 0.4);
+        commands.spawn((
+            Mesh3d(blood_assets.mist_mesh.clone()),
+            MeshMaterial3d(first.clone()),
+            Transform::from_translation(at + drift)
+                .with_scale(Vec3::splat(BLOOD_BURST_START_SCALE * size)),
+            BloodBurst { remaining: lifetime, lifetime, spin: s, variant: puff, size, layer: BurstLayer::Mist },
         ));
     }
 }
@@ -331,7 +362,9 @@ pub(crate) fn update_blood_bursts(
         }
         let life = 1.0 - (burst.remaining / burst.lifetime).clamp(0.0, 1.0);
         let eased_out = 1.0 - (1.0 - life) * (1.0 - life);
-        transform.scale = Vec3::splat(BLOOD_BURST_START_SCALE + (BLOOD_BURST_END_SCALE - BLOOD_BURST_START_SCALE) * eased_out);
+        transform.scale = Vec3::splat(
+            (BLOOD_BURST_START_SCALE + (BLOOD_BURST_END_SCALE - BLOOD_BURST_START_SCALE) * eased_out) * burst.size,
+        );
 
         if let Some(eye) = eye {
             let to_eye = (eye - transform.translation).normalize_or_zero();

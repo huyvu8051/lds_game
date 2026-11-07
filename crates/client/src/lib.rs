@@ -538,8 +538,15 @@ const BLOOD_WALL_STAIN_SPREAD: f32 = 0.22;
 
 /// The mist layer behind the spray: larger, slower, fainter. Shipped impacts
 /// stack three to five elements; one effect on its own reads as a sticker.
-const BLOOD_MIST_SIZE_SCALE: f32 = 1.9;
+const BLOOD_MIST_SIZE_SCALE: f32 = 3.8;
 const BLOOD_MIST_LIFETIME_SCALE: f32 = 2.1;
+
+/// Puffs in one mist cloud. Quads on the same spot are one quad at that many
+/// times the opacity, so each takes its own frame sequence, size and drift;
+/// `BLOOD_MIST_DRIFT` is how far they scatter, as a fraction of the mist quad
+/// itself. Fewer but denser reads as cloud; more but fainter reads as haze.
+const BLOOD_MIST_PUFFS: usize = 2;
+const BLOOD_MIST_DRIFT: f32 = 0.25;
 
 /// A droplet's own landing mark. Smaller than a wound's: this is one drop
 /// arriving, and the spray throws eleven of them.

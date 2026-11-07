@@ -197,7 +197,7 @@ pub(crate) fn setup_common(
             &mut images,
             &mut materials,
             BLOOD_STAIN_VARIANTS,
-            Color::srgba(0.72, 0.10, 0.10, 0.38),
+            Color::srgba(0.72, 0.10, 0.10, 0.55),
         ),
         mist_mesh: meshes.add(Rectangle::new(BLOOD_BURST_SIZE * BLOOD_MIST_SIZE_SCALE, BLOOD_BURST_SIZE * BLOOD_MIST_SIZE_SCALE)),
     });

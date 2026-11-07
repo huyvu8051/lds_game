@@ -13,15 +13,23 @@ rather than a trip through an art tool.
 | Piece | Where | Lives |
 |---|---|---|
 | Spray burst | `blood_burst.rs`, `spawn_blood_burst` | 0.22s |
-| Mist burst | the same, at a larger, fainter tint | 0.46s |
+| Mist cloud | the same frames, two puffs, larger and fainter | 0.37-0.55s |
 | Droplets | `BloodParticle`, `update_blood_particles` | 0.6s |
 | Stains | `spawn_blood_stain`, `BloodStain` | a corpse's lifetime |
 
-A hit spawns, in order: a two-layer burst at the entry point, eleven
-droplets, a second two-layer burst at the exit point with its own droplets,
+A hit spawns, in order: a burst at the entry point with its mist behind it,
+eleven droplets, the same pair again at the exit point with its own droplets,
 a stain parented to the bone that was hit, one to three floor stains, and up
 to a few wall stains behind the target. Droplets then leave their own marks
 where they land, so the count is not fixed.
+
+The mist is a cloud rather than a second sticker, so it is `BLOOD_MIST_PUFFS`
+quads and not one, each with its own frame sequence, size, lifetime and
+drift. Puffs on the same spot at the same size would be one puff at that many
+times the opacity. Four numbers shape it: `BLOOD_MIST_SIZE_SCALE` and
+`BLOOD_MIST_PUFFS` for how big and how many, `BLOOD_MIST_DRIFT` for how far
+they scatter, and the alpha of the tint in `scene_setup.rs` for how solid
+each one reads. Fewer but denser is cloud; more but fainter is haze.
 
 ## What blood is allowed to land on
 
