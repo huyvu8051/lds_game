@@ -162,7 +162,6 @@ pub(crate) fn setup_common(
             cull_mode: None,
             ..default()
         }),
-        stain_mesh: meshes.add(Rectangle::new(BLOOD_STAIN_SIZE, BLOOD_STAIN_SIZE)),
         floor_stain_mesh: meshes.add(Rectangle::new(BLOOD_FLOOR_STAIN_SIZE, BLOOD_FLOOR_STAIN_SIZE)),
         stain_materials: (0..BLOOD_STAIN_VARIANTS)
             .map(|i| {

@@ -37,7 +37,7 @@ pub(crate) fn on_corpse_hit(
     let Ok(bones) = bodies.get(body) else {
         return;
     };
-    let Some((bone, bone_global)) = nearest_zombie_bone(bones, point, &globals) else {
+    let Some((bone, _)) = nearest_zombie_bone(bones, point, &globals) else {
         return;
     };
     // A corpse takes the hit too: it bleeds, and it moves. Nothing else
@@ -51,8 +51,6 @@ pub(crate) fn on_corpse_hit(
         &time,
         point,
         normal,
-        Some((bone, &bone_global)),
-        false,
         direction,
         *blood_enabled,
     );
@@ -67,8 +65,6 @@ pub(crate) fn spawn_zombie_hit_feedback(
     point: Vec3,
     normal: Vec3,
     damage: f32,
-    bone_for_blood: Option<(Entity, &GlobalTransform)>,
-    killed: bool,
     show_floating_damage: bool,
     shot_direction: Vec3,
     blood: BloodEnabled,
@@ -78,7 +74,7 @@ pub(crate) fn spawn_zombie_hit_feedback(
         if show_floating_damage {
             spawn_floating_damage(commands, point, damage);
         }
-        spawn_blood_effects(commands, blood_assets, spatial_query, time, point, normal, bone_for_blood, killed, shot_direction, blood);
+        spawn_blood_effects(commands, blood_assets, spatial_query, time, point, normal, shot_direction, blood);
     } else {
         spawn_spark_effects(commands, spark_assets, time, point, normal, sparks);
     }

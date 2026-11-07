@@ -36,7 +36,6 @@ pub(crate) struct BloodStain {
 pub(crate) struct BloodAssets {
     pub(crate) particle_mesh: Handle<Mesh>,
     pub(crate) particle_material: Handle<StandardMaterial>,
-    pub(crate) stain_mesh: Handle<Mesh>,
     /// Smaller than the others: this is one droplet landing, not a wound.
     pub(crate) droplet_stain_mesh: Handle<Mesh>,
     pub(crate) floor_stain_mesh: Handle<Mesh>,
@@ -59,8 +58,6 @@ pub(crate) fn spawn_blood_effects(
     time: &Time,
     hit_point: Vec3,
     hit_normal: Vec3,
-    bone: Option<(Entity, &GlobalTransform)>,
-    killed: bool,
     shot_direction: Vec3,
     blood: BloodEnabled,
 ) {
@@ -86,17 +83,16 @@ pub(crate) fn spawn_blood_effects(
     if !blood.stains {
         return;
     }
+    // Nothing is left on the body itself. A 22cm quad parented to a bone
+    // stood 4cm clear of the torso at its edges and crossed the silhouette,
+    // which is what read as pasted-on -- and the games this is modelled on
+    // do not keep wounds on a body either, because the body is gone before
+    // anyone can look. Here it dissolves 1.1s after it stops moving.
+    //
     // The exit wound is a stain on whatever is behind the target, so it goes
     // with the stains rather than with the spray.
     spawn_exit_wound(commands, blood_assets, spatial_query, hit_point, shot_direction, time.elapsed_secs() * 541.0);
 
-    match bone {
-        Some((entity, bone_global)) => {
-            spawn_blood_stain_on_zombie(commands, blood_assets, entity, bone_global, hit_point, hit_normal, time.elapsed_secs() * 733.0);
-        }
-        None if !killed => spawn_blood_stain(commands, blood_assets, None, hit_point, hit_normal, time.elapsed_secs() * 733.0, blood_assets.stain_mesh.clone()),
-        None => {}
-    }
 
     let range = (BLOOD_FLOOR_STAIN_MAX - BLOOD_FLOOR_STAIN_MIN + 1) as f32;
     let count = (BLOOD_FLOOR_STAIN_MIN as f32 + ops::sin(time.elapsed_secs() * 457.0).abs() * range) as usize;
@@ -157,36 +153,6 @@ pub(crate) fn spawn_blood_stain(
     if let Some(parent) = parent {
         stain.insert(ChildOf(parent));
     }
-}
-
-pub(crate) fn spawn_blood_stain_on_zombie(
-    commands: &mut Commands,
-    blood_assets: &BloodAssets,
-    bone: Entity,
-    bone_global: &GlobalTransform,
-    hit_point: Vec3,
-    hit_normal: Vec3,
-    seed: f32,
-) {
-    let Some(material) = stain_variant(blood_assets, seed) else {
-        return;
-    };
-    let world_transform = GlobalTransform::from(
-        Transform::from_translation(hit_point + hit_normal.normalize_or_zero() * 0.01)
-            .with_rotation(stain_rotation(hit_normal, seed)),
-    );
-    let local_transform = world_transform.reparented_to(bone_global);
-
-    commands.entity(bone).with_children(|parent| {
-        parent.spawn((
-            Mesh3d(blood_assets.stain_mesh.clone()),
-            MeshMaterial3d(material),
-            local_transform,
-            BloodStain {
-                remaining: BLOOD_STAIN_LIFETIME,
-            },
-        ));
-    });
 }
 
 pub(crate) fn update_blood_particles(

@@ -133,8 +133,7 @@ pub(crate) fn on_shot_confirmed(
         spawn_bone_flinch(&mut commands, bones, *bone, -normal, damage, &globals, &child_of);
     }
 
-    let bone_for_blood = nearest_bone.as_ref().map(|(entity, global)| (*entity, global));
-    spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled, sparks_enabled.0);
+    spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled, sparks_enabled.0);
 }
 
 
@@ -407,8 +406,6 @@ pub(crate) fn on_shot_fx(
     time: Res<Time>,
     vfx_assets: VfxAssets,
     spatial_query: SpatialQuery,
-    zombies: Query<(Entity, &Transform, &ZombieHitboxBones), With<Zombie>>,
-    globals: Query<&GlobalTransform>,
     show_hit_markers: Res<ShowHitMarkers>,
     show_tracers: Res<ShowBulletTracers>,
     show_floating_damage: Res<ShowFloatingDamage>,
@@ -418,10 +415,7 @@ pub(crate) fn on_shot_fx(
     sparks_enabled: Res<ImpactSparksEnabled>,
 ) {
     match *trigger.event() {
-        ShotFx::ZombieHit { origin, point, normal, damage, killed } => {
-            if damage > 0.0 {
-            } else {
-            }
+        ShotFx::ZombieHit { origin, point, normal, damage, killed: _ } => {
             if show_hit_markers.0 {
                 commands.spawn((
                     Mesh3d(vfx_assets.hit_assets.mesh.clone()),
@@ -435,19 +429,7 @@ pub(crate) fn on_shot_fx(
 
             spawn_bullet_tracer(&mut commands, &vfx_assets.tracer, time.elapsed_secs() * 619.0 + point.x * 13.7 + point.z * 7.3, origin, point, show_tracers.0);
 
-            let nearest = zombies.iter().min_by(|(_, a, _), (_, b, _)| {
-                a.translation.distance_squared(point).total_cmp(&b.translation.distance_squared(point))
-            });
-            // Wanted even on a kill: the rays still have to be told which
-            // body not to answer with, or the ground they look for is the
-            // chest they started inside.
-            let nearest_bone = if killed {
-                None
-            } else {
-                nearest.and_then(|(_, _, bones)| nearest_zombie_bone(bones, point, &globals))
-            };
-            let bone_for_blood = nearest_bone.as_ref().map(|(entity, global)| (*entity, global));
-            spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, bone_for_blood, killed, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled, sparks_enabled.0);
+                    spawn_zombie_hit_feedback(&mut commands, &vfx_assets.blood, &vfx_assets.sparks, &spatial_query, &time, point, normal, damage, show_floating_damage.0, (point - origin).normalize_or_zero(), *blood_enabled, sparks_enabled.0);
         }
         ShotFx::SurfaceHit { origin, point, normal } => {
             if show_hit_markers.0 {

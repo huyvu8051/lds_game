@@ -15,13 +15,13 @@ rather than a trip through an art tool.
 | Spray burst | `blood_burst.rs`, `spawn_blood_burst` | 0.22s |
 | Mist cloud | the same frames, two puffs, larger and fainter | 0.37-0.55s |
 | Droplets | `BloodParticle`, `update_blood_particles` | 0.6s |
-| Stains | `spawn_blood_stain`, `BloodStain` | a corpse's lifetime |
+| Stains | `spawn_blood_stain`, `BloodStain` | 12s, on the world only |
 
 A hit spawns, in order: a burst at the entry point with its mist behind it,
 eleven droplets, the same pair again at the exit point with its own droplets,
-a stain parented to the bone that was hit, one to three floor stains, and up
-to a few wall stains behind the target. Droplets then leave their own marks
-where they land, so the count is not fixed.
+one to three floor stains, and up to a few wall stains behind the target.
+Droplets then leave their own marks where they land, so the count is not
+fixed. Nothing is left on the body itself — see below.
 
 The mist is a cloud rather than a second sticker, so it is `BLOOD_MIST_PUFFS`
 quads and not one, each with its own frame sequence, size, lifetime and
@@ -80,6 +80,47 @@ They exist to interpolate between frames so a sprite sheet can ship fewer of
 them. Nothing here is shipped, so there is nothing to save: the answer is to
 generate enough frames. At 0.22s and 60Hz the eye gets about thirteen, and
 there are sixteen.
+
+## Why there is no stain on the body
+
+There was one: a 22cm quad parented to the bone that was hit. It read as
+pasted on, and the geometry says why. A torso is a cylinder of roughly 17cm
+radius, and a flat quad laid tangent to it stands clear of the surface at its
+edges by
+
+    R - sqrt(R**2 - w**2)  =  0.17 - 0.130  =  4cm
+
+so the edges floated, and at the silhouette the quad crossed outside the
+body's own outline. Shrinking it helps — the gap falls with the square of the
+quad, and an 8cm quad stands off only 0.5cm — but it does not fix the
+silhouette.
+
+**The industry answer for characters is not a decal at all.** Projected
+decals read the depth buffer, which does not work for skinned meshes. What is
+used instead is a *texture-space* decal: render the character mesh with its
+UVs as clip-space position (input UVs become output positions, input
+positions become output UVs), hand the skinned world position to the pixel
+shader, project that through the decal's box and discard outside it. The
+result lands in a small per-character accumulation buffer — SkinGore runs at
+64x64 — which the character's material then samples. It conforms exactly, it
+follows animation for free, and wounds accumulate almost for nothing. The
+catch is a seam artifact at UV island borders, needing a dilation pass, and a
+hard requirement of non-overlapping UVs.
+
+**It was not worth building here, for two measured reasons.**
+
+*The body does not stay.* `CorpseStages` defaults to `linger: false`, so
+`ZOMBIE_LIE_STILL_SECONDS` is 0 and `DISSOLVE_DURATION` is 1.1s. A corpse
+begins sinking as soon as it stops moving.
+
+*The meshes are not ready for it.* All three zombies carry only `TEXCOORD_0`
+— no second UV channel to escape to — and `zombie.glb` has `u` running to
+-0.53, so part of it maps outside the unit square entirely. Texture-space
+decals would mean re-unwrapping every character.
+
+And the games this is modelled on do not keep wounds on a body either, for
+the same reason: in a fast shooter the body is gone before anyone can look.
+The blood that reads as theirs is the spray and the marks left on the world.
 
 ## Not done
 
