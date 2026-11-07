@@ -401,6 +401,29 @@ pub(crate) fn draw_zombie_hitboxes(
 
 
 
+/// The body a round landed on, if it landed on one that moves.
+///
+/// A short cast back along the surface normal, because that is the one thing
+/// the hit point is guaranteed to be just outside of. Static map geometry
+/// comes back `None`: parenting to it would be correct and pointless.
+fn moving_body_at<'a>(
+    spatial_query: &SpatialQuery,
+    movers: &'a Query<(&GlobalTransform, &RigidBody)>,
+    point: Vec3,
+    normal: Vec3,
+) -> Option<(Entity, &'a GlobalTransform)> {
+    let out = Dir3::new(normal).ok()?;
+    let hit = spatial_query.cast_ray(
+        point + *out * HOLE_PARENT_PROBE,
+        -out,
+        HOLE_PARENT_PROBE * 2.0,
+        true,
+        &SpatialQueryFilter::default(),
+    )?;
+    let (global, body) = movers.get(hit.entity).ok()?;
+    matches!(body, RigidBody::Dynamic).then_some((hit.entity, global))
+}
+
 pub(crate) fn on_shot_fx(
     trigger: On<ShotFx>,
     mut commands: Commands,
@@ -408,6 +431,7 @@ pub(crate) fn on_shot_fx(
     vfx_assets: VfxAssets,
     spatial_query: SpatialQuery,
     mut meshes: ResMut<Assets<Mesh>>,
+    movers: Query<(&GlobalTransform, &RigidBody)>,
     show_hit_markers: Res<ShowHitMarkers>,
     show_tracers: Res<ShowBulletTracers>,
     show_floating_damage: Res<ShowFloatingDamage>,
@@ -447,7 +471,11 @@ pub(crate) fn on_shot_fx(
             let seed = time.elapsed_secs() * 619.0 + point.x * 13.7 + point.z * 7.3;
             spawn_bullet_tracer(&mut commands, &vfx_assets.tracer, seed, origin, point, show_tracers.0);
             spawn_spark_effects(&mut commands, &vfx_assets.sparks, &time, point, normal, sparks_enabled.0);
-            spawn_bullet_hole(&mut commands, &holes, point, normal, seed, holes_enabled.0);
+            // What the round actually ended in, looked up here rather than
+            // carried on the event: ShotFx crosses the network, and an
+            // Entity means nothing on the far side of that.
+            let landed_on = moving_body_at(&spatial_query, &movers, point, normal);
+            spawn_bullet_hole(&mut commands, &holes, point, normal, seed, holes_enabled.0, landed_on);
         }
         ShotFx::Penetrated { point, normal } => {
             spawn_spark_effects(&mut commands, &vfx_assets.sparks, &time, point, normal, sparks_enabled.0);

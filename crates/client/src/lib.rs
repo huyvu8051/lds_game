@@ -536,6 +536,11 @@ const BLOOD_DROPLET_STAIN_LIFETIME: f32 = 10.0;
 /// material's `depth_bias` instead, which is what the bullet holes do.
 const BLOOD_STAIN_SURFACE_OFFSET: f32 = 0.006;
 
+/// How far back a bullet hole looks to find what it landed on. Millimetres:
+/// the hit point sits just outside the surface, so the cast only has to
+/// reach through that gap and a little past it.
+const HOLE_PARENT_PROBE: f32 = 0.03;
+
 /// Grid cells across a stain that is built to fit the surface under it.
 /// Nine vertices a side over a 55cm floor stain is a sample every 7cm, which
 /// catches the lip of a crate without the rays becoming the cost of the shot.

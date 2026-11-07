@@ -1,6 +1,8 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
+use shared::player::GameLayer;
+
 use crate::dismember::LimbDamage;
 use crate::dissolve::begin_death;
 use crate::CorpseStages;
@@ -61,6 +63,7 @@ pub(crate) fn handle_fire_shot(
             Without<Zombie>,
         ),
     >,
+    layers: Query<&CollisionLayers>,
 ) {
     for mut threat in &mut threats {
         threat.0 += PLAYER_THREAT_PER_SHOT;
@@ -72,7 +75,14 @@ pub(crate) fn handle_fire_shot(
     };
 
     let filter = SpatialQueryFilter::default();
-    let path = trace_shot_path(&spatial_query, shot.origin, direction, &filter);
+    // A corpse is cover. It is on its own layer because a settled body must
+    // not shove whoever dropped it, and that same layer is what marks it as
+    // something a round ends in rather than passes through -- severed limbs
+    // with it, since they carry the layer too.
+    let stops = |entity: Entity| {
+        layers.get(entity).is_ok_and(|l| l.memberships.has_all(GameLayer::Corpse))
+    };
+    let path = trace_shot_path(&spatial_query, shot.origin, direction, &filter, &stops);
     let wall_distance = path.blocking_distance();
     for wall in &path.through {
         commands.trigger(ShotFx::Penetrated { point: wall.entry, normal: wall.normal });
@@ -84,9 +94,13 @@ pub(crate) fn handle_fire_shot(
     // A dead body is no longer a Zombie -- begin_death takes the component
     // off -- so the query above cannot see it and a round went straight
     // through into the wall behind. All three states of a corpse are taken:
-    // falling, ragdolling and settled. It takes no damage and still does not
-    // stop the shot, because putting a round through a corpse must not save
-    // whatever is standing behind it; only the limb moves, and it bleeds.
+    // falling, ragdolling and settled. It takes no damage, and it stops the
+    // shot: a body is cover, so what stands behind one is safe behind it.
+    //
+    // This used to read the other way round -- a round through a corpse was
+    // not allowed to save anything behind it -- and the trace agreed, in the
+    // sense that it charged a corpse one of the two penetrations and 45% of
+    // the damage and let the rest carry on. Cover is the call now.
     //
     // Tested against the bones rather than the body cylinder: a ragdoll's
     // root transform stops following the limbs the moment physics takes them.
@@ -334,6 +348,7 @@ pub(crate) fn trace_shot_path(
     origin: Vec3,
     direction: Dir3,
     filter: &SpatialQueryFilter,
+    stops: &dyn Fn(Entity) -> bool,
 ) -> ShotPath {
     let mut through = Vec::new();
     let mut from = origin;
@@ -349,6 +364,12 @@ pub(crate) fn trace_shot_path(
         let entry = from + *direction * hit.distance;
         let entry_distance = origin.distance(entry);
 
+        // Cover, not a thin wall: nothing is looked for behind it and it
+        // costs none of the penetration budget, because it is not spent --
+        // the shot ends here.
+        if stops(hit.entity) {
+            return ShotPath { through, blocked_at: Some((entry_distance, entry, hit.normal)) };
+        }
         if through.len() >= MAX_PENETRATIONS {
             return ShotPath { through, blocked_at: Some((entry_distance, entry, hit.normal)) };
         }

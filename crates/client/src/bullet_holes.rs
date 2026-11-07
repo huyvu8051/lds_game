@@ -101,6 +101,17 @@ fn facing(normal: Vec3, seed: f32) -> Quat {
     Quat::from_rotation_arc(Vec3::Z, normal.normalize_or_zero()) * Quat::from_rotation_z(spin)
 }
 
+/// A mark where a round landed, and -- if it landed on something that moves
+/// -- riding whatever it landed on.
+///
+/// A hole is a world point otherwise, and the things worth shooting are not
+/// all still: a corpse is cover now, so rounds end in one, and a body that
+/// dissolves 1.1s after it settles would leave its holes hanging for the
+/// other forty-four seconds of their life. Spent casings, dropped magazines
+/// and a rolling grenade are the same problem in miniature. This is the
+/// lesson the blood learned first, and `world_filter` in `blood.rs` is the
+/// other half of it: blood declines to land on anything that moves, while a
+/// bullet hole is expected to.
 pub(crate) fn spawn_bullet_hole(
     commands: &mut Commands,
     assets: &BulletHoleAssets,
@@ -108,6 +119,7 @@ pub(crate) fn spawn_bullet_hole(
     normal: Vec3,
     seed: f32,
     enabled: bool,
+    on: Option<(Entity, &GlobalTransform)>,
 ) {
     if !enabled {
         return;
@@ -121,13 +133,22 @@ pub(crate) fn spawn_bullet_hole(
         return;
     };
 
-    commands.spawn((
+    let world = Transform::from_translation(point + normal * HOLE_SURFACE_OFFSET)
+        .with_rotation(facing(normal, seed));
+    let mut hole = commands.spawn((
         Mesh3d(assets.hole_mesh.clone()),
         MeshMaterial3d(material.clone()),
-        Transform::from_translation(point + normal * HOLE_SURFACE_OFFSET)
-            .with_rotation(facing(normal, seed)),
+        // Into the body's own frame when there is one, so the hole turns and
+        // falls with it rather than marking the air it passed through.
+        match on {
+            Some((_, global)) => GlobalTransform::from(world).reparented_to(global),
+            None => world,
+        },
         BulletHole { remaining: HOLE_LIFETIME, variant },
     ));
+    if let Some((body, _)) = on {
+        hole.insert(ChildOf(body));
+    }
 
     let sideways = normal.any_orthonormal_vector();
     let other = normal.cross(sideways);
