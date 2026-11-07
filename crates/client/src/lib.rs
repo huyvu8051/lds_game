@@ -520,6 +520,26 @@ const BLOOD_FLOOR_STAIN_SIZE: f32 = 0.55;
 const BLOOD_STAIN_VARIANTS: usize = 4;
 const BLOOD_STAIN_LIFETIME: f32 = 12.0;
 
+/// How far a stain stands off the surface it is on. Millimetres, not the
+/// centimetre it used to be: a centimetre is visible as a sheet floating off
+/// a wall at a grazing angle. Depth precision at range is handled by the
+/// material's `depth_bias` instead, which is what the bullet holes do.
+const BLOOD_STAIN_SURFACE_OFFSET: f32 = 0.006;
+
+/// A stain used to vanish between one frame and the next at the end of its
+/// twelve seconds. It fades now, which also lets the budget below hurry one
+/// out without it popping.
+const BLOOD_STAIN_FADE_SECONDS: f32 = 1.5;
+const BLOOD_STAIN_FADE_STEPS: usize = 10;
+
+/// Ceiling on live stains. Stains were the one blood effect with no bound at
+/// all: particles have had one since they existed, and since droplets began
+/// marking where they land, the number a single shot leaves is not even
+/// fixed. Ten rounds a second against a twelve-second life is nine hundred
+/// of them if nothing says otherwise. A starting figure, to be watched on
+/// the device rather than argued about here.
+const MAX_BLOOD_STAINS: usize = 256;
+
 const BLOOD_BURST_SIZE: f32 = 0.34;
 const BLOOD_BURST_LIFETIME: f32 = 0.22;
 const BLOOD_BURST_START_SCALE: f32 = 0.35;
@@ -1515,7 +1535,7 @@ app.init_resource::<MagazineInHand>()
                         .run_if(native_renderer_in_use),
                 ),
                 update_spark_particles,
-                despawn_blood_stains,
+                update_blood_stains,
             )
                 .chain()
                 .run_if(ablation::group(ablation::Group::Vfx)),

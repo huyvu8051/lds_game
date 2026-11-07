@@ -15,7 +15,7 @@ rather than a trip through an art tool.
 | Spray burst | `blood_burst.rs`, `spawn_blood_burst` | 0.22s |
 | Mist cloud | the same frames, two puffs, larger and fainter | 0.37-0.55s |
 | Droplets | `BloodParticle`, `update_blood_particles` | 0.6s |
-| Stains | `spawn_blood_stain`, `BloodStain` | 12s, on the world only |
+| Stains | `spawn_blood_stain`, `update_blood_stains` | 12s, fading, capped |
 
 A hit spawns, in order: a burst at the entry point with its mist behind it,
 eleven droplets, the same pair again at the exit point with its own droplets,
@@ -80,6 +80,31 @@ They exist to interpolate between frames so a sprite sheet can ship fewer of
 them. Nothing here is shipped, so there is nothing to save: the answer is to
 generate enough frames. At 0.22s and 60Hz the eye gets about thirteen, and
 there are sixteen.
+
+## How a stain sits on a surface
+
+Two things that have nothing to do with the texture, both taken from
+`bullet_holes.rs`, which met the same problems first.
+
+**Offset is millimetres, bias does the rest.** A stain sits
+`BLOOD_STAIN_SURFACE_OFFSET` (6mm) off the surface and carries
+`depth_bias: 10.0` in its material. It used to be a centimetre of offset and
+no bias, which is visible as a sheet floating off a wall at a grazing angle
+and still z-fights at range. Physical offset buys nothing that depth bias
+does not buy better.
+
+**Stains fade, and there is a ceiling.** `MAX_BLOOD_STAINS` is 256. Stains
+were the only blood effect with no bound: particles have had
+`MAX_BLOOD_PARTICLES` all along, and since droplets began marking where they
+land the number a shot leaves is not even fixed — ten rounds a second against
+a twelve-second life is nine hundred of them. Over budget, the oldest are
+told to leave early. Every stain is born with the same lifetime, so
+`remaining` is age and the smallest are the oldest; one `select_nth_unstable`
+finds the cutoff without sorting the set.
+
+They fade out over `BLOOD_STAIN_FADE_SECONDS` through a shared ladder of
+materials rather than a material per stain, so everything on the same rung
+still batches. Before this a stain vanished between one frame and the next.
 
 ## Why there is no stain on the body
 

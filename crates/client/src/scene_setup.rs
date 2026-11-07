@@ -165,16 +165,21 @@ pub(crate) fn setup_common(
         floor_stain_mesh: meshes.add(Rectangle::new(BLOOD_FLOOR_STAIN_SIZE, BLOOD_FLOOR_STAIN_SIZE)),
         stain_materials: (0..BLOOD_STAIN_VARIANTS)
             .map(|i| {
-                materials.add(StandardMaterial {
+                let base = StandardMaterial {
                     base_color: Color::srgba(1.0, 0.42, 0.38, 0.92),
                     base_color_texture: Some(asset_server.load(format!("textures/blood/splatter_{i}.png"))),
                     alpha_mode: AlphaMode::Blend,
                     perceptual_roughness: 0.12,
                     metallic: 0.0,
                     reflectance: 0.75,
+                    // Millimetres off the surface is not enough to beat depth
+                    // precision at range; the bullet holes carry the same bias
+                    // for the same reason.
+                    depth_bias: 10.0,
                     cull_mode: None,
                     ..default()
-                })
+                };
+                crate::bullet_holes::fade_ladder(&mut materials, base, BLOOD_STAIN_FADE_STEPS)
             })
             .collect(),
         wall_stain_mesh: meshes.add(Rectangle::new(BLOOD_WALL_STAIN_SIZE, BLOOD_WALL_STAIN_SIZE)),

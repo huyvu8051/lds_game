@@ -30,6 +30,7 @@ fn world_filter() -> SpatialQueryFilter {
 #[derive(Component)]
 pub(crate) struct BloodStain {
     pub(crate) remaining: f32,
+    variant: usize,
 }
 
 #[derive(Resource)]
@@ -39,7 +40,10 @@ pub(crate) struct BloodAssets {
     /// Smaller than the others: this is one droplet landing, not a wound.
     pub(crate) droplet_stain_mesh: Handle<Mesh>,
     pub(crate) floor_stain_mesh: Handle<Mesh>,
-    pub(crate) stain_materials: Vec<Handle<StandardMaterial>>,
+    /// A fade ladder per variant, `[variant][step]` -- a shared handle per
+    /// step rather than a material per stain, so everything at the same step
+    /// still batches together.
+    pub(crate) stain_materials: Vec<Vec<Handle<StandardMaterial>>>,
     pub(crate) wall_stain_mesh: Handle<Mesh>,
     pub(crate) burst_mesh: Handle<Mesh>,
     /// Frame sequences, `[variant][frame]`. A flipbook, not a fade ladder.
@@ -114,13 +118,13 @@ pub(crate) fn spawn_blood_effects(
     }
 }
 
-fn stain_variant(blood_assets: &BloodAssets, seed: f32) -> Option<Handle<StandardMaterial>> {
+fn stain_variant(blood_assets: &BloodAssets, seed: f32) -> Option<usize> {
     let materials = &blood_assets.stain_materials;
     if materials.is_empty() {
         return None;
     }
     let pick = (ops::sin(seed) * 43758.547).fract().abs();
-    materials.get((pick * materials.len() as f32) as usize % materials.len()).cloned()
+    Some((pick * materials.len() as f32) as usize % materials.len())
 }
 
 fn stain_rotation(normal: Vec3, seed: f32) -> Quat {
@@ -137,18 +141,20 @@ pub(crate) fn spawn_blood_stain(
     seed: f32,
     mesh: Handle<Mesh>,
 ) {
-    let Some(material) = stain_variant(blood_assets, seed) else {
+    let Some(variant) = stain_variant(blood_assets, seed) else {
         return;
     };
-    let transform = Transform::from_translation(point + normal.normalize_or_zero() * 0.01)
-        .with_rotation(stain_rotation(normal, seed));
+    let Some(material) = blood_assets.stain_materials.get(variant).and_then(|ladder| ladder.first()) else {
+        return;
+    };
+    let transform =
+        Transform::from_translation(point + normal.normalize_or_zero() * BLOOD_STAIN_SURFACE_OFFSET)
+            .with_rotation(stain_rotation(normal, seed));
     let mut stain = commands.spawn((
         Mesh3d(mesh),
-        MeshMaterial3d(material),
+        MeshMaterial3d(material.clone()),
         transform,
-        BloodStain {
-            remaining: BLOOD_STAIN_LIFETIME,
-        },
+        BloodStain { remaining: BLOOD_STAIN_LIFETIME, variant },
     ));
     if let Some(parent) = parent {
         stain.insert(ChildOf(parent));
@@ -221,11 +227,49 @@ pub(crate) fn update_blood_particles(
     }
 }
 
-pub(crate) fn despawn_blood_stains(mut commands: Commands, time: Res<Time>, mut query: Query<(Entity, &mut BloodStain)>) {
-    for (entity, mut stain) in &mut query {
+/// Stains are long-lived but not unbounded, and they go out by fading.
+///
+/// Written against `update_bullet_holes`, which had the same problem first:
+/// an unbounded decal spawn is a leak, and at ten rounds a second it is a
+/// fast one. Over budget, the oldest are told to leave early -- every stain
+/// is born with the same lifetime, so `remaining` is age, and the smallest
+/// are the oldest.
+pub(crate) fn update_blood_stains(
+    mut commands: Commands,
+    time: Res<Time>,
+    blood_assets: Res<BloodAssets>,
+    mut query: Query<(Entity, &mut BloodStain, &mut MeshMaterial3d<StandardMaterial>)>,
+) {
+    let over_budget = query.iter().len().saturating_sub(MAX_BLOOD_STAINS);
+    // The cutoff is the age of the last stain that has to go, so one pass can
+    // decide every stain without sorting the whole set.
+    let cutoff = (over_budget > 0).then(|| {
+        let mut ages: Vec<f32> = query.iter().map(|(_, stain, _)| stain.remaining).collect();
+        let nth = (over_budget - 1).min(ages.len() - 1);
+        ages.select_nth_unstable_by(nth, f32::total_cmp);
+        ages[nth]
+    });
+
+    for (entity, mut stain, mut material) in &mut query {
+        if cutoff.is_some_and(|cutoff| stain.remaining <= cutoff)
+            && stain.remaining > BLOOD_STAIN_FADE_SECONDS
+        {
+            stain.remaining = BLOOD_STAIN_FADE_SECONDS;
+        }
         stain.remaining -= time.delta_secs();
         if stain.remaining <= 0.0 {
             commands.entity(entity).try_despawn();
+            continue;
+        }
+        let Some(ladder) = blood_assets.stain_materials.get(stain.variant) else {
+            continue;
+        };
+        let faded = 1.0 - (stain.remaining / BLOOD_STAIN_FADE_SECONDS).clamp(0.0, 1.0);
+        let step = ((faded * BLOOD_STAIN_FADE_STEPS as f32) as usize).min(BLOOD_STAIN_FADE_STEPS - 1);
+        if let Some(rung) = ladder.get(step) {
+            if material.0 != *rung {
+                material.0 = rung.clone();
+            }
         }
     }
 }
