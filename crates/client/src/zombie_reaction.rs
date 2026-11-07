@@ -52,7 +52,6 @@ pub(crate) fn on_corpse_hit(
         point,
         normal,
         Some((bone, &bone_global)),
-        Some(body),
         false,
         direction,
         *blood_enabled,
@@ -69,7 +68,6 @@ pub(crate) fn spawn_zombie_hit_feedback(
     normal: Vec3,
     damage: f32,
     bone_for_blood: Option<(Entity, &GlobalTransform)>,
-    hit_body: Option<Entity>,
     killed: bool,
     show_floating_damage: bool,
     shot_direction: Vec3,
@@ -80,7 +78,7 @@ pub(crate) fn spawn_zombie_hit_feedback(
         if show_floating_damage {
             spawn_floating_damage(commands, point, damage);
         }
-        spawn_blood_effects(commands, blood_assets, spatial_query, time, point, normal, bone_for_blood, hit_body, killed, shot_direction, blood);
+        spawn_blood_effects(commands, blood_assets, spatial_query, time, point, normal, bone_for_blood, killed, shot_direction, blood);
     } else {
         spawn_spark_effects(commands, spark_assets, time, point, normal, sparks);
     }

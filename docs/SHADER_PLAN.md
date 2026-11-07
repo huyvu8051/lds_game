@@ -166,12 +166,20 @@ That ends the jutting without any shader work. It does not wrap a corner —
 the stain just gets smaller near one.
 
 **Already fixed, and not this.** Stains used to hang in mid-air, which looked
-like the same fault and was not. The floor-stain ray starts at the hit point,
-which is *inside* the body that was hit, and `cast_ray`'s `solid` flag reports
-a ray beginning inside a shape as a hit at zero distance. So the floor came
-back as the victim's chest, and an unparented stain was left there when the
-zombie walked on — two to four of them, every shot. The rays now exclude the
-body they came from.
+like the same fault and was not. An unparented stain is a world point, so
+leaving one on anything that moves strands it the moment that thing moves on.
+The ray that places it was hitting the ragdoll: death throws fifteen loose
+capsules out across the path of the spray from the shot that caused it, which
+is why the stains appeared on kills and hardly ever otherwise. Severed limbs
+and spent casings did it more quietly.
+
+The first attempt excluded the entity that was shot, on the theory that
+`cast_ray`'s `solid` flag was answering with the victim's own chest. It was
+not: a living zombie carries no collider at all — a shot is measured against
+capsules cast at the bone transforms in `hitbox.rs`, never entered into the
+physics world — so the exclusion named something the ray could not have hit.
+The fix that works is a layer mask. Ragdolls, limbs and casings each carry
+their own `GameLayer`, so restricting blood to `Default` covers all three.
 
 ## Rules of thumb
 
