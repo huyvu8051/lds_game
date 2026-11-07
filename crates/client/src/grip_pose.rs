@@ -57,27 +57,41 @@ pub(crate) struct GripPose {
 ///
 /// An overhand hold: the palm comes down over the handguard from the left,
 /// not up under it.
+///
+/// The sockets are siblings of the weapon mesh in the glb, not children of
+/// it, so rotating the mesh in Blender leaves every mark behind without a
+/// word. A set measured that way reads a handguard that is no longer where
+/// the mesh says it is -- the tell was `grip_in_hand`'s z at 90mm against
+/// the right hand's 48mm on the same palm. Parent the sockets to the body
+/// before posing.
 impl Default for GripPose {
     fn default() -> Self {
         Self {
-            hand_on_gun: Quat::from_xyzw(-0.509497, 0.232052, -0.563400, 0.607573),
-            grip_in_hand: Vec3::new(-0.0071, 0.0428, 0.0899),
+            hand_on_gun: Quat::from_xyzw(-0.651500, 0.275675, -0.489854, 0.509504),
+            // Measured (-0.0080, 0.0593, 0.0030), then taken three and a
+            // half centimetres left by eye. The offset is carried in the hand's
+            // own frame, so a centimetre of view-space travel is not a
+            // centimetre on any one axis here: it is
+            // -hand_on_gun.inverse() * (-0.035, 0, 0), applied once from the
+            // measurement rather than a step at a time from itself, so the
+            // rounding does not compound.
+            grip_in_hand: Vec3::new(0.0049, 0.0642, 0.0352),
             fingers: [
-                Quat::from_xyzw(0.40253, 0.01206, 0.01497, 0.91520),
-                Quat::from_xyzw(0.49890, -0.00037, -0.05344, 0.86501),
-                Quat::from_xyzw(0.23785, 0.00101, -0.02235, 0.97104),
-                Quat::from_xyzw(0.48658, -0.02284, -0.06201, 0.87113),
-                Quat::from_xyzw(0.58715, 0.00392, -0.05995, 0.80725),
-                Quat::from_xyzw(0.19563, 0.00090, -0.01736, 0.98052),
-                Quat::from_xyzw(0.68019, -0.07158, -0.01911, 0.72928),
+                Quat::from_xyzw(0.40358, 0.01200, 0.01499, 0.91474),
+                Quat::from_xyzw(0.49837, -0.00037, -0.05339, 0.86532),
+                Quat::from_xyzw(0.23790, 0.00101, -0.02236, 0.97103),
+                Quat::from_xyzw(0.48514, -0.02285, -0.06168, 0.87196),
+                Quat::from_xyzw(0.58739, 0.00392, -0.05998, 0.80707),
+                Quat::from_xyzw(0.19567, 0.00090, -0.01736, 0.98052),
+                Quat::from_xyzw(0.78818, -0.03787, -0.07864, 0.60922),
                 Quat::from_xyzw(0.58355, 0.00496, -0.06275, 0.80963),
-                Quat::from_xyzw(0.01033, -0.00168, -0.01443, 0.99984),
-                Quat::from_xyzw(0.58149, -0.03363, -0.07004, 0.80984),
-                Quat::from_xyzw(0.62112, 0.00350, -0.06940, 0.78063),
+                Quat::from_xyzw(0.00991, -0.00167, -0.01438, 0.99985),
+                Quat::from_xyzw(0.58070, -0.03363, -0.06987, 0.81042),
+                Quat::from_xyzw(0.62121, 0.00350, -0.06941, 0.78056),
                 Quat::from_xyzw(0.16601, -0.00161, -0.02635, 0.98577),
-                Quat::from_xyzw(0.13359, 0.06145, 0.16997, 0.97442),
-                Quat::from_xyzw(0.10248, 0.17281, -0.04630, 0.97851),
-                Quat::from_xyzw(-0.12530, 0.02766, 0.08646, 0.98796),
+                Quat::from_xyzw(0.13332, 0.06042, 0.16891, 0.97470),
+                Quat::from_xyzw(0.06754, 0.15785, 0.11112, 0.97886),
+                Quat::from_xyzw(-0.12498, 0.02753, 0.08647, 0.98800),
             ],
         }
     }

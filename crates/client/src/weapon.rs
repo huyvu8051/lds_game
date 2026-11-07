@@ -544,7 +544,7 @@ impl WeaponId {
 static AK47: WeaponDef = WeaponDef {
     name: "AK-47",
     mesh_path: "models/ak47_scope/mesh/ak47_scope.glb",
-    rest_offset: Vec3::new(0.160, -0.0905, -0.7094),
+    rest_offset: Vec3::new(0.1400, -0.1105, -0.7094),
     ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { down: 8.0, up: 5.5 },
     hold_ads_fraction: 0.192,
@@ -632,7 +632,7 @@ static AK47: WeaponDef = WeaponDef {
 static M4A1: WeaponDef = WeaponDef {
     name: "M4A1",
     mesh_path: "models/m4a1/mesh/m4a1_rigged.glb",
-    rest_offset: Vec3::new(0.160, -0.1018, -0.626),
+    rest_offset: Vec3::new(0.1400, -0.1218, -0.626),
     ads_eye_relief: 0.11,
     ads_speed: AdsSpeed { down: 16.0, up: 9.0 },
     hold_ads_fraction: 0.300,
@@ -718,7 +718,7 @@ static M4A1: WeaponDef = WeaponDef {
 static M24: WeaponDef = WeaponDef {
     name: "M24",
     mesh_path: "models/m24/mesh/m24.glb",
-    rest_offset: Vec3::new(0.160, -0.0905, -0.9770),
+    rest_offset: Vec3::new(0.1400, -0.1105, -0.977),
     // Was 0.02, the closest of any weapon here: the eye came right up behind
     // the rear glass and the tube filled the view it was aiming through.
     // 0.10 stands the rifle off about where the AK holds its optic, and the
@@ -810,7 +810,7 @@ static UMP45: WeaponDef = WeaponDef {
     // 0.71m out, so 0.160 puts it 13 degrees off the view axis, while this
     // one is 0.34m out and the same number threw it 26 degrees, half off the
     // right of the screen.
-    rest_offset: Vec3::new(0.090, -0.0700, -0.3375),
+    rest_offset: Vec3::new(0.0700, -0.0900, -0.3375),
     ads_eye_relief: 0.11,
     // Lightest of the five and the shortest: it comes up faster than either
     // carbine and far faster than the bolt gun.
@@ -900,7 +900,7 @@ static DEAGLE: WeaponDef = WeaponDef {
     // on the right shoulder and lives off to that side; a pistol in two hands
     // comes to the middle of the chest and goes out on the arms.
 
-    rest_offset: Vec3::new(0.095, -0.0450, -0.4200),
+    rest_offset: Vec3::new(0.0750, -0.0650, -0.42),
     // Furthest eye relief of the five: a pistol's rear sight ends up further
     // from the eye than a carbine's, because the arms set the distance rather
     // than the stock.
