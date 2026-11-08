@@ -16,6 +16,7 @@ rather than a trip through an art tool.
 | Mist cloud | the same frames, two puffs, larger and fainter | 0.37-0.55s |
 | Droplets | `BloodParticle`, `update_blood_particles` | 0.6s |
 | Stains | `spawn_blood_stain`, `update_blood_stains` | 45s pools, 10s specks |
+| Wounds | `wounds.rs`, skinned shader | as long as the body |
 
 A hit spawns, in order: a burst at the entry point with its mist behind it,
 eleven droplets, the same pair again at the exit point with its own droplets,
@@ -167,52 +168,88 @@ quads that sort per object, so two overlapping ones can swap order as the
 camera moves. Only writing into a GBuffer fixes that, and there is no
 GBuffer.
 
-## Why there is no stain on the body
+## Marks on the body, in bind space
 
-There was one: a 22cm quad parented to the bone that was hit. It read as
-pasted on, and the geometry says why. A torso is a cylinder of roughly 17cm
-radius, and a flat quad laid tangent to it stands clear of the surface at its
-edges by
+A round leaves a mark where it went in, and the body keeps it.
+
+**It is not a decal, and it is not painted into a texture.** Both were tried
+on paper and both were wrong here. A projected decal reads the depth buffer,
+which knows where a chest is this frame but not which bone a mark belongs to,
+so it cannot follow an animation. The shipped answer for characters is to
+paint into the character's own UV space -- render the mesh with UVs as clip
+position, project the skinned world position through the hit's box, discard
+outside, accumulate in a small per-character buffer. That wants UVs that do
+not overlap, and four of the seven zombie characters fail it: `cop`,
+`parasite` and `romero` have UV triangle area over 1.0, and `classic` and
+`parasite` run outside the unit square entirely.
+
+**Bind space needs neither.** `v.position` in the skinned vertex shader is
+the vertex before any bone moved it, and the bind pose never changes. A point
+recorded there follows the animation for nothing. The cost is two varyings
+and a short loop.
+
+Where it is kept: `wounds.rs` holds a `ZombieWounds` per body, twelve deep,
+oldest first out. The shot path records the hit in the nearest bone's own
+frame, because it knows which bone was hit and has no business querying
+assets; `resolve_zombie_wounds` finishes the conversion with
+`inverse_bind⁻¹ * local`, which is the inverse of what `joint_matrices_for`
+builds. The renderer takes them as twelve `float4` in `MeshUniforms` -- xyz
+the point, w the reach -- and blends them into the albedo before the light
+touches it, so a mark takes the same shadow as the skin around it.
+
+What makes it read as a wound rather than a stain is three things, and the
+texture is the smallest of them:
+
+- **A torn edge.** Three octaves of tiling value noise, generated in the
+  renderer, sampled on all three planes of bind space and weighted by the
+  bind normal -- triplanar, because there is no UV to sample along. It moves
+  each wound's boundary in and out rather than fading the disc, so the edge
+  comes apart into streaks. Three samples a fragment, not three a wound.
+- **A cavity.** The inner part goes most of the way to black on a tighter
+  curve than the blood's. A hole reads as a hole because it is dark; nothing
+  about it is modelled.
+- **A wet highlight.** Shininess and specular strength both lerp toward a
+  tighter, brighter pair across the wound, so blood catches a hard little
+  highlight the cloth beside it does not. At zero they are exactly the
+  constants everything else uses.
+
+Plus a crater: the bloodied area lifts, the cavity sinks, and the
+screen-space gradient of that height bends the normal. Unparametrised bump
+mapping, so it borrows no tangent and no UV of its own.
+
+**What it gives up** is a painted shape. Each wound is a sphere, so it wraps
+a thin limb and marks the far side -- at these radii that reads as blood
+having run round a wrist, which is not the wrong picture -- and a body stops
+gaining marks at twelve rather than growing a buffer nobody drains.
+
+### The flat quad this replaced
+
+Worth keeping, because the geometry is why it never worked. It was a 22cm
+quad parented to the bone. A torso is a cylinder of roughly 17cm radius, and
+a flat quad laid tangent to it stands clear of the surface at its edges by
 
     R - sqrt(R**2 - w**2)  =  0.17 - 0.130  =  4cm
 
-so the edges floated, and at the silhouette the quad crossed outside the
-body's own outline. Shrinking it helps — the gap falls with the square of the
-quad, and an 8cm quad stands off only 0.5cm — but it does not fix the
-silhouette.
-
-**The industry answer for characters is not a decal at all.** Projected
-decals read the depth buffer, which does not work for skinned meshes. What is
-used instead is a *texture-space* decal: render the character mesh with its
-UVs as clip-space position (input UVs become output positions, input
-positions become output UVs), hand the skinned world position to the pixel
-shader, project that through the decal's box and discard outside it. The
-result lands in a small per-character accumulation buffer — SkinGore runs at
-64x64 — which the character's material then samples. It conforms exactly, it
-follows animation for free, and wounds accumulate almost for nothing. The
-catch is a seam artifact at UV island borders, needing a dilation pass, and a
-hard requirement of non-overlapping UVs.
-
-**It was not worth building here, for two measured reasons.**
-
-*The body does not stay.* `CorpseStages` defaults to `linger: false`, so
-`ZOMBIE_LIE_STILL_SECONDS` is 0 and `DISSOLVE_DURATION` is 1.1s. A corpse
-begins sinking as soon as it stops moving.
-
-*The meshes are not ready for it.* All three zombies carry only `TEXCOORD_0`
-— no second UV channel to escape to — and `zombie.glb` has `u` running to
--0.53, so part of it maps outside the unit square entirely. Texture-space
-decals would mean re-unwrapping every character.
-
-And the games this is modelled on do not keep wounds on a body either, for
-the same reason: in a fast shooter the body is gone before anyone can look.
-The blood that reads as theirs is the spray and the marks left on the world.
+so the edges floated and at the silhouette the quad crossed outside the
+body's own outline. Shrinking it helps -- the gap falls with the square of
+the quad -- but never the silhouette.
 
 ## Not done
 
 **Soft particles.** Droplets and bursts cut hard against geometry they
-intersect. Same work package, same reason: it needs the depth buffer readable
-in a fragment shader.
+intersect. It needs the depth buffer readable in a fragment shader, which is
+a new pass in the Metal renderer.
+
+**Overlapping stains can swap order.** They are alpha-blended quads sorted
+per object by distance to their centre, which is the standard approximation
+and the standard failure: two stains on one wall sit at nearly the same
+distance, so a small camera move can flip which draws first. Only writing
+into a GBuffer fixes it, and there is no GBuffer. The symptom needs two
+stains overlapping to show at all.
+
+**A grenade is on `GameLayer::Default`.** `grenade.rs` declares no layer, so
+blood lands on one in flight and is stranded when it rolls on. One line, at
+the grenade's end rather than the blood's.
 
 ## Testing each piece
 

@@ -126,11 +126,16 @@ luminance of the frame, so it needs a downsample pass feeding back into
 exposure — multi-pass, not a single fragment shader. Bevy 0.19 ships no
 auto-exposure to lean on either. Worth doing, but it is not a cheap one.
 
-### Wet blood, the rest of it — tier 2
-Decals now take real lighting, so there is already a specular that moves with
-the view — that part is done without a shader. What is left is control: a
-glossy pool interior against a rough dried rim, which needs a roughness map or
-a shader reading light bindings. Low priority now that the cheap half landed.
+### Wet blood — done, on bodies
+The control this asked for — a glossy interior against a rougher rim — exists
+now in the Metal renderer's skinned shader, where a wound lerps shininess and
+specular strength toward a tighter, brighter pair across its own falloff. No
+roughness map was needed: the wound field is the mask.
+
+It is only on bodies. Stains on the world are still `StandardMaterial` quads
+at one fixed roughness, and giving them the same treatment means either a
+roughness map per stain variant or a custom material, which is the Bevy side
+rather than the Metal one. See `BLOOD.md`.
 
 ### Burn-away dissolve — tier 2
 Death currently sinks and fades the corpse, which needs no shader. A burn edge
