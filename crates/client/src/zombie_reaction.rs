@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::wounds::{ZombieWounds, WOUND_REACH};
+
 use crate::*;
 
 /// A round landing on a body that is still playing its death clip.
@@ -32,19 +34,29 @@ pub(crate) fn on_corpse_hit(
     blood_enabled: Res<BloodEnabled>,
     spatial_query: SpatialQuery,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut wounds: Query<&mut crate::wounds::ZombieWounds>,
     time: Res<Time>,
 ) {
     let CorpseHit { body, point, normal, damage, direction } = *trigger.event();
     let Ok(bones) = bodies.get(body) else {
         return;
     };
-    let Some((bone, _)) = nearest_zombie_bone(bones, point, &globals) else {
+    let Some((bone, bone_global)) = nearest_zombie_bone(bones, point, &globals) else {
         return;
     };
     // A corpse takes the hit too: it bleeds, and it moves. Nothing else
     // about the round counts -- no damage, no kill, no chime -- but one
     // going into a body has to look like one.
     spawn_bone_flinch(&mut commands, bones, bone, -normal, damage, &globals, &child_of);
+    // And it keeps the mark, the same way a live one does.
+    match wounds.get_mut(body) {
+        Ok(mut marks) => marks.record(bone, &bone_global, point, WOUND_REACH),
+        Err(_) => {
+            let mut marks = ZombieWounds::default();
+            marks.record(bone, &bone_global, point, WOUND_REACH);
+            commands.entity(body).insert(marks);
+        }
+    }
     spawn_blood_effects(
         &mut commands,
         &blood_assets,

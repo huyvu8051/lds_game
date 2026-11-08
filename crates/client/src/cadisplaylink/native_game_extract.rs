@@ -34,7 +34,7 @@ pub struct ExtractQueries {
         Q<'static, 'static, &'static crate::Gun>,
     )>,
     zombies: SystemState<(
-        Q<'static, 'static, (bevy::ecs::entity::Entity, &'static GlobalTransform, Option<&'static ZombieKind>), With<shared::ZombieBody>>,
+        Q<'static, 'static, (bevy::ecs::entity::Entity, &'static GlobalTransform, Option<&'static ZombieKind>, Option<&'static crate::wounds::ZombieWounds>), With<shared::ZombieBody>>,
         Q<'static, 'static, &'static Children>,
         Q<'static, 'static, &'static SkinnedMesh>,
         Q<'static, 'static, &'static GlobalTransform>,
@@ -255,7 +255,7 @@ pub fn extract_render_snapshot(
         queries.zombies.get(world).expect("system param validation failed");
     snapshot.skinned_actors = zombie_query
         .iter()
-        .map(|(entity, transform, kind)| {
+        .map(|(entity, transform, kind, wounds)| {
             let joint_matrices = find_first_skinned_mesh(entity, &children_query, &skinned_mesh_query)
                 .and_then(|mesh_entity| skinned_mesh_query.get(mesh_entity).ok())
                 .map(|skinned| joint_matrices_for(skinned, &joint_globals, &inverse_bindposes_assets))
@@ -273,6 +273,7 @@ pub fn extract_render_snapshot(
                 bounds_centre,
                 bounds_radius,
                 viewmodel: false,
+                wounds: wounds.map(|w| w.bind.clone()).unwrap_or_default(),
             }
         })
         .collect();
@@ -362,6 +363,8 @@ pub fn extract_render_snapshot(
                 // cuts them the way it cuts the gun. Nothing else skinned
                 // ever is.
                 viewmodel: true,
+                // Players do not carry wounds; only a zombie is shot here.
+                wounds: Vec::new(),
             }
         }));
     }
@@ -395,6 +398,8 @@ pub fn extract_render_snapshot(
             SkinnedRenderState {
                 transform, joint_matrices, model: "soldier", bounds_centre, bounds_radius,
                 viewmodel: false,
+                // Players do not carry wounds; only a zombie is shot here.
+                wounds: Vec::new(),
             }
         }),
     );

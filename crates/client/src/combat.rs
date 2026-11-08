@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use shared::player::GameLayer;
 
 use crate::dismember::LimbDamage;
+use crate::wounds::{ZombieWounds, WOUND_REACH};
 use crate::dissolve::begin_death;
 use crate::CorpseStages;
 use crate::ragdoll::{DeathClipPlaying, DEATH_PUSH_SPEED};
@@ -64,6 +65,7 @@ pub(crate) fn handle_fire_shot(
         ),
     >,
     layers: Query<&CollisionLayers>,
+    mut wounds: Query<&mut ZombieWounds>,
 ) {
     for mut threat in &mut threats {
         threat.0 += PLAYER_THREAT_PER_SHOT;
@@ -148,6 +150,24 @@ pub(crate) fn handle_fire_shot(
             continue;
         };
         let (hit_point, normal, damage) = (hit.point, hit.normal, hit.damage);
+
+        // The mark the round leaves on the body, as opposed to the spray it
+        // throws off it. Recorded against the nearest bone so it rides the
+        // animation; see `wounds.rs` for why not a decal and not a texture.
+        if let Ok((.., hitbox_bones, _, _, _, _)) = zombies.get(entity) {
+            if let Some((bone, bone_global)) =
+                crate::zombie_reaction::nearest_zombie_bone(hitbox_bones, hit_point, &bone_globals)
+            {
+                match wounds.get_mut(entity) {
+                    Ok(mut marks) => marks.record(bone, &bone_global, hit_point, WOUND_REACH),
+                    Err(_) => {
+                        let mut marks = ZombieWounds::default();
+                        marks.record(bone, &bone_global, hit_point, WOUND_REACH);
+                        commands.entity(entity).insert(marks);
+                    }
+                }
+            }
+        }
         if let Some((limb, segment)) = hit.limb {
             limb_damage.record(entity, limb, segment, damage);
         }

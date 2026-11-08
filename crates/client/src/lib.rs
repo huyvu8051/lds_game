@@ -36,6 +36,7 @@ mod items;
 mod inventory;
 mod zombie_locomotion;
 mod blood_burst;
+mod wounds;
 mod inventory_screen;
 mod grenade;
 mod weapon_swap;
@@ -1579,6 +1580,7 @@ app.init_resource::<MagazineInHand>()
                 ),
                 update_spark_particles,
                 update_blood_stains,
+                wounds::resolve_zombie_wounds,
             )
                 .chain()
                 .run_if(ablation::group(ablation::Group::Vfx)),
